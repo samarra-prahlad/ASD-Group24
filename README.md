@@ -9,7 +9,7 @@ ASD T2 2026 · Release 0 — Agentic AI Foundation and DevOps (ASD 41026)
 - `shared/database` — built, tested, returns real patient data
 - `shared/backend` — built, tested, confirmed calling `shared/database` over HTTP
 - `shared/frontend` — Dockerfile ready; HTML/CSS content in progress
-- `ai-services/ai-mode` — built and tested standalone (full Plan → Act → Observe → Adapt cycle runs and exits cleanly); full integration pending student backends
+- `ai-services/ai-mode` — plain Python script (no Dockerfile, not part of docker-compose), tested standalone: full Plan → Act → Observe → Adapt cycle runs and exits cleanly
 - `.github/workflows/4-samarra-billing-ci.yml` — correctly scoped with `paths:` filter, triggers on push, fails as expected (billing service code not yet written)
 
 **Not started yet:**
@@ -27,7 +27,8 @@ ASD T2 2026 · Release 0 — Agentic AI Foundation and DevOps (ASD 41026)
 | 5 | Maximilian | Lab Tests | 3005 | 5005 | 6005 |
 | 6 | Brian | Ward & Bed Management | 3006 | 5006 | 6006 |
 | — | Shared (team-owned) | Access API & identity | 3000 | 5000 | 6000 |
-*ai-mode runs standalone (see Container count section below) and not part of the docker-compose stack.*
+
+`ai-mode` (agentic loop) runs as a standalone Python script — no port, no container, not part of the docker-compose stack. See Container count section below.
 
 ## Prerequisites
 
@@ -135,14 +136,15 @@ Each workflow runs two jobs:
 Following the sample architecture's formula (Group of 5 → 18-container application):
 `students × 3 (frontend/backend/database) + shared microservice × 3`
 
-Scaled for our 6-person team: **6 × 3 + 3 = 21 containers**, run via `docker-compose up --build`.
+Scaled for our 6-person team: **6 × 3 + 3 = 21 Dockerfiles / 21 containers**, run via `docker-compose up --build`. No other Dockerfiles exist in the repository.
 
-`ai-services/ai-mode` (the shared Plan → Act → Observe → Adapt agentic loop) is run standalone, not as a docker-compose service — same pattern as Lab 04's `agentic_loop.py`. Build and run it manually when demonstrating the agentic workflow:
+`ai-services/ai-mode` (the shared Plan → Act → Observe → Adapt agentic loop) has no Dockerfile and is not containerised. It runs as a plain Python script — same pattern as Lab 04's `agentic_loop.py`:
 ```bash
 cd ai-services/ai-mode
-docker build -t ai-mode .
-docker run -it ai-mode
+pip install -r requirements.txt
+python app.py
 ```
+
 ## Questions / blockers
 
 - Make sure to write comprehensive test cases (using pytest) before implementing
