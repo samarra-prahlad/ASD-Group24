@@ -1,9 +1,11 @@
 from flask import Flask, jsonify
+from flask_cors import CORS
 import sqlite3
 
 app = Flask(__name__)
+CORS(app)
 
-DATABASE = "3-william-pharmacy\\database\\pharmacy.db"
+DATABASE = "/data/pharmacy.db"
 
 
 def get_db():
@@ -25,4 +27,4 @@ def get_medications():
     return jsonify([dict(row) for row in medications])
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5002, debug=True)
+    app.run(host="0.0.0.0", port=5103, debug=True)

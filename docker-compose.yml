@@ -1,0 +1,19 @@
+services:
+
+  3-backend:
+    build: 
+      context: ./3-william-pharmacy
+      dockerfile: backend/Dockerfile
+    ports:
+      - "5103:5103"
+    volumes:
+      - ./3-william-pharmacy/database:/data
+    environment:
+      DATABASE_PATH: /data/pharmacy.db
+
+  3-frontend:
+    build: ./3-william-pharmacy/frontend
+    ports:
+      - "3300:80"
+    depends_on:
+      - 3-backend

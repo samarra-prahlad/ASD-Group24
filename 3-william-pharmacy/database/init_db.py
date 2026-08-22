@@ -1,7 +1,11 @@
 import os
 import sqlite3
 
-database_path = os.path.join(os.path.dirname(__file__), 'pharmacy.db')
+database_path = os.environ.get(
+    "DATABASE_PATH",
+    "../database/pharmacy.db"
+)
+
 conn = sqlite3.connect(database_path)
 
 cursor = conn.cursor()

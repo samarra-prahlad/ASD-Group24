@@ -1,0 +1,55 @@
+<body>
+    <h1>Pharmacy Medications</h1>
+
+    <p id="error"></p>
+
+    <table>
+        <thead>
+            <tr id="table-header"></tr>
+        </thead>
+
+        <tbody id="medications"></tbody>
+    </table>
+
+    <script>
+        async function loadMedications() {
+            try {
+                const response = await fetch("http://localhost:5103/medications");
+
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+
+                const medications = await response.json();
+
+                if (medications.length === 0) {
+                    document.getElementById("medications").innerHTML =
+                        "<tr><td colspan='100%'>No medications found.</td></tr>";
+                    return;
+                }
+
+                const headers = Object.keys(medications[0]);
+
+                document.getElementById("table-header").innerHTML =
+                    headers.map(header => `<th>${header}</th>`).join("");
+
+                document.getElementById("medications").innerHTML =
+                    medications.map(medication => `
+                        <tr>
+                            ${headers.map(header =>
+                                `<td>${medication[header]}</td>`
+                            ).join("")}
+                        </tr>
+                    `).join("");
+
+            } catch (error) {
+                document.getElementById("error").textContent =
+                    "Failed to load medications.";
+                console.error(error);
+            }
+        }
+
+        loadMedications();
+    </script>
+
+</body>
