@@ -46,6 +46,11 @@ for feature in "${FEATURES[@]}"; do
             fail "$feature/$tier/Dockerfile missing"
         fi
     done
+    # A leftover top-level Dockerfile means the folder was never split
+    # into frontend/backend/database properly — flag it.
+    if [ -f "$feature/Dockerfile" ]; then
+        fail "$feature/Dockerfile exists at top level — should not exist, only frontend/backend/database Dockerfiles are expected"
+    fi
 done
 
 echo
@@ -68,8 +73,8 @@ for dir in "${!SHARED_FILES[@]}"; do
 done
 
 echo
-echo "4. ai-services/ai-mode — full file set"
-for file in requirements.txt plan.py act.py observe.py adapt.py app.py Dockerfile; do
+echo "4. ai-services/ai-mode — full file set (plain Python, no Dockerfile expected)"
+for file in requirements.txt plan.py act.py observe.py adapt.py app.py; do
     path="ai-services/ai-mode/$file"
     if [ -s "$path" ]; then
         pass "$path exists and is non-empty"
@@ -79,9 +84,23 @@ for file in requirements.txt plan.py act.py observe.py adapt.py app.py Dockerfil
         fail "$path missing"
     fi
 done
+if [ -f "ai-services/ai-mode/Dockerfile" ]; then
+    warn "ai-services/ai-mode/Dockerfile exists — ai-mode is meant to run as plain Python, not containerised. Remove this file unless the team has deliberately decided to containerise it."
+else
+    pass "ai-services/ai-mode has no Dockerfile (expected — runs as plain Python, not part of docker-compose)"
+fi
 
 echo
-echo "5. Port consistency — docker-compose.yml vs README.md"
+echo "5. Total Dockerfile count (expected: 21 = 6 students x 3 + shared x 3)"
+DOCKERFILE_COUNT=$(find . -name "Dockerfile" -not -path "./.git*" | wc -l | tr -d ' ')
+if [ "$DOCKERFILE_COUNT" -eq 21 ]; then
+    pass "Found exactly 21 Dockerfiles"
+else
+    fail "Found $DOCKERFILE_COUNT Dockerfiles, expected 21 — run 'find . -name \"Dockerfile\" -not -path \"./.git*\"' to see the full list and spot the extra/missing one"
+fi
+
+echo
+echo "6. Port consistency — docker-compose.yml vs README.md"
 if [ -f docker-compose.yml ] && [ -f README.md ]; then
     COMPOSE_PORTS=$(grep -oE '"[0-9]{4}:[0-9]{2,4}"' docker-compose.yml | grep -oE '^"[0-9]{4}' | tr -d '"' | sort -u)
     README_PORTS=$(grep -oE '\| [0-9]{4} \|' README.md | grep -oE '[0-9]{4}' | sort -u)
@@ -89,14 +108,14 @@ if [ -f docker-compose.yml ] && [ -f README.md ]; then
     if [ -z "$MISSING_IN_README" ]; then
         pass "All docker-compose.yml ports appear in README.md"
     else
-        warn "Ports in docker-compose.yml but not found in README.md: $(echo $MISSING_IN_README | tr '\n' ' ')"
+        warn "Ports in docker-compose.yml but not found in README.md (often a false positive from table formatting — verify manually): $(echo $MISSING_IN_README | tr '\n' ' ')"
     fi
 else
     warn "docker-compose.yml or README.md missing — skipped port check"
 fi
 
 echo
-echo "6. CI workflows — paths filter check"
+echo "7. CI workflows — paths filter check"
 if [ -d .github/workflows ]; then
     for wf in .github/workflows/*.yml; do
         name=$(basename "$wf")
@@ -116,13 +135,11 @@ fi
 
 if [ "${1:-}" == "--build" ]; then
     echo
-    echo "7. Build + smoke test known-working services (this takes a minute)"
+    echo "8. Build + smoke test known-working services (this takes a minute)"
     docker build -t verify-shared-db-test shared/database > /tmp/verify-db.log 2>&1 \
         && pass "shared/database builds" || fail "shared/database build failed (see /tmp/verify-db.log)"
     docker build -t verify-shared-backend-test shared/backend > /tmp/verify-backend.log 2>&1 \
         && pass "shared/backend builds" || fail "shared/backend build failed (see /tmp/verify-backend.log)"
-    docker build -t verify-ai-mode-test ai-services/ai-mode > /tmp/verify-aimode.log 2>&1 \
-        && pass "ai-services/ai-mode builds" || fail "ai-services/ai-mode build failed (see /tmp/verify-aimode.log)"
 else
     echo
     echo "(skipping actual docker builds — pass --build to include them)"
