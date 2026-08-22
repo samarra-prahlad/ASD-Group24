@@ -10,10 +10,11 @@ ASD T2 2026 · Release 0 — Agentic AI Foundation and DevOps (ASD 41026)
 - `shared/backend` — built, tested, confirmed calling `shared/database` over HTTP
 - `shared/frontend` — Dockerfile ready; HTML/CSS content in progress
 - `ai-services/ai-mode` — built and tested standalone (full Plan → Act → Observe → Adapt cycle runs and exits cleanly); full integration pending student backends
+- `.github/workflows/4-samarra-billing-ci.yml` — correctly scoped with `paths:` filter, triggers on push, fails as expected (billing service code not yet written)
 
 **Not started yet:**
 - All six student feature folders — Dockerfiles exist, `app.py`/`requirements.txt` still empty/non-existent
-- GitHub Actions workflows (`student-1.yml` – `student-6.yml`)
+- Other five `*-ci.yml` files need the `paths:` filter added (currently trigger on every push, not just their own folder)
 
 ## Team & feature allocation
 
@@ -103,6 +104,34 @@ Note: this will only fully succeed once all six feature folders have their files
 - Open a PR into `main` when your service builds and its endpoints return real data via `curl`. This means that main will consistently be updated as features are built and working
 - Resolve conflicts before merging
 
+## CI workflows (GitHub Actions)
+
+Each feature has its own workflow in `.github/workflows/`, named `<n>-<name>-<feature>-ci.yml`. Every workflow must scope itself to its own folder using a `paths:` filter — otherwise a push to any file in the repo triggers every workflow, wasting CI minutes.
+
+Reference pattern (from `4-samarra-billing-ci.yml`, already working correctly):
+
+```yaml
+on:
+  push:
+    branches: [main]
+    paths:
+      - '<your-folder>/**'
+  pull_request:
+    branches: [main]
+    paths:
+      - '<your-folder>/**'
+```
+
+Each workflow runs two jobs:
+1. **Pre-commit pytest validation** — installs your backend/database `requirements.txt`, runs `pytest <your-folder>/tests/`
+2. **Post-commit AI-assisted unit testing** — currently a placeholder step; team to confirm what "AI-assisted" testing means for our services before filling in
+
+**Action needed from everyone**: add the `paths:` filter above to your own `*-ci.yml` if it's missing — check by pushing a small change and confirming only your workflow triggers, not all six.
+
+`cloud-deployment.yml` is a Release 2 requirement (not needed yet) and `integration-ci.yml` is currently unscoped — confirm with the team whether it's intentional before Release 0 submission.
+
 ## Questions / blockers
+
 - Make sure to write comprehensive test cases (using pytest) before implementing
+
 Ping Samarra (team lead) or raise it in the group chat, please don't sit on a blocker!
