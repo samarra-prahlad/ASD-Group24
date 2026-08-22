@@ -26,6 +26,17 @@ CREATE TABLE IF NOT EXISTS medical_records (
 )
 """)
 
+cursor.execute("""
+CREATE TABLE IF NOT EXISTS change_requests (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    patient_id INTEGER NOT NULL,
+    request_type TEXT NOT NULL,
+    request_details TEXT,
+    status TEXT DEFAULT 'pending',
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP
+)
+""")
+
 conn.commit()
 
 cursor.execute("SELECT COUNT(*) FROM medical_records")
