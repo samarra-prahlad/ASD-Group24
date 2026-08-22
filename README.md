@@ -133,5 +133,6 @@ Each workflow runs two jobs:
 ## Questions / blockers
 
 - Make sure to write comprehensive test cases (using pytest) before implementing
+- Run the verification script before pushing: `bash scripts/test/verify-setup.sh`
 
 Ping Samarra (team lead) or raise it in the group chat, please don't sit on a blocker!
