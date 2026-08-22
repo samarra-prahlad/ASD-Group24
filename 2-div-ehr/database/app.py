@@ -20,7 +20,7 @@ def get_records(patient_id):
     records = db.execute(
         "SELECT * FROM medical_records WHERE patient_id = ? ORDER BY visit_date DESC",
         (patient_id,)
-    ).fetachall()
+    ).fetchall()
     db.close()
     return jsonify([dict(record) for record in records])
 
@@ -31,7 +31,7 @@ def create_record():
     db = get_db()
     cursor = db.execute("""
         INSERT INTO medical_records (patient_id, visit_date, diagnosis, doctor_name, treatment, notes, allergies)
-        VALUES (?, ?, ?, ?, ?, ?, ?)"""
+        VALUES (?, ?, ?, ?, ?, ?, ?)""",
         (
             data["patient_id"],
             data.get("visit_date"),

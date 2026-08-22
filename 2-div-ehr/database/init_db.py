@@ -6,6 +6,8 @@ database_path = os.environ.get(
 "/app/data/ehr.db"
 )
 
+os.makedirs(os.path.dirname(database_path), exist_ok=True)
+
 conn = sqlite3.connect(database_path)
 
 cursor = conn.cursor()
