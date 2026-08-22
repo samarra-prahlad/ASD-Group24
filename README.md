@@ -5,7 +5,7 @@ ASD T2 2026 · Release 0 — Agentic AI Foundation and DevOps (ASD 41026)
 ## Status
 
 **Working right now:**
-- `docker-compose.yml` — all 22 service containers wired and validated
+- `docker-compose.yml` — all 21 service containers wired and validated
 - `shared/database` — built, tested, returns real patient data
 - `shared/backend` — built, tested, confirmed calling `shared/database` over HTTP
 - `shared/frontend` — Dockerfile ready; HTML/CSS content in progress
@@ -27,7 +27,7 @@ ASD T2 2026 · Release 0 — Agentic AI Foundation and DevOps (ASD 41026)
 | 5 | Maximilian | Lab Tests | 3005 | 5005 | 6005 |
 | 6 | Brian | Ward & Bed Management | 3006 | 5006 | 6006 |
 | — | Shared (team-owned) | Access API & identity | 3000 | 5000 | 6000 |
-| — | Shared (team-owned) | ai-mode | — | 5100 | — |
+*ai-mode runs standalone (see Container count section below) and not part of the docker-compose stack.*
 
 ## Prerequisites
 
@@ -130,6 +130,19 @@ Each workflow runs two jobs:
 
 `cloud-deployment.yml` is a Release 2 requirement (not needed yet) and `integration-ci.yml` is currently unscoped — confirm with the team whether it's intentional before Release 0 submission.
 
+## Container count
+
+Following the sample architecture's formula (Group of 5 → 18-container application):
+`students × 3 (frontend/backend/database) + shared microservice × 3`
+
+Scaled for our 6-person team: **6 × 3 + 3 = 21 containers**, run via `docker-compose up --build`.
+
+`ai-services/ai-mode` (the shared Plan → Act → Observe → Adapt agentic loop) is run standalone, not as a docker-compose service — same pattern as Lab 04's `agentic_loop.py`. Build and run it manually when demonstrating the agentic workflow:
+```bash
+cd ai-services/ai-mode
+docker build -t ai-mode .
+docker run -it ai-mode
+```
 ## Questions / blockers
 
 - Make sure to write comprehensive test cases (using pytest) before implementing

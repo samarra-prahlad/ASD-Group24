@@ -37,27 +37,6 @@ services:
     networks:
       - healthcare-network
     restart: unless-stopped
-
-  # ---------- AI services ----------
-  ai-mode:
-    build:
-      context: ./ai-services/ai-mode
-    container_name: ai-mode
-    ports:
-      - "5100:5100"
-    environment:
-      OLLAMA_BASE_URL: http://host.docker.internal:11434/v1
-      OLLAMA_MODEL: qwen2.5:0.5b
-      OLLAMA_REVIEW_MODEL: llama3.1:8b
-      SHARED_ACCESS_API_URL: http://shared-backend:5000
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
-    depends_on:
-      - shared-backend
-    networks:
-      - healthcare-network
-    restart: unless-stopped
-
   # ---------- Student 1: Appointments (Kathrynna) ----------
   appointments-frontend:
     build:
