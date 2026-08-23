@@ -23,6 +23,7 @@ CREATE TABLE IF NOT EXISTS users (
 sample_users = [
     (101, "Alice Nguyen", "1990-04-12", "alice@example.com", "patient", "0400111222"),
     (102, "Ben Carter", "1985-09-03", "ben@example.com", "patient", "0400333444"),
+    (201, "Dr. Sarah Chen", "1978-11-20", "sarah@example.com", "doctor", "0400555666")
 ]
 
 cursor.executemany(
