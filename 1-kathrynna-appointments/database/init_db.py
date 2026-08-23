@@ -39,6 +39,11 @@ sample_doctors = [
     (203, "Dr. Michael Brown", "General Practice", "Mon-Wed 08:00-15:00"),
     (204, "Dr. Sarah Davis", "Pediatrics", "Mon-Fri 09:00-17:00"),
     (205, "Dr. William Wilson", "Psychiatry", "Tue-Fri 10:00-18:00"),
+    (206, "Dr. Olivia Martinez", "Neurology", "Mon-Thu 09:00-16:00"),
+    (207, "Dr. James Anderson", "Orthopedics", "Mon-Fri 08:30-17:00"),
+    (208, "Dr. Isabella Thomas", "General Practice", "Mon-Wed 09:00-15:30"),
+    (209, "Dr. Benjamin Taylor", "Endocrinology", "Tue-Fri 10:00-17:00"),
+    (210, "Dr. Sophia Moore", "Gastroenterology", "Mon-Thu 08:00-14:30"),
 ]
 
 cursor.executemany(
