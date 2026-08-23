@@ -84,17 +84,18 @@ def delete_record(record_id):
     return jsonify({"message": "Record deleted successfully"})
 
 #---Change_Requests---
+
 # READ
-@app.get("/change_requests/<int:patient_id>")
+@app.get("/change_requests")
 def get_change_requests():
     db = get_db()
     requests = db.execute(
         "SELECT * FROM change_requests ORDER BY created_at DESC",
     ).fetchall()
     db.close()
-    return jsonify([dict(request) for request in requests])
+    return jsonify([dict(r) for r in requests])
 
-@app.post("/change_requests/<int:patient_id>")
+@app.get("/change_requests/<int:patient_id>")
 def get_patient_change_requests(patient_id):
     db = get_db()
     requests = db.execute(
@@ -102,7 +103,7 @@ def get_patient_change_requests(patient_id):
         (patient_id,)
     ).fetchall()
     db.close()
-    return jsonify([dict(request) for request in requests])
+    return jsonify([dict(r) for r in requests])
 
 # CREATE
 @app.post("/change_requests")
