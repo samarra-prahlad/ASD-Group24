@@ -42,30 +42,61 @@ def get_appointments():
 @app.get("/appointments/<int:appointment_id>")
 def get_appointment(appointment_id):
     try:
-        response = requests.get(f"{DATABASE_SERVICE_URL}/appointments/{appointment_id}", timeout=5)
-        response.raise_for_status()
+        response = requests.get(
+            f"{DATABASE_SERVICE_URL}/appointments/{appointment_id}",
+            timeout=5
+        )
     except requests.RequestException as exc:
-        return jsonify({"error": "Appointments database unavailable", "detail": str(exc)}), 503
+        return jsonify({
+            "error": "Appointments database unavailable",
+            "detail": str(exc)
+        }), 503
 
     if response.status_code == 404:
-        return jsonify({"error": "Appointment not found"}), 404
+        return jsonify({
+            "error": "Appointment not found"
+        }), 404
+
+    if response.status_code != 200:
+        return jsonify({
+            "error": "Unable to retrieve appointment"
+        }), response.status_code
 
     return jsonify(response.json())
 
 # get appointments for a specific patient 
 @app.get("/appointments/patient/<int:patient_id>")
 def get_appointments_by_patient(patient_id):
-    # Validate the patient
-    if not validate_patient(patient_id):
+
+    # Validate the patient through the shared backend
+    patient_result, patient_status = validate_patient(patient_id)
+
+    if patient_status != 200:
         return jsonify({
-            "error": "Patient with ID {patient_id} not found"
-        }), 404
-    
+            "error": f"Patient with ID {patient_id} not found"
+        }), patient_status
+
     try:
-        response = requests.get(f"{DATABASE_SERVICE_URL}/appointments/patient/{patient_id}", timeout=5)
-        response.raise_for_status()
+        response = requests.get(
+            f"{DATABASE_SERVICE_URL}/appointments/patient/{patient_id}",
+            timeout=5
+        )
+
+        if response.status_code == 404:
+            return jsonify({
+                "error": f"No appointments found for patient {patient_id}"
+            }), 404
+
+        if response.status_code != 200:
+            return jsonify({
+                "error": "Unable to retrieve patient appointments"
+            }), response.status_code
+
     except requests.RequestException as exc:
-        return jsonify({"error": "Appointments database unavailable", "detail": str(exc)}), 503
+        return jsonify({
+            "error": "Appointments database unavailable",
+            "detail": str(exc)
+        }), 503
 
     return jsonify(response.json())
 
@@ -83,27 +114,61 @@ def get_appointments_by_doctor(doctor_id):
 # create a new appointment 
 @app.post("/appointments")
 def create_appointment():
-    
     data = request.get_json()
+
     if not data:
         return jsonify({"error": "Invalid JSON payload"}), 400
-    
-    required_fields = ["patient_id", "doctor_id", "date", "time", "status"]
+
+    required_fields = ["patient_id", "doctor_id", "date", "time"]
+
     for field in required_fields:
         if field not in data:
-            return jsonify({"error": f"{field} is required"}), 400
-        
+            return jsonify({
+                "error": f"Missing required field: {field}"
+            }), 400
 
     patient_id = data["patient_id"]
+    doctor_id = data["doctor_id"]
 
-    #validate patient
-    if not validate_patient(patient_id):
-        return jsonify({"error": f"Patient with ID {patient_id} not found"}), 404
+    # Validate patient
+    patient_result, patient_status = validate_patient(patient_id)
+
+    if patient_status != 200:
+        return jsonify({
+            "error": f"Patient with ID {patient_id} not found"
+        }), patient_status
+
     try:
-        response = requests.post(f"{DATABASE_SERVICE_URL}/appointments", json=data, timeout=5)
-        response.raise_for_status()
+        # Validate doctor
+        doctor_response = requests.get(
+            f"{DATABASE_SERVICE_URL}/doctors/{doctor_id}",
+            timeout=5
+        )
+
+        if doctor_response.status_code == 404:
+            return jsonify({
+                "error": f"Doctor with ID {doctor_id} not found"
+            }), 404
+
+        if doctor_response.status_code != 200:
+            return jsonify({
+                "error": "Unable to validate doctor"
+            }), 503
+
+        # Create appointment
+        response = requests.post(
+            f"{DATABASE_SERVICE_URL}/appointments",
+            json=data,
+            timeout=5
+        )
+
+        return jsonify(response.json()), response.status_code
+
     except requests.RequestException as exc:
-        return jsonify({"error": "Appointments database unavailable", "detail": str(exc)}), 503
+        return jsonify({
+            "error": "Unable to connect to appointments database",
+            "detail": str(exc)
+        }), 503
     
 # update appointments 
 @app.put("/appointments/<int:appointment_id>")
@@ -112,31 +177,35 @@ def update_appointment(appointment_id):
     data = request.get_json()
 
     if not data:
-        return jsonify({"error": "Invalid JSON payload"}), 400
+        return jsonify({
+            "error": "Invalid JSON payload"
+        }), 400
 
     try:
-        # Find the existing appointment
+
+        # Find existing appointment
         appointment_response = requests.get(
             f"{DATABASE_SERVICE_URL}/appointments/{appointment_id}",
             timeout=5
         )
 
         if appointment_response.status_code != 200:
-            return jsonify({"error": "Appointment not found"}), 404
-
-        appointment_data = appointment_response.json()
-
-        patient_id = appointment_data["patient_id"]
-
-        # Validate patient through shared access API
-        validation_response = validate_patient(patient_id)
-
-        if validation_response[1] != 200:
             return jsonify({
-                "error": f"Patient with ID {patient_id} not found"
+                "error": "Appointment not found"
             }), 404
 
-        # Update appointment through database API
+        appointment_data = appointment_response.json()
+        patient_id = appointment_data["patient_id"]
+
+        # Validate patient through shared backend
+        patient_result, patient_status = validate_patient(patient_id)
+
+        if patient_status != 200:
+            return jsonify({
+                "error": f"Patient with ID {patient_id} not found"
+            }), patient_status
+
+        # Update appointment
         response = requests.put(
             f"{DATABASE_SERVICE_URL}/appointments/{appointment_id}",
             json=data,
@@ -145,9 +214,10 @@ def update_appointment(appointment_id):
 
         return jsonify(response.json()), response.status_code
 
-    except requests.RequestException:
+    except requests.RequestException as exc:
         return jsonify({
-            "error": "Unable to connect to appointments database"
+            "error": "Unable to connect to appointments database",
+            "detail": str(exc)
         }), 503
 
 # delete appointment 
@@ -155,25 +225,30 @@ def update_appointment(appointment_id):
 def delete_appointment(appointment_id):
 
     try:
-        # Get appointment 
+
+        # Get appointment
         appointment_response = requests.get(
             f"{DATABASE_SERVICE_URL}/appointments/{appointment_id}",
             timeout=5
         )
 
         if appointment_response.status_code != 200:
-            return jsonify(appointment_response.json()), appointment_response.status_code
+            return jsonify(
+                appointment_response.json()
+            ), appointment_response.status_code
 
         appointment = appointment_response.json()
-
         patient_id = appointment.get("patient_id")
 
-        # Validate patient
-        if not validate_patient(patient_id):
-            return jsonify({
-                "error": "Patient not found or validation failed"
-            }), 404
+        # Validate patient through shared backend
+        patient_result, patient_status = validate_patient(patient_id)
 
+        if patient_status != 200:
+            return jsonify({
+                "error": f"Patient with ID {patient_id} not found"
+            }), patient_status
+
+        # Delete appointment
         response = requests.delete(
             f"{DATABASE_SERVICE_URL}/appointments/{appointment_id}",
             timeout=5
@@ -181,11 +256,11 @@ def delete_appointment(appointment_id):
 
         return jsonify(response.json()), response.status_code
 
-    except requests.RequestException:
+    except requests.RequestException as exc:
         return jsonify({
-            "error": "Unable to connect to appointments database"
+            "error": "Unable to connect to appointments database",
+            "detail": str(exc)
         }), 503
-
 #get all doctors 
 @app.get("/doctors")
 def get_doctors():
@@ -201,13 +276,25 @@ def get_doctors():
 @app.get("/doctors/<int:doctor_id>")
 def get_doctor(doctor_id):
     try:
-        response = requests.get(f"{DATABASE_SERVICE_URL}/doctors/{doctor_id}", timeout=5)
-        response.raise_for_status()
+        response = requests.get(
+            f"{DATABASE_SERVICE_URL}/doctors/{doctor_id}",
+            timeout=5
+        )
     except requests.RequestException as exc:
-        return jsonify({"error": "Appointments database unavailable", "detail": str(exc)}), 503
+        return jsonify({
+            "error": "Appointments database unavailable",
+            "detail": str(exc)
+        }), 503
 
     if response.status_code == 404:
-        return jsonify({"error": "Doctor not found"}), 404
+        return jsonify({
+            "error": f"Doctor ID {doctor_id} not found"
+        }), 404
+
+    if response.status_code != 200:
+        return jsonify({
+            "error": f"Unable to retrieve doctor ID {doctor_id}"
+        }), response.status_code
 
     return jsonify(response.json())
 
