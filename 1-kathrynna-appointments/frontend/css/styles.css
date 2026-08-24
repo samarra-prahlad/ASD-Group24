@@ -1,0 +1,261 @@
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    font-family: Arial, sans-serif;
+    background: #f5f5f5;
+    color: #222;
+}
+
+.booking-page {
+    min-height: 100vh;
+    padding: 40px 24px;
+}
+
+.booking-container {
+    max-width: 1200px;
+    margin: 0 auto;
+    background: white;
+    border-radius: 16px;
+    padding: 32px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+}
+
+.booking-header {
+    margin-bottom: 32px;
+}
+
+.booking-header h1 {
+    font-size: 32px;
+    margin-bottom: 8px;
+}
+
+.booking-header p {
+    color: #666;
+    font-size: 16px;
+}
+
+
+.booking-layout {
+    display: grid;
+    grid-template-columns: 300px 1fr;
+    gap: 40px;
+    align-items: start;
+}
+
+
+.calendar-panel {
+    position: sticky;
+    top: 24px;
+    border: 1px solid #ddd;
+    border-radius: 14px;
+    padding: 20px;
+    background: #fff;
+}
+
+.calendar-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 20px;
+}
+
+.calendar-header h2 {
+    font-size: 18px;
+}
+
+.calendar-arrow {
+    width: 36px;
+    height: 36px;
+    border: 1px solid #ddd;
+    background: white;
+    border-radius: 8px;
+    font-size: 24px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.calendar-arrow:hover {
+    background: #f2f2f2;
+}
+
+.calendar-weekdays {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 4px;
+    margin-bottom: 8px;
+}
+
+.calendar-weekdays span {
+    text-align: center;
+    font-size: 12px;
+    font-weight: 600;
+    color: #777;
+}
+
+.calendar-grid {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 5px;
+}
+
+.calendar-empty {
+    aspect-ratio: 1;
+}
+
+.calendar-day {
+    aspect-ratio: 1;
+    border: none;
+    background: white;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 14px;
+}
+
+.calendar-day:hover {
+    background: #eee;
+}
+
+.calendar-day.today {
+    border: 1px solid #222;
+    font-weight: bold;
+}
+
+.calendar-day.selected {
+    background: #222;
+    color: white;
+    font-weight: bold;
+}
+
+.calendar-selected {
+    margin-top: 20px;
+    padding-top: 16px;
+    border-top: 1px solid #eee;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+
+.calendar-selected strong {
+    font-size: 13px;
+}
+
+.calendar-selected span {
+    font-size: 14px;
+    color: #666;
+}
+
+.booking-content {
+    min-width: 0;
+}
+
+.booking-step {
+    margin-bottom: 32px;
+}
+
+.booking-step h2 {
+    font-size: 20px;
+    margin-bottom: 16px;
+}
+.option-group {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+}
+
+.option-card {
+    text-align: left;
+    padding: 18px;
+    border: 1px solid #ddd;
+    background: white;
+    border-radius: 10px;
+    cursor: pointer;
+    transition: 0.2s;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.option-card:hover {
+    border-color: #999;
+    background: #fafafa;
+}
+
+.option-card strong {
+    font-size: 15px;
+}
+
+.option-card span {
+    font-size: 13px;
+    color: #666;
+    line-height: 1.4;
+}
+
+.option-card.selected {
+    background: #222;
+    color: white;
+    border-color: #222;
+}
+
+.option-card.selected span {
+    color: #ddd;
+}
+.booking-actions {
+    margin: 24px 0;
+}
+
+.primary-button {
+    width: 100%;
+    padding: 15px;
+    border: none;
+    border-radius: 10px;
+    background: #222;
+    color: white;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.primary-button:hover {
+    background: #444;
+}
+.availability-panel {
+    border: 1px solid #ddd;
+    border-radius: 12px;
+    padding: 20px;
+    background: #fafafa;
+}
+
+.availability-panel h3 {
+    margin-bottom: 8px;
+}
+
+.availability-panel p {
+    color: #666;
+    margin-bottom: 8px;
+}
+
+.is-hidden {
+    display: none;
+}
+
+@media (max-width: 800px) {
+
+    .booking-layout {
+        grid-template-columns: 1fr;
+    }
+
+    .calendar-panel {
+        position: static;
+    }
+
+    .option-group {
+        grid-template-columns: 1fr;
+    }
+
+}

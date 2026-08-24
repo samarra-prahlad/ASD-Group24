@@ -1,0 +1,828 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+
+    <title>Book an Appointment</title>
+
+    <link rel="stylesheet" href="/css/styles.css">
+    <script src="https://unpkg.com/htmx.org@2.0.4"></script>
+</head>
+
+<body>
+
+<main class="booking-page">
+
+    <section class="booking-container">
+
+        <header class="booking-header">
+            <h1>Appointment Booking</h1>
+
+            <p>
+                Book an appointment with one of our
+                healthcare professionals.
+            </p>
+        </header>
+
+        <div class="booking-layout">
+            <aside class="calendar-panel">
+
+                <div class="calendar-header">
+            
+                    <button
+                        type="button"
+                        class="calendar-arrow"
+                        id="previous-month"
+                        aria-label="Previous month"
+                    >
+                        ‹
+                    </button>
+            
+                    <h2 id="calendar-month">
+                        August 2026
+                    </h2>
+            
+                    <button
+                        type="button"
+                        class="calendar-arrow"
+                        id="next-month"
+                        aria-label="Next month"
+                    >
+                        ›
+                    </button>
+            
+                </div>
+                <div class="calendar-weekdays">
+                    <span>Sun</span>
+                    <span>Mon</span>
+                    <span>Tue</span>
+                    <span>Wed</span>
+                    <span>Thu</span>
+                    <span>Fri</span>
+                    <span>Sat</span>
+                </div>
+                <div
+                    class="calendar-grid"
+                    id="calendar-grid"
+                ></div>
+                <div class="calendar-selected">
+            
+                    <strong>Selected date</strong>
+            
+                    <span id="selected-date">
+                        No date selected
+                    </span>
+            
+                </div>
+            
+            </aside>
+            <section class="booking-content">
+                <section class="booking-step">
+
+                    <h2>
+                        1. Who is this appointment for?
+                    </h2>
+
+                    <div class="option-group">
+
+                        <button
+                            type="button"
+                            class="option-card"
+                            onclick="selectOption(
+                                this,
+                                'patient_type',
+                                'self'
+                            )"
+                        >
+
+                            <strong>
+                                Myself
+                            </strong>
+
+                            <span>
+                                I am booking an appointment
+                                for myself.
+                            </span>
+
+                        </button>
+
+
+                        <button
+                            type="button"
+                            class="option-card"
+                            onclick="selectOption(
+                                this,
+                                'patient_type',
+                                'other'
+                            )"
+                        >
+
+                            <strong>
+                                Someone else
+                            </strong>
+
+                            <span>
+                                I am booking an appointment
+                                for another patient.
+                            </span>
+
+                        </button>
+
+                    </div>
+
+
+                    <input
+                        type="hidden"
+                        id="patient_type"
+                        name="patient_type"
+                    >
+
+                </section>
+                <section class="booking-step">
+
+                    <h2>
+                        2. Have you visited this medical
+                        practice before?
+                    </h2>
+
+                    <div class="option-group">
+
+                        <button
+                            type="button"
+                            class="option-card"
+                            onclick="selectOption(
+                                this,
+                                'existing_patient',
+                                'yes'
+                            )"
+                        >
+
+                            <strong>
+                                Yes
+                            </strong>
+
+                            <span>
+                                I have visited this practice
+                                before.
+                            </span>
+
+                        </button>
+
+
+                        <button
+                            type="button"
+                            class="option-card"
+                            onclick="selectOption(
+                                this,
+                                'existing_patient',
+                                'no'
+                            )"
+                        >
+
+                            <strong>
+                                No
+                            </strong>
+
+                            <span>
+                                This is my first visit.
+                            </span>
+
+                        </button>
+
+                    </div>
+
+
+                    <input
+                        type="hidden"
+                        id="existing_patient"
+                        name="existing_patient"
+                    >
+
+                </section>
+                <section class="booking-step">
+
+                    <h2>
+                        3. What type of appointment
+                        do you need?
+                    </h2>
+
+
+                    <div class="option-group">
+
+
+                        <button
+                            type="button"
+                            class="option-card"
+                            onclick="selectAppointmentType(
+                                this,
+                                'Cardiology'
+                            )"
+                        >
+
+                            <strong>
+                                Cardiology
+                            </strong>
+
+                            <span>
+                                Heart and cardiovascular care.
+                            </span>
+
+                        </button>
+
+
+
+                        <button
+                            type="button"
+                            class="option-card"
+                            onclick="selectAppointmentType(
+                                this,
+                                'Dermatology'
+                            )"
+                        >
+
+                            <strong>
+                                Dermatology
+                            </strong>
+
+                            <span>
+                                Skin, hair and nail concerns.
+                            </span>
+
+                        </button>
+
+
+
+                        <button
+                            type="button"
+                            class="option-card"
+                            onclick="selectAppointmentType(
+                                this,
+                                'General Practice'
+                            )"
+                        >
+
+                            <strong>
+                                General Practice
+                            </strong>
+
+                            <span>
+                                General health concerns
+                                and consultations.
+                            </span>
+
+                        </button>
+
+
+
+                        <button
+                            type="button"
+                            class="option-card"
+                            onclick="selectAppointmentType(
+                                this,
+                                'Pediatrics'
+                            )"
+                        >
+
+                            <strong>
+                                Pediatrics
+                            </strong>
+
+                            <span>
+                                Medical care for children.
+                            </span>
+
+                        </button>
+
+
+
+                        <button
+                            type="button"
+                            class="option-card"
+                            onclick="selectAppointmentType(
+                                this,
+                                'Psychiatry'
+                            )"
+                        >
+
+                            <strong>
+                                Psychiatry
+                            </strong>
+
+                            <span>
+                                Mental health and
+                                psychiatric care.
+                            </span>
+
+                        </button>
+
+
+
+                        <button
+                            type="button"
+                            class="option-card"
+                            onclick="selectAppointmentType(
+                                this,
+                                'Neurology'
+                            )"
+                        >
+
+                            <strong>
+                                Neurology
+                            </strong>
+
+                            <span>
+                                Brain and nervous system care.
+                            </span>
+
+                        </button>
+
+
+
+                        <button
+                            type="button"
+                            class="option-card"
+                            onclick="selectAppointmentType(
+                                this,
+                                'Orthopedics'
+                            )"
+                        >
+
+                            <strong>
+                                Orthopedics
+                            </strong>
+
+                            <span>
+                                Bones, joints and
+                                musculoskeletal care.
+                            </span>
+
+                        </button>
+
+
+
+                        <button
+                            type="button"
+                            class="option-card"
+                            onclick="selectAppointmentType(
+                                this,
+                                'Physiotherapy'
+                            )"
+                        >
+
+                            <strong>
+                                Physiotherapy
+                            </strong>
+
+                            <span>
+                                Movement, rehabilitation
+                                and physical care.
+                            </span>
+
+                        </button>
+
+
+
+                        <button
+                            type="button"
+                            class="option-card"
+                            onclick="selectAppointmentType(
+                                this,
+                                'Endocrinology'
+                            )"
+                        >
+
+                            <strong>
+                                Endocrinology
+                            </strong>
+
+                            <span>
+                                Hormones and endocrine
+                                health.
+                            </span>
+
+                        </button>
+
+
+
+                        <button
+                            type="button"
+                            class="option-card"
+                            onclick="selectAppointmentType(
+                                this,
+                                'Geriatrics'
+                            )"
+                        >
+
+                            <strong>
+                                Geriatrics
+                            </strong>
+
+                            <span>
+                                Healthcare for older adults.
+                            </span>
+
+                        </button>
+
+
+                    </div>
+
+
+                    <input
+                        type="hidden"
+                        id="appointment_type"
+                        name="appointment_type"
+                    >
+
+                </section>
+                <div class="booking-actions">
+
+                    <button
+                        type="button"
+                        class="primary-button"
+                        onclick="continueBooking()"
+                    >
+                        Continue
+                    </button>
+
+                </div>
+                <section
+                    id="availability-section"
+                    class="booking-step is-hidden"
+                >
+                    <h2>
+                        4. Available appointments
+                    </h2>
+                    <div
+                        id="availability-result"
+                        class="availability-panel"
+                    >
+                        <p>
+                            Select your preferences above
+                            to view available doctors
+                            and appointment times.
+                        </p>
+
+                    </div>
+
+                </section>
+
+
+            </section>
+
+        </div>
+
+    </section>
+
+</main>
+
+
+
+<script>
+
+    function selectOption(button, inputId, value) {
+    
+        const group = button.parentElement;
+    
+        group
+            .querySelectorAll(".option-card")
+            .forEach(card => {
+                card.classList.remove("selected");
+            });
+    
+        button.classList.add("selected");
+    
+        document.getElementById(inputId).value = value;
+    }
+    
+    
+    function selectAppointmentType(button, value) {
+    
+        const group = button.parentElement;
+    
+        group
+            .querySelectorAll(".option-card")
+            .forEach(card => {
+                card.classList.remove("selected");
+            });
+    
+        button.classList.add("selected");
+    
+        document.getElementById(
+            "appointment_type"
+        ).value = value;
+    }
+    
+    
+    function continueBooking() {
+    
+        const patientType =
+            document.getElementById(
+                "patient_type"
+            ).value;
+    
+        const existingPatient =
+            document.getElementById(
+                "existing_patient"
+            ).value;
+    
+        const appointmentType =
+            document.getElementById(
+                "appointment_type"
+            ).value;
+    
+        if (
+            !patientType ||
+            !existingPatient ||
+            !appointmentType
+        ) {
+    
+            alert(
+                "Please answer all questions before continuing."
+            );
+    
+            return;
+        }
+    
+        const availabilitySection =
+            document.getElementById(
+                "availability-section"
+            );
+    
+        availabilitySection.classList.remove(
+            "is-hidden"
+        );
+    
+        const result =
+            document.getElementById(
+                "availability-result"
+            );
+    
+        result.innerHTML = `
+            <div class="availability-panel">
+    
+                <h3>
+                    ${appointmentType}
+                </h3>
+    
+                <p>
+                    Now we can load doctors and
+                    available appointment times.
+                </p>
+    
+                <p>
+                    Select a date from the calendar
+                    to view available times.
+                </p>
+    
+            </div>
+        `;
+    }
+    
+    
+    /* ==============================
+       CALENDAR
+       ============================== */
+    
+    const calendarGrid =
+        document.getElementById(
+            "calendar-grid"
+        );
+    
+    const calendarMonth =
+        document.getElementById(
+            "calendar-month"
+        );
+    
+    const selectedDateText =
+        document.getElementById(
+            "selected-date"
+        );
+    
+    const previousMonthButton =
+        document.getElementById(
+            "previous-month"
+        );
+    
+    const nextMonthButton =
+        document.getElementById(
+            "next-month"
+        );
+    
+    
+    const today = new Date();
+    
+    let calendarDate = new Date(
+        today.getFullYear(),
+        today.getMonth(),
+        1
+    );
+    
+    let selectedDate = null;
+    
+    
+    const monthNames = [
+        "January",
+        "February",
+        "March",
+        "April",
+        "May",
+        "June",
+        "July",
+        "August",
+        "September",
+        "October",
+        "November",
+        "December"
+    ];
+    
+    
+    function renderCalendar() {
+    
+        calendarGrid.innerHTML = "";
+    
+        const year =
+            calendarDate.getFullYear();
+    
+        const month =
+            calendarDate.getMonth();
+    
+    
+        calendarMonth.textContent =
+            `${monthNames[month]} ${year}`;
+    
+    
+        const firstDay =
+            new Date(
+                year,
+                month,
+                1
+            ).getDay();
+    
+    
+        const daysInMonth =
+            new Date(
+                year,
+                month + 1,
+                0
+            ).getDate();
+    
+    
+        for (
+            let i = 0;
+            i < firstDay;
+            i++
+        ) {
+    
+            const emptyCell =
+                document.createElement(
+                    "span"
+                );
+    
+            emptyCell.classList.add(
+                "calendar-empty"
+            );
+    
+            calendarGrid.appendChild(
+                emptyCell
+            );
+        }
+    
+    
+        for (
+            let day = 1;
+            day <= daysInMonth;
+            day++
+        ) {
+    
+            const button =
+                document.createElement(
+                    "button"
+                );
+    
+            button.type = "button";
+    
+            button.textContent = day;
+    
+            button.classList.add(
+                "calendar-day"
+            );
+    
+    
+            const date =
+                new Date(
+                    year,
+                    month,
+                    day
+                );
+    
+    
+            if (
+                selectedDate &&
+                selectedDate.getFullYear() === year &&
+                selectedDate.getMonth() === month &&
+                selectedDate.getDate() === day
+            ) {
+    
+                button.classList.add(
+                    "selected"
+                );
+            }
+    
+    
+            if (
+                date.toDateString() ===
+                today.toDateString()
+            ) {
+    
+                button.classList.add(
+                    "today"
+                );
+            }
+    
+    
+            button.addEventListener(
+                "click",
+                function () {
+    
+                    selectedDate = date;
+    
+                    updateSelectedDate();
+    
+                    renderCalendar();
+    
+                }
+            );
+    
+    
+            calendarGrid.appendChild(
+                button
+            );
+        }
+    }
+    
+    
+    function updateSelectedDate() {
+    
+        if (!selectedDate) {
+    
+            selectedDateText.textContent =
+                "No date selected";
+    
+            return;
+        }
+    
+    
+        selectedDateText.textContent =
+            selectedDate.toLocaleDateString(
+                "en-AU",
+                {
+                    weekday: "long",
+                    day: "numeric",
+                    month: "long",
+                    year: "numeric"
+                }
+            );
+    }
+    
+    
+    previousMonthButton.addEventListener(
+        "click",
+        function () {
+    
+            calendarDate.setMonth(
+                calendarDate.getMonth() - 1
+            );
+    
+            renderCalendar();
+    
+        }
+    );
+    
+    
+    nextMonthButton.addEventListener(
+        "click",
+        function () {
+    
+            calendarDate.setMonth(
+                calendarDate.getMonth() + 1
+            );
+    
+            renderCalendar();
+    
+        }
+    );
+    
+    
+    renderCalendar();
+    
+    </script>
+    
+    </body>
+    
+    </html>
