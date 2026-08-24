@@ -1,0 +1,87 @@
+body {
+    font-family: system-ui, sans-serif;
+    margin: 0;
+    padding: 0;
+    background: #f1f8e9;
+    color: #1a1a1a;
+}
+
+header {
+    background: #558b2f;
+    color: white;
+    padding: 1rem 2rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+header a {
+    color: white;
+}
+
+main {
+    max-width: 800px;
+    margin: 2rem auto;
+    padding: 0 1rem;
+}
+
+section {
+    background: #dcedc8;
+    border-radius: 8px;
+    padding: 1.5rem;
+    margin-bottom: 1.5rem;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+form label {
+    display: block;
+    margin-bottom: 0.75rem;
+}
+
+input, button {
+    padding: 0.5rem;
+    margin-top: 0.25rem;
+    border: 1px solid #aed581;
+    border-radius: 4px;
+}
+
+button {
+    background: #81c784;
+    color: white;
+    border: none;
+    cursor: pointer;
+}
+
+button:hover {
+    background: #558b2f;
+}
+
+table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+th, td {
+    text-align: left;
+    padding: 0.5rem;
+    border-bottom: 1px solid #aed581;
+}
+
+textarea {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 0.5rem;
+    border: 1px solid #aed581;
+    border-radius: 4px;
+    font-family: inherit;
+}
+
+.answer-box {
+    margin-top: 1rem;
+    padding: 1rem;
+    background: #f1f8e9;
+    border-radius: 6px;
+    min-height: 2rem;
+}
+
+/* TODO: remove/reduce once shared/frontend/css theme exists — replace with <link> to shared stylesheet */
