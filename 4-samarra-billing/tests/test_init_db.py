@@ -2,7 +2,7 @@
 Pytest suite for the Billing & Insurance database layer (init_db.py).
 
 Run with:
-    pytest test_init_db.py -v
+    pytest tests/test_init_db.py -v
 """
 
 import os
@@ -12,9 +12,14 @@ import sys
 
 import pytest
 
-DATA_DIR = "/app/data"
-DATABASE_NAME = os.path.join(DATA_DIR, "billing.db")
-INIT_SCRIPT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "init_db.py")
+FEATURE_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+INIT_SCRIPT = os.path.join(FEATURE_ROOT, "database", "init_db.py")
+
+# Local test runs write here instead of the container path (/app/data),
+# which doesn't exist on a native macOS filesystem. Inside Docker, no one
+# sets DB_DATA_DIR, so init_db.py still defaults to /app/data unchanged.
+TEST_DATA_DIR = os.path.join(FEATURE_ROOT, "tests", ".test_data")
+DATABASE_NAME = os.path.join(TEST_DATA_DIR, "billing.db")
 
 VALID_STATUSES = {"pending", "paid", "partially_paid"}
 
@@ -26,13 +31,19 @@ def fresh_database():
     Ensures tests run against a known, clean state rather than whatever
     happens to already be on disk.
     """
+    os.makedirs(TEST_DATA_DIR, exist_ok=True)
+
     if os.path.exists(DATABASE_NAME):
         os.remove(DATABASE_NAME)
+
+    env = os.environ.copy()
+    env["DB_DATA_DIR"] = TEST_DATA_DIR
 
     result = subprocess.run(
         [sys.executable, INIT_SCRIPT],
         capture_output=True,
         text=True,
+        env=env,
     )
     assert result.returncode == 0, f"init_db.py failed: {result.stderr}"
 
@@ -201,10 +212,14 @@ class TestIdempotency:
         before_providers = conn.execute("SELECT COUNT(*) AS c FROM insurance_providers").fetchone()["c"]
         before_invoices = conn.execute("SELECT COUNT(*) AS c FROM invoices").fetchone()["c"]
 
+        env = os.environ.copy()
+        env["DB_DATA_DIR"] = TEST_DATA_DIR
+
         result = subprocess.run(
             [sys.executable, INIT_SCRIPT],
             capture_output=True,
             text=True,
+            env=env,
         )
         assert result.returncode == 0, f"init_db.py failed on rerun: {result.stderr}"
 
