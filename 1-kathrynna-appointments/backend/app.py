@@ -15,15 +15,23 @@ def health():
 def validate_patient(patient_id):
     """
     Ask the shared access API to confirm that the patient exists.
-    """ 
+    """
     try:
-        response = requests.get(f"{SHARED_ACCESS_API_URL}/validate?patient_id={patient_id}", timeout=5)
-        response.raise_for_status()
+        response = requests.get(
+            f"{SHARED_ACCESS_API_URL}/validate?patient_id={patient_id}",
+            timeout=5
+        )
     except requests.RequestException as exc:
         return {"error": "Shared access API unavailable", "detail": str(exc)}, 503
 
     if response.status_code == 404:
         return {"valid": False, "error": "Patient not found"}, 404
+
+    if response.status_code != 200:
+        return {
+            "error": "Unable to validate patient",
+            "detail": response.text
+        }, response.status_code
 
     return response.json(), 200
 
