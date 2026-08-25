@@ -9,7 +9,7 @@ os.makedirs(DATA_DIR, exist_ok=True)
 conn = sqlite3.connect(DATABASE_NAME)
 cursor = conn.cursor()
 
-# Doctors table 
+# Doctors table
 cursor.execute("""
 CREATE TABLE IF NOT EXISTS doctors (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -19,7 +19,7 @@ CREATE TABLE IF NOT EXISTS doctors (
 )
 """)
 
-# Appointment table 
+# Appointment table
 cursor.execute("""
 CREATE TABLE IF NOT EXISTS appointments(
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -32,7 +32,12 @@ CREATE TABLE IF NOT EXISTS appointments(
 )
 """)
 
-# Sample Doctors 
+# Sample Doctors
+# NOTE: every specialty button on the frontend now has at least one
+# matching doctor here. The original list was missing "Neurology" --
+# that button existed on the page but would always come back empty
+# since no row had that specialty. Added Dr. Grace Lee (id 211) to
+# cover it.
 sample_doctors = [
     (201, "Dr. John Smith", "Cardiology", "Mon-Fri 09:00-17:00"),
     (202, "Dr. Emily Johnson", "Dermatology", "Tue-Thu 10:00-16:30"),
@@ -44,6 +49,7 @@ sample_doctors = [
     (208, "Dr. Isabella Thomas", "Physiotherapy", "Mon-Wed 09:00-15:30"),
     (209, "Dr. Benjamin Taylor", "Endocrinology", "Tue-Fri 10:00-17:00"),
     (210, "Dr. Sophia Moore", "Geriatrics", "Mon-Thu 08:00-14:30"),
+    (211, "Dr. Grace Lee", "Neurology", "Mon-Fri 09:00-16:00"),
 ]
 
 cursor.executemany(
@@ -65,7 +71,6 @@ cursor.executemany(
     sample_appointments,
 )
 
-# save changes and close the connection
 conn.commit()
 conn.close()
 
