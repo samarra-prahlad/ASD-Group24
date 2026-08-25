@@ -1,21 +1,93 @@
 from flask import Flask, jsonify, request
+from flask_cors import CORS
+from datetime import datetime, timedelta
 import os
 import requests
 
 app = Flask(__name__)
-
-DATABASE_SERVICE_URL = os.getenv("DATABASE_SERVICE_URL", "http://shared-database:6001")
+CORS(app)
+DATABASE_SERVICE_URL = os.getenv("DATABASE_SERVICE_URL", "http://appointments-database:6001")
 SHARED_ACCESS_API_URL = os.getenv("SHARED_ACCESS_API_URL", "http://shared-access-api:5000")
 
-# Check
+SLOT_MINUTES = 30
+DAY_ABBR = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+
+
+def parse_availability(availability_str):
+    """
+    Parse strings like "Mon-Fri 09:00-17:00" into
+    (list_of_weekday_abbrs, start_time, end_time).
+    Returns None if the string doesn't match the expected shape.
+    """
+    try:
+        day_part, time_part = availability_str.strip().split(" ", 1)
+        start_str, end_str = time_part.split("-")
+
+        start_time = datetime.strptime(start_str.strip(), "%H:%M").time()
+        end_time = datetime.strptime(end_str.strip(), "%H:%M").time()
+
+        if "-" in day_part:
+            start_day, end_day = day_part.split("-")
+            start_idx = DAY_ABBR.index(start_day.strip())
+            end_idx = DAY_ABBR.index(end_day.strip())
+
+            if start_idx <= end_idx:
+                days = DAY_ABBR[start_idx:end_idx + 1]
+            else:
+                days = DAY_ABBR[start_idx:] + DAY_ABBR[:end_idx + 1]
+        else:
+            days = [d.strip() for d in day_part.split(",")]
+
+        return days, start_time, end_time
+
+    except Exception:
+        return None
+
+
+def generate_slots(start_time, end_time, slot_minutes=SLOT_MINUTES):
+    """Half-open slots: last slot starts no later than end_time - slot_minutes."""
+    base_date = datetime(2000, 1, 1)
+    current = datetime.combine(base_date, start_time)
+    end_dt = datetime.combine(base_date, end_time)
+
+    slots = []
+
+    while current + timedelta(minutes=slot_minutes) <= end_dt:
+        slots.append(current.strftime("%H:%M"))
+        current += timedelta(minutes=slot_minutes)
+
+    return slots
+
+
+def available_slots_for_doctor(doctor, date_str):
+    """Returns the list of open (unbooked) HH:MM slots for a doctor on a given date."""
+    try:
+        selected_date = datetime.strptime(date_str, "%Y-%m-%d")
+    except ValueError:
+        return []
+
+    parsed = parse_availability(doctor.get("availability", ""))
+
+    if not parsed:
+        return []
+
+    days, start_time, end_time = parsed
+    weekday_abbr = DAY_ABBR[selected_date.weekday()]
+
+    if weekday_abbr not in days:
+        return []
+
+    all_slots = generate_slots(start_time, end_time)
+    booked = set(doctor.get("booked_times", []))
+
+    return [slot for slot in all_slots if slot not in booked]
+
 @app.get("/")
 def health():
     return jsonify({"service": "appointments-backend", "status": "running"})
 
 def validate_patient(patient_id):
-    """
-    Ask the shared access API to confirm that the patient exists.
-    """
+    """Ask the shared access API to confirm that the patient exists."""
     try:
         response = requests.get(
             f"{SHARED_ACCESS_API_URL}/validate?patient_id={patient_id}",
@@ -35,7 +107,6 @@ def validate_patient(patient_id):
 
     return response.json(), 200
 
-# Get all appointments
 @app.get("/appointments")
 def get_appointments():
     try:
@@ -46,7 +117,6 @@ def get_appointments():
 
     return jsonify(response.json())
 
-# get a single appointment 
 @app.get("/appointments/<int:appointment_id>")
 def get_appointment(appointment_id):
     try:
@@ -61,28 +131,19 @@ def get_appointment(appointment_id):
         }), 503
 
     if response.status_code == 404:
-        return jsonify({
-            "error": "Appointment not found"
-        }), 404
+        return jsonify({"error": "Appointment not found"}), 404
 
     if response.status_code != 200:
-        return jsonify({
-            "error": "Unable to retrieve appointment"
-        }), response.status_code
+        return jsonify({"error": "Unable to retrieve appointment"}), response.status_code
 
     return jsonify(response.json())
 
-# get appointments for a specific patient 
 @app.get("/appointments/patient/<int:patient_id>")
 def get_appointments_by_patient(patient_id):
-
-    # Validate the patient through the shared backend
     patient_result, patient_status = validate_patient(patient_id)
 
     if patient_status != 200:
-        return jsonify({
-            "error": f"Patient with ID {patient_id} not found"
-        }), patient_status
+        return jsonify({"error": f"Patient with ID {patient_id} not found"}), patient_status
 
     try:
         response = requests.get(
@@ -91,14 +152,10 @@ def get_appointments_by_patient(patient_id):
         )
 
         if response.status_code == 404:
-            return jsonify({
-                "error": f"No appointments found for patient {patient_id}"
-            }), 404
+            return jsonify({"error": f"No appointments found for patient {patient_id}"}), 404
 
         if response.status_code != 200:
-            return jsonify({
-                "error": "Unable to retrieve patient appointments"
-            }), response.status_code
+            return jsonify({"error": "Unable to retrieve patient appointments"}), response.status_code
 
     except requests.RequestException as exc:
         return jsonify({
@@ -108,7 +165,6 @@ def get_appointments_by_patient(patient_id):
 
     return jsonify(response.json())
 
-# get appointments for a specific doctor 
 @app.get("/appointments/doctor/<int:doctor_id>")
 def get_appointments_by_doctor(doctor_id):
     try:
@@ -119,7 +175,6 @@ def get_appointments_by_doctor(doctor_id):
 
     return jsonify(response.json())
 
-# create a new appointment 
 @app.post("/appointments")
 def create_appointment():
     data = request.get_json()
@@ -131,39 +186,28 @@ def create_appointment():
 
     for field in required_fields:
         if field not in data:
-            return jsonify({
-                "error": f"Missing required field: {field}"
-            }), 400
+            return jsonify({"error": f"Missing required field: {field}"}), 400
 
     patient_id = data["patient_id"]
     doctor_id = data["doctor_id"]
 
-    # Validate patient
     patient_result, patient_status = validate_patient(patient_id)
 
     if patient_status != 200:
-        return jsonify({
-            "error": f"Patient with ID {patient_id} not found"
-        }), patient_status
+        return jsonify({"error": f"Patient with ID {patient_id} not found"}), patient_status
 
     try:
-        # Validate doctor
         doctor_response = requests.get(
             f"{DATABASE_SERVICE_URL}/doctors/{doctor_id}",
             timeout=5
         )
 
         if doctor_response.status_code == 404:
-            return jsonify({
-                "error": f"Doctor with ID {doctor_id} not found"
-            }), 404
+            return jsonify({"error": f"Doctor with ID {doctor_id} not found"}), 404
 
         if doctor_response.status_code != 200:
-            return jsonify({
-                "error": "Unable to validate doctor"
-            }), 503
+            return jsonify({"error": "Unable to validate doctor"}), 503
 
-        # Create appointment
         response = requests.post(
             f"{DATABASE_SERVICE_URL}/appointments",
             json=data,
@@ -177,43 +221,31 @@ def create_appointment():
             "error": "Unable to connect to appointments database",
             "detail": str(exc)
         }), 503
-    
-# update appointments 
+
 @app.put("/appointments/<int:appointment_id>")
 def update_appointment(appointment_id):
-
     data = request.get_json()
 
     if not data:
-        return jsonify({
-            "error": "Invalid JSON payload"
-        }), 400
+        return jsonify({"error": "Invalid JSON payload"}), 400
 
     try:
-
-        # Find existing appointment
         appointment_response = requests.get(
             f"{DATABASE_SERVICE_URL}/appointments/{appointment_id}",
             timeout=5
         )
 
         if appointment_response.status_code != 200:
-            return jsonify({
-                "error": "Appointment not found"
-            }), 404
+            return jsonify({"error": "Appointment not found"}), 404
 
         appointment_data = appointment_response.json()
         patient_id = appointment_data["patient_id"]
 
-        # Validate patient through shared backend
         patient_result, patient_status = validate_patient(patient_id)
 
         if patient_status != 200:
-            return jsonify({
-                "error": f"Patient with ID {patient_id} not found"
-            }), patient_status
+            return jsonify({"error": f"Patient with ID {patient_id} not found"}), patient_status
 
-        # Update appointment
         response = requests.put(
             f"{DATABASE_SERVICE_URL}/appointments/{appointment_id}",
             json=data,
@@ -228,35 +260,25 @@ def update_appointment(appointment_id):
             "detail": str(exc)
         }), 503
 
-# delete appointment 
 @app.delete("/appointments/<int:appointment_id>")
 def delete_appointment(appointment_id):
-
     try:
-
-        # Get appointment
         appointment_response = requests.get(
             f"{DATABASE_SERVICE_URL}/appointments/{appointment_id}",
             timeout=5
         )
 
         if appointment_response.status_code != 200:
-            return jsonify(
-                appointment_response.json()
-            ), appointment_response.status_code
+            return jsonify(appointment_response.json()), appointment_response.status_code
 
         appointment = appointment_response.json()
         patient_id = appointment.get("patient_id")
 
-        # Validate patient through shared backend
         patient_result, patient_status = validate_patient(patient_id)
 
         if patient_status != 200:
-            return jsonify({
-                "error": f"Patient with ID {patient_id} not found"
-            }), patient_status
+            return jsonify({"error": f"Patient with ID {patient_id} not found"}), patient_status
 
-        # Delete appointment
         response = requests.delete(
             f"{DATABASE_SERVICE_URL}/appointments/{appointment_id}",
             timeout=5
@@ -269,7 +291,7 @@ def delete_appointment(appointment_id):
             "error": "Unable to connect to appointments database",
             "detail": str(exc)
         }), 503
-#get all doctors 
+
 @app.get("/doctors")
 def get_doctors():
     try:
@@ -280,7 +302,6 @@ def get_doctors():
 
     return jsonify(response.json())
 
-# get one doctor 
 @app.get("/doctors/<int:doctor_id>")
 def get_doctor(doctor_id):
     try:
@@ -295,18 +316,479 @@ def get_doctor(doctor_id):
         }), 503
 
     if response.status_code == 404:
-        return jsonify({
-            "error": f"Doctor ID {doctor_id} not found"
-        }), 404
+        return jsonify({"error": f"Doctor ID {doctor_id} not found"}), 404
 
     if response.status_code != 200:
-        return jsonify({
-            "error": f"Unable to retrieve doctor ID {doctor_id}"
-        }), response.status_code
+        return jsonify({"error": f"Unable to retrieve doctor ID {doctor_id}"}), response.status_code
 
     return jsonify(response.json())
 
-# run 
+@app.get("/availability")
+def get_availability():
+    specialty = request.args.get("specialty")
+    date = request.args.get("date")
+
+    if not specialty or not date:
+        return jsonify({"error": "Both 'specialty' and 'date' are required"}), 400
+
+    try:
+        response = requests.get(
+            f"{DATABASE_SERVICE_URL}/availability",
+            params={"specialty": specialty, "date": date},
+            timeout=5
+        )
+
+        return jsonify(response.json()), response.status_code
+    except requests.RequestException as exc:
+        return jsonify({
+            "error": "Unable to connect to appointments database",
+            "detail": str(exc)
+        }), 503
+
+@app.get("/doctors/htmx")
+def get_doctors_htmx():
+    try:
+        response = requests.get(f"{DATABASE_SERVICE_URL}/doctors", timeout=5)
+        response.raise_for_status()
+    except requests.RequestException as exc:
+        return f"<p>Unable to load doctors: {exc}</p>", 503
+
+    doctors = response.json()
+
+    html = ""
+
+    for doctor in doctors:
+        html += f"""
+        <div class="doctor-card">
+            <strong>{doctor["name"]}</strong>
+            <span>{doctor["specialty"]}</span>
+            <small>{doctor["availability"]}</small>
+        </div>
+        """
+
+    return html
+
+@app.get("/availability/htmx")
+def get_availability_htmx():
+    specialty = request.args.get("specialty")
+    date = request.args.get("date")
+
+    if not specialty or not date:
+        return "<p>Please select an appointment type and date.</p>", 400
+
+    try:
+        response = requests.get(
+            f"{DATABASE_SERVICE_URL}/availability",
+            params={"specialty": specialty, "date": date},
+            timeout=5
+        )
+
+        if response.status_code != 200:
+            return "<p>Unable to load availability.</p>", response.status_code
+
+        data = response.json()
+
+    except requests.RequestException:
+        return "<p>Unable to connect to appointments database.</p>", 503
+
+    doctors = data.get("doctors", [])
+
+    if not doctors:
+        return f"""
+            <div class="availability-panel">
+                <h3>No doctors available</h3>
+                <p>No {specialty} doctors are available for {date}.</p>
+            </div>
+        """
+
+    html = ""
+
+    for doctor in doctors:
+
+        open_slots = available_slots_for_doctor(doctor, date)
+
+        html += f"""
+            <div class="doctor-card">
+                <strong>{doctor["doctor_name"]}</strong>
+                <span>{doctor["specialty"]}</span>
+                <small>{doctor["availability"]}</small>
+                <div class="slot-group">
+        """
+
+        if open_slots:
+            for slot in open_slots:
+                doctor_name_js = doctor["doctor_name"].replace("'", "\\'")
+                specialty_js = doctor["specialty"].replace("'", "\\'")
+                html += f"""
+                    <button
+                        type="button"
+                        class="slot-button"
+                        onclick="selectSlot(this, {doctor["doctor_id"]}, '{doctor_name_js}', '{specialty_js}', '{date}', '{slot}')"
+                    >{slot}</button>
+                """
+        else:
+            html += "<p>No available times on this date.</p>"
+
+        html += """
+                </div>
+            </div>
+        """
+
+    return html
+
+
+def is_slot_booked(doctor_id, date, time, exclude_appointment_id=None):
+    """
+    True if this doctor already has an appointment at this exact
+    date/time. Used to reject double-bookings on both create and edit
+    (excluding the appointment being edited, so re-saving its own
+    unchanged slot doesn't flag itself as a conflict).
+    """
+    response = requests.get(
+        f"{DATABASE_SERVICE_URL}/appointments/doctor/{doctor_id}",
+        timeout=5
+    )
+    response.raise_for_status()
+
+    for appt in response.json():
+        if appt["date"] != date or appt["time"] != time:
+            continue
+        if exclude_appointment_id is not None and appt["id"] == exclude_appointment_id:
+            continue
+        return True
+
+    return False
+
+
+@app.post("/appointments/htmx")
+def create_appointment_htmx():
+    """
+    Books a single slot picked from the /availability/htmx panel and
+    returns an HTML confirmation fragment (or an HTML error fragment).
+    htmx sends this as a normal form POST.
+    """
+
+    data = request.form
+
+    doctor_id = data.get("doctor_id")
+    date = data.get("date")
+    time = data.get("time")
+    patient_id = data.get("patient_id")
+
+    if not doctor_id or not date or not time or not patient_id:
+        return """
+            <div class="availability-panel">
+                <h3>Missing information</h3>
+                <p>Please enter your patient ID and pick a time.</p>
+            </div>
+        """, 400
+
+    try:
+        patient_id_int = int(patient_id)
+        doctor_id_int = int(doctor_id)
+    except ValueError:
+        return """
+            <div class="availability-panel">
+                <h3>Invalid input</h3>
+                <p>Patient ID must be a number.</p>
+            </div>
+        """, 400
+
+    patient_result, patient_status = validate_patient(patient_id_int)
+
+    if patient_status != 200:
+        return f"""
+            <div class="availability-panel">
+                <h3>Booking failed</h3>
+                <p>Patient ID {patient_id_int} was not found. Double-check the ID and try again.</p>
+            </div>
+        """, patient_status
+
+    try:
+        doctor_response = requests.get(
+            f"{DATABASE_SERVICE_URL}/doctors/{doctor_id_int}",
+            timeout=5
+        )
+
+        if doctor_response.status_code != 200:
+            return """
+                <div class="availability-panel">
+                    <h3>Booking failed</h3>
+                    <p>That doctor could not be found.</p>
+                </div>
+            """, 404
+
+        doctor = doctor_response.json()
+
+        if is_slot_booked(doctor_id_int, date, time):
+            return """
+                <div class="availability-panel">
+                    <h3>Booking failed</h3>
+                    <p>
+                        That slot was just taken by someone else.
+                        Please go back and pick another time.
+                    </p>
+                </div>
+            """, 409
+
+        response = requests.post(
+            f"{DATABASE_SERVICE_URL}/appointments",
+            json={
+                "patient_id": patient_id_int,
+                "doctor_id": doctor_id_int,
+                "date": date,
+                "time": time
+            },
+            timeout=5
+        )
+
+        if response.status_code != 201:
+            return """
+                <div class="availability-panel">
+                    <h3>Booking failed</h3>
+                    <p>
+                        That slot may have just been taken by someone else.
+                        Please go back and pick another time.
+                    </p>
+                </div>
+            """, response.status_code
+
+        result = response.json()
+
+        return f"""
+            <div class="availability-panel confirmation">
+                <h3>Booking confirmed</h3>
+                <p>
+                    You're booked with <strong>{doctor["name"]}</strong>
+                    ({doctor["specialty"]}) on <strong>{date}</strong>
+                    at <strong>{time}</strong>.
+                </p>
+                <p>Confirmation reference: #{result["appointment_id"]}</p>
+                <a
+                    class="nav-link"
+                    href="appointments.html?patient_id={patient_id_int}"
+                >View my appointments →</a>
+            </div>
+        """
+
+    except requests.RequestException as exc:
+        return f"""
+            <div class="availability-panel">
+                <h3>Booking failed</h3>
+                <p>Unable to connect to the appointments database: {exc}</p>
+            </div>
+        """, 503
+
+
+def render_appointment_card(appt):
+    """
+    Renders one appointment as an HTML fragment with a view mode
+    (details + Edit/Delete) and a hidden edit mode (date/time inputs +
+    Save/Cancel). Used both by the "list my appointments" endpoint and
+    to re-render a single card after a successful edit.
+    """
+
+    appt_id = appt["id"]
+
+    return f"""
+        <div class="appointment-card" id="appointment-{appt_id}">
+
+            <div class="appointment-view" id="appointment-view-{appt_id}">
+                <div class="appointment-info">
+                    <strong>{appt["doctor_name"]}</strong>
+                    <span>{appt["doctor_specialty"]}</span>
+                    <p>{appt["date"]} at {appt["time"]}</p>
+                    <small>Status: {appt["status"]}</small>
+                </div>
+                <div class="appointment-actions">
+                    <button type="button" class="secondary-button"
+                        onclick="toggleEditAppointment({appt_id})">Edit</button>
+                    <button type="button" class="danger-button"
+                        hx-delete="/appointments/htmx/{appt_id}"
+                        hx-target="#appointment-{appt_id}"
+                        hx-swap="outerHTML"
+                        hx-confirm="Cancel this appointment?"
+                    >Delete</button>
+                </div>
+            </div>
+
+            <div class="appointment-edit is-hidden" id="appointment-edit-{appt_id}">
+                <label>
+                    Date
+                    <input type="date" id="edit-date-{appt_id}" value="{appt["date"]}">
+                </label>
+                <label>
+                    Time
+                    <input type="time" id="edit-time-{appt_id}" value="{appt["time"]}">
+                </label>
+                <div class="appointment-actions">
+                    <button type="button" class="primary-button"
+                        hx-put="/appointments/htmx/{appt_id}"
+                        hx-swap="none"
+                        hx-vals='js:{{"date": document.getElementById("edit-date-{appt_id}").value, "time": document.getElementById("edit-time-{appt_id}").value}}'
+                        hx-on::after-request="handleSaveResult(event)"
+                    >Save</button>
+                    <button type="button" class="secondary-button"
+                        onclick="toggleEditAppointment({appt_id})">Cancel</button>
+                </div>
+            </div>
+
+        </div>
+    """
+
+
+@app.get("/appointments/htmx/patient/<int:patient_id>")
+def get_appointments_by_patient_htmx(patient_id):
+    """Renders every appointment for a patient as a list of cards."""
+
+    patient_result, patient_status = validate_patient(patient_id)
+
+    if patient_status != 200:
+        return f"""
+            <div class="availability-panel">
+                <h3>Patient not found</h3>
+                <p>No patient with ID {patient_id} exists.</p>
+            </div>
+        """, patient_status
+
+    try:
+        response = requests.get(
+            f"{DATABASE_SERVICE_URL}/appointments/patient/{patient_id}",
+            timeout=5
+        )
+        response.raise_for_status()
+        appointments = response.json()
+    except requests.RequestException as exc:
+        return f"""
+            <div class="availability-panel">
+                <h3>Unable to load appointments</h3>
+                <p>{exc}</p>
+            </div>
+        """, 503
+
+    if not appointments:
+        return """
+            <div class="availability-panel">
+                <p>No appointments found for this patient.</p>
+            </div>
+        """
+
+    return "".join(render_appointment_card(appt) for appt in appointments)
+
+
+@app.put("/appointments/htmx/<int:appointment_id>")
+def update_appointment_htmx(appointment_id):
+    """
+    Edits only the date and time of an existing appointment (doctor and
+    patient stay fixed), and returns the refreshed card. Rejects the
+    change if the doctor already has a different appointment at the
+    new date/time.
+    """
+
+    date = request.form.get("date")
+    time = request.form.get("time")
+
+    if not date or not time:
+        return """
+            <div class="availability-panel">
+                <h3>Missing information</h3>
+                <p>Please choose both a date and a time.</p>
+            </div>
+        """, 400
+
+    try:
+        existing_response = requests.get(
+            f"{DATABASE_SERVICE_URL}/appointments/{appointment_id}",
+            timeout=5
+        )
+
+        if existing_response.status_code != 200:
+            return """
+                <div class="availability-panel">
+                    <h3>Update failed</h3>
+                    <p>This appointment could not be found.</p>
+                </div>
+            """, 404
+
+        existing = existing_response.json()
+
+        if is_slot_booked(existing["doctor_id"], date, time, exclude_appointment_id=appointment_id):
+            return """
+                <div class="availability-panel">
+                    <h3>Update failed</h3>
+                    <p>
+                        This doctor already has another appointment at that
+                        time. Please pick a different slot.
+                    </p>
+                </div>
+            """, 409
+
+        response = requests.put(
+            f"{DATABASE_SERVICE_URL}/appointments/{appointment_id}",
+            json={"date": date, "time": time},
+            timeout=5
+        )
+
+        if response.status_code != 200:
+            return """
+                <div class="availability-panel">
+                    <h3>Update failed</h3>
+                    <p>Could not update this appointment.</p>
+                </div>
+            """, response.status_code
+
+        updated = requests.get(
+            f"{DATABASE_SERVICE_URL}/appointments/{appointment_id}",
+            timeout=5
+        )
+
+        if updated.status_code != 200:
+            return """
+                <div class="availability-panel">
+                    <h3>Update failed</h3>
+                    <p>Appointment was updated but could not be reloaded.</p>
+                </div>
+            """, 500
+
+        return render_appointment_card(updated.json())
+
+    except requests.RequestException as exc:
+        return f"""
+            <div class="availability-panel">
+                <h3>Update failed</h3>
+                <p>Unable to connect to the appointments database: {exc}</p>
+            </div>
+        """, 503
+
+
+@app.delete("/appointments/htmx/<int:appointment_id>")
+def delete_appointment_htmx(appointment_id):
+    """Deletes an appointment. Returns nothing on success so htmx removes the card."""
+
+    try:
+        response = requests.delete(
+            f"{DATABASE_SERVICE_URL}/appointments/{appointment_id}",
+            timeout=5
+        )
+
+        if response.status_code != 200:
+            return """
+                <div class="availability-panel">
+                    <h3>Delete failed</h3>
+                    <p>Could not delete this appointment.</p>
+                </div>
+            """, response.status_code
+
+        return "", 200
+
+    except requests.RequestException as exc:
+        return f"""
+            <div class="availability-panel">
+                <h3>Delete failed</h3>
+                <p>Unable to connect to the appointments database: {exc}</p>
+            </div>
+        """, 503
+
 if __name__ == "__main__":
     app.run(
         host="0.0.0.0",

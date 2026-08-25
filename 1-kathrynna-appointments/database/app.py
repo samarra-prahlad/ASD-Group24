@@ -40,7 +40,7 @@ def get_appointments():
 
     return jsonify([dict(row) for row in appointments])
 
-# Get a single appointment 
+# Get a single appointment
 @app.get("/appointments/<int:appointment_id>")
 def get_appointment(appointment_id):
     conn = get_db_connection()
@@ -64,7 +64,7 @@ def get_appointment(appointment_id):
 
     if appointment is None:
         return jsonify({"error": "Appointment not found"}), 404
-    
+
     return jsonify(dict(appointment))
 
 # Get appointments for a specific patient
@@ -92,7 +92,7 @@ def get_appointments_by_patient(patient_id):
 
     return jsonify([dict(row) for row in appointments])
 
-# get appointments for a specific doctor
+# Get appointments for a specific doctor
 @app.get("/appointments/doctor/<int:doctor_id>")
 def get_appointments_by_doctor(doctor_id):
 
@@ -118,20 +118,20 @@ def get_appointments_by_doctor(doctor_id):
 
     return jsonify([dict(row) for row in appointments])
 
-# Create a new appointment 
+# Create a new appointment
 @app.post("/appointments")
 def create_appointment():
     data = request.get_json()
 
     if not data:
         return jsonify({"error": "Invalid input"}), 400
-    
+
     required_fields = ["patient_id", "doctor_id", "date", "time"]
 
     for field in required_fields:
         if field not in data:
             return jsonify({"error": f"{field} is required"}), 400
-    
+
     patient_id = data["patient_id"]
     doctor_id = data["doctor_id"]
     date = data["date"]
@@ -140,13 +140,12 @@ def create_appointment():
 
     conn = get_db_connection()
 
-    #check if doctor exists
     doctor = conn.execute("SELECT * FROM doctors WHERE id = ?", (doctor_id,)).fetchone()
 
     if doctor is None:
         conn.close()
         return jsonify({"error": "Doctor not found"}), 404
-    
+
     cursor = conn.execute("""
         INSERT INTO appointments (patient_id, doctor_id, date, time, status)
         VALUES (?, ?, ?, ?, ?)
@@ -162,29 +161,27 @@ def create_appointment():
         "appointment_id": appointment_id
     }), 201
 
-# Update an appointment 
+# Update an appointment
 @app.put("/appointments/<int:appointment_id>")
 def update_appointment(appointment_id):
     data = request.get_json()
 
     if not data:
         return jsonify({"error": "Invalid input"}), 400
-    
+
     conn = get_db_connection()
     appointment = conn.execute("SELECT * FROM appointments WHERE id = ?", (appointment_id,)).fetchone()
 
     if appointment is None:
         conn.close()
         return jsonify({"error": "Appointment not found"}), 404
-    
-    # Update fields
+
     patient_id = data.get("patient_id", appointment["patient_id"])
     doctor_id = data.get("doctor_id", appointment["doctor_id"])
     date = data.get("date", appointment["date"])
     time = data.get("time", appointment["time"])
     status = data.get("status", appointment["status"])
 
-    # Check if doctor exists
     doctor = conn.execute("SELECT * FROM doctors WHERE id = ?", (doctor_id,)).fetchone()
 
     if doctor is None:
@@ -201,11 +198,11 @@ def update_appointment(appointment_id):
     conn.close()
 
     return jsonify({
-    "message": "Appointment updated",
-    "appointment_id": appointment_id
-}), 200
+        "message": "Appointment updated",
+        "appointment_id": appointment_id
+    }), 200
 
-# Delete an appointment 
+# Delete an appointment
 @app.delete("/appointments/<int:appointment_id>")
 def delete_appointment(appointment_id):
     conn = get_db_connection()
@@ -214,20 +211,18 @@ def delete_appointment(appointment_id):
     if appointment is None:
         conn.close()
         return jsonify({"error": "Appointment not found"}), 404
-    
+
     conn.execute("DELETE FROM appointments WHERE id = ?", (appointment_id,))
     conn.commit()
     conn.close()
 
     return jsonify({"message": "Appointment deleted", "appointment_id": appointment_id})
 
-# Get all doctors 
+# Get all doctors
 @app.get("/doctors")
 def get_doctors():
     conn = get_db_connection()
-
     doctors = conn.execute("""SELECT * FROM doctors ORDER BY name""").fetchall()
-
     conn.close()
 
     return jsonify([dict(row) for row in doctors])
@@ -241,10 +236,75 @@ def get_doctor(doctor_id):
 
     if doctor is None:
         return jsonify({"error": "Doctor not found"}), 404
-    
+
     return jsonify(dict(doctor))
 
-#run application 
+# Get available doctors for a specialty and date
+@app.get("/availability")
+def get_availability():
+    specialty = request.args.get("specialty")
+    date = request.args.get("date")
+
+    if not specialty or not date:
+        return jsonify({
+            "error": "Both 'specialty' and 'date' are required"
+        }), 400
+
+    conn = get_db_connection()
+
+    # Match case/whitespace-insensitively. The frontend sends the
+    # specialty label exactly as shown on its buttons (e.g.
+    # "General Practice"); if the seed data in `doctors.specialty`
+    # differs even slightly in casing this used to silently return
+    # zero doctors instead of erroring, which looked like a bug in
+    # the fetch/htmx layer but was actually a data-matching issue.
+    doctors = conn.execute("""
+        SELECT
+            doctors.id,
+            doctors.name,
+            doctors.specialty,
+            doctors.availability
+        FROM doctors
+        WHERE TRIM(doctors.specialty) = TRIM(?) COLLATE NOCASE
+        ORDER BY doctors.name
+    """, (specialty,)).fetchall()
+
+    booked = conn.execute("""
+        SELECT
+            doctor_id,
+            time
+        FROM appointments
+        WHERE date = ?
+    """, (date,)).fetchall()
+
+    conn.close()
+
+    booked_slots = {
+        (row["doctor_id"], row["time"])
+        for row in booked
+    }
+
+    available = []
+
+    for doctor in doctors:
+        available.append({
+            "doctor_id": doctor["id"],
+            "doctor_name": doctor["name"],
+            "specialty": doctor["specialty"],
+            "availability": doctor["availability"],
+            "booked_times": [
+                time
+                for doctor_id, time in booked_slots
+                if doctor_id == doctor["id"]
+            ]
+        })
+
+    return jsonify({
+        "specialty": specialty,
+        "date": date,
+        "doctors": available
+    })
+
 if __name__ == "__main__":
     app.run(
         host="0.0.0.0",

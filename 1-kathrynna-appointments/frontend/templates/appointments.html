@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My Appointments</title>
+    <link rel="stylesheet" href="/css/styles.css">
+
+    <!-- htmx -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/htmx/1.9.12/htmx.min.js"></script>
+</head>
+
+<body>
+
+<main class="booking-page">
+
+    <section class="booking-container">
+
+        <header class="booking-header">
+            <h1>My Appointments</h1>
+            <p>View, edit, or cancel your booked appointments.</p>
+            <a href="appointment.html" class="nav-link">← Book a new appointment</a>
+        </header>
+
+        <section class="booking-step">
+            <h2>Enter your patient ID</h2>
+
+            <div class="patient-lookup">
+                <input
+                    type="text"
+                    inputmode="numeric"
+                    pattern="[0-9]*"
+                    id="lookup_patient_id"
+                    placeholder="e.g. 101"
+                    class="patient-id-input"
+                >
+                <button type="button" class="primary-button" onclick="loadAppointments()">
+                    View Appointments
+                </button>
+            </div>
+        </section>
+
+        <section class="booking-step">
+            <p id="appointments-indicator" class="htmx-indicator">
+                Loading your appointments...
+            </p>
+
+            <div id="appointments-list" class="availability-panel">
+                <p>Enter your patient ID above to see your appointments.</p>
+            </div>
+        </section>
+
+    </section>
+
+</main>
+
+
+<script>
+
+/* =====================================================
+   CONFIG (same proxy approach as appointment.html)
+===================================================== */
+
+const API_BASE = "/api";
+
+document.body.addEventListener("htmx:configRequest", function(evt) {
+
+    if (evt.detail.path.startsWith("/appointments/htmx")) {
+        evt.detail.path = API_BASE + evt.detail.path;
+    }
+
+});
+
+document.body.addEventListener("htmx:responseError", function(evt) {
+
+    const path = evt.detail.requestConfig.path;
+
+    if (path.includes("/appointments/htmx/patient/")) {
+        document.getElementById("appointments-list").innerHTML = `
+            <div class="availability-panel">
+                <h3>Unable to load appointments</h3>
+                <p>The server responded with an error (status ${evt.detail.xhr.status}).</p>
+            </div>
+        `;
+    }
+
+    // PUT/DELETE failures on individual cards are handled by
+    // handleSaveResult() and the delete card's own error fragment.
+});
+
+document.body.addEventListener("htmx:sendError", function(evt) {
+
+    const path = evt.detail.requestConfig.path;
+
+    if (path.includes("/appointments/htmx/patient/")) {
+        document.getElementById("appointments-list").innerHTML = `
+            <div class="availability-panel">
+                <h3>Unable to load appointments</h3>
+                <p>Could not reach the appointments service. Check that it is running.</p>
+            </div>
+        `;
+    }
+
+});
+
+
+/* =====================================================
+   LOAD APPOINTMENTS
+
+   The patient ID is only known at click time, so this uses
+   htmx.ajax() directly rather than a declarative hx-get
+   (which would need a fixed path).
+===================================================== */
+
+function loadAppointments() {
+
+    const patientId = document.getElementById("lookup_patient_id").value;
+
+    if (!patientId || !/^\d+$/.test(patientId)) {
+        alert("Please enter a valid patient ID (numbers only).");
+        return;
+    }
+
+    document.getElementById("appointments-indicator").classList.add("htmx-request");
+
+    htmx.ajax("GET", `/appointments/htmx/patient/${patientId}`, {
+        target: "#appointments-list",
+        swap: "innerHTML"
+    }).then(function() {
+        document.getElementById("appointments-indicator").classList.remove("htmx-request");
+    });
+}
+
+
+/* =====================================================
+   EDIT TOGGLE
+
+   Each card (rendered server-side in backend_service.py's
+   render_appointment_card) has a view block and an edit
+   block; this just flips which one is visible.
+===================================================== */
+
+function toggleEditAppointment(appointmentId) {
+
+    const viewBlock = document.getElementById(`appointment-view-${appointmentId}`);
+    const editBlock = document.getElementById(`appointment-edit-${appointmentId}`);
+
+    viewBlock.classList.toggle("is-hidden");
+    editBlock.classList.toggle("is-hidden");
+}
+
+
+/* =====================================================
+   SAVE RESULT
+
+   The Save button uses hx-swap="none" — rather than trying to
+   patch just one card in place (which breaks if the response is
+   an error fragment with no matching id), we just reload the
+   whole list from the server either way. That guarantees what's
+   on screen always matches reality, including the case where the
+   save failed because someone else just took that slot.
+===================================================== */
+
+function handleSaveResult(event) {
+
+    if (!event.detail.successful) {
+        alert("That time couldn't be saved — it may have just been booked by someone else. Refreshing your appointments.");
+    }
+
+    loadAppointments();
+}
+
+
+/* =====================================================
+   AUTO-LOAD
+
+   If arriving from a booking confirmation link
+   (appointments.html?patient_id=101), pre-fill and load
+   automatically.
+===================================================== */
+
+const urlParams = new URLSearchParams(window.location.search);
+const prefillPatientId = urlParams.get("patient_id");
+
+if (prefillPatientId) {
+    document.getElementById("lookup_patient_id").value = prefillPatientId;
+    loadAppointments();
+}
+
+</script>
+
+</body>
+
+</html>

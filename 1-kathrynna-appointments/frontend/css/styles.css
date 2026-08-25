@@ -81,7 +81,7 @@ body {
 }
 
 .calendar-arrow:hover {
-    background: #f2f2f2;
+    background: #dcedc8;
 }
 
 .calendar-weekdays {
@@ -118,16 +118,16 @@ body {
 }
 
 .calendar-day:hover {
-    background: #eee;
+    background: #dcedc8;
 }
 
 .calendar-day.today {
-    border: 1px solid #222;
+    border: 1px solid #558b2f;
     font-weight: bold;
 }
 
 .calendar-day.selected {
-    background: #222;
+    background: #aed581;
     color: white;
     font-weight: bold;
 }
@@ -182,8 +182,8 @@ body {
 }
 
 .option-card:hover {
-    border-color: #999;
-    background: #fafafa;
+    border-color: #558b2f;
+    background: #dcedc8;
 }
 
 .option-card strong {
@@ -197,9 +197,9 @@ body {
 }
 
 .option-card.selected {
-    background: #222;
+    background: #aed581;
     color: white;
-    border-color: #222;
+    border-color: #558b2f;
 }
 
 .option-card.selected span {
@@ -214,7 +214,7 @@ body {
     padding: 15px;
     border: none;
     border-radius: 10px;
-    background: #222;
+    background: #81c784;
     color: white;
     font-size: 15px;
     font-weight: 600;
@@ -222,7 +222,7 @@ body {
 }
 
 .primary-button:hover {
-    background: #444;
+    background: #71af74;
 }
 .availability-panel {
     border: 1px solid #ddd;
@@ -242,6 +242,257 @@ body {
 
 .is-hidden {
     display: none;
+}
+.nav-link {
+    display: inline-block;
+    margin-top: 12px;
+    font-size: 14px;
+    color: #222;
+    text-decoration: none;
+    font-weight: 600;
+}
+
+.nav-link:hover {
+    text-decoration: underline;
+}
+
+.review-card {
+    border: 1px solid #ddd;
+    border-radius: 12px;
+    padding: 20px;
+    background: #fafafa;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-bottom: 20px;
+}
+
+.review-card p {
+    font-size: 14px;
+    color: #dcedc8;
+}
+
+.slot-button.selected {
+    background: #aed581;
+    color: white;
+    border-color: #558b2f;
+}
+
+.patient-lookup {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.patient-lookup .patient-id-input {
+    margin-top: 0;
+}
+
+.patient-lookup .primary-button {
+    width: auto;
+    padding: 12px 20px;
+}
+
+.appointment-card {
+    border: 1px solid #ddd;
+    border-radius: 12px;
+    padding: 18px 20px;
+    background: white;
+}
+
+.appointment-view {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 16px;
+    flex-wrap: wrap;
+}
+
+.appointment-info {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.appointment-info strong {
+    font-size: 16px;
+}
+
+.appointment-info span {
+    font-size: 13px;
+    color: #666;
+}
+
+.appointment-info p {
+    font-size: 14px;
+    color: #222;
+    margin-top: 4px;
+}
+
+.appointment-info small {
+    font-size: 12px;
+    color: #999;
+}
+
+.appointment-actions {
+    display: flex;
+    gap: 8px;
+    flex-shrink: 0;
+}
+
+.secondary-button {
+    padding: 8px 16px;
+    border: 1px solid #ddd;
+    background: white;
+    border-radius: 8px;
+    font-size: 13px;
+    font-family: inherit;
+    cursor: pointer;
+}
+
+.secondary-button:hover {
+    background: #f2f2f2;
+}
+
+.danger-button {
+    padding: 8px 16px;
+    border: 1px solid #f3c2c2;
+    background: white;
+    color: #b91c1c;
+    border-radius: 8px;
+    font-size: 13px;
+    font-family: inherit;
+    cursor: pointer;
+}
+
+.danger-button:hover {
+    background: #fee2e2;
+}
+
+.appointment-edit {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+    align-items: flex-end;
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px solid #eee;
+}
+
+.appointment-edit label {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    font-size: 12px;
+    color: #666;
+}
+
+.appointment-edit input {
+    padding: 8px 10px;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    font-family: inherit;
+    font-size: 14px;
+}
+
+.patient-id-input {
+    width: 100%;
+    max-width: 280px;
+    padding: 12px 14px;
+    border: 1px solid #ddd;
+    border-radius: 10px;
+    font-size: 15px;
+    font-family: inherit;
+    margin-top: 8px;
+}
+
+.patient-id-input:focus {
+    outline: none;
+    border-color: #222;
+}
+
+#availability-result {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.doctor-card {
+    border: 1px solid #ddd;
+    border-radius: 12px;
+    padding: 18px 20px;
+    background: white;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.doctor-card strong {
+    font-size: 16px;
+}
+
+.doctor-card span {
+    font-size: 13px;
+    color: #666;
+}
+
+.doctor-card small {
+    font-size: 12px;
+    color: #999;
+    margin-bottom: 8px;
+}
+
+.slot-group {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 8px;
+}
+
+.slot-group p {
+    color: #666;
+    font-size: 13px;
+}
+
+.slot-button {
+    padding: 8px 14px;
+    border: 1px solid #ddd;
+    background: white;
+    border-radius: 8px;
+    font-size: 13px;
+    font-family: inherit;
+    cursor: pointer;
+    transition: 0.15s;
+}
+
+.slot-button:hover {
+    background: #aed581;
+    color: white;
+    border-color: #558b2f;
+}
+
+
+.availability-panel.confirmation {
+    background: #f0fdf4;
+    border-color: #86efac;
+}
+
+.availability-panel.confirmation h3 {
+    color: #15803d;
+}
+
+.htmx-indicator {
+    opacity: 0;
+    color: #666;
+    font-size: 14px;
+    margin-bottom: 12px;
+    transition: opacity 150ms ease-in;
+}
+
+.htmx-request.htmx-indicator,
+.htmx-request .htmx-indicator {
+    opacity: 1;
 }
 
 @media (max-width: 800px) {
