@@ -14,11 +14,6 @@ DAY_ABBR = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
 
 
 def parse_availability(availability_str):
-    """
-    Parse strings like "Mon-Fri 09:00-17:00" into
-    (list_of_weekday_abbrs, start_time, end_time).
-    Returns None if the string doesn't match the expected shape.
-    """
     try:
         day_part, time_part = availability_str.strip().split(" ", 1)
         start_str, end_str = time_part.split("-")
@@ -438,12 +433,6 @@ def get_availability_htmx():
 
 
 def is_slot_booked(doctor_id, date, time, exclude_appointment_id=None):
-    """
-    True if this doctor already has an appointment at this exact
-    date/time. Used to reject double-bookings on both create and edit
-    (excluding the appointment being edited, so re-saving its own
-    unchanged slot doesn't flag itself as a conflict).
-    """
     response = requests.get(
         f"{DATABASE_SERVICE_URL}/appointments/doctor/{doctor_id}",
         timeout=5
@@ -581,12 +570,6 @@ def create_appointment_htmx():
 
 
 def render_appointment_card(appt):
-    """
-    Renders one appointment as an HTML fragment with a view mode
-    (details + Edit/Delete) and a hidden edit mode (date/time inputs +
-    Save/Cancel). Used both by the "list my appointments" endpoint and
-    to re-render a single card after a successful edit.
-    """
 
     appt_id = appt["id"]
 
@@ -603,7 +586,7 @@ def render_appointment_card(appt):
                 <div class="appointment-actions">
                     <button type="button" class="secondary-button"
                         onclick="toggleEditAppointment({appt_id})">Edit</button>
-                    <button type="button" class="danger-button"
+                    <button type="button" class="delete-button"
                         hx-delete="/appointments/htmx/{appt_id}"
                         hx-target="#appointment-{appt_id}"
                         hx-swap="outerHTML"
@@ -639,7 +622,6 @@ def render_appointment_card(appt):
 
 @app.get("/appointments/htmx/patient/<int:patient_id>")
 def get_appointments_by_patient_htmx(patient_id):
-    """Renders every appointment for a patient as a list of cards."""
 
     patient_result, patient_status = validate_patient(patient_id)
 
@@ -678,12 +660,6 @@ def get_appointments_by_patient_htmx(patient_id):
 
 @app.put("/appointments/htmx/<int:appointment_id>")
 def update_appointment_htmx(appointment_id):
-    """
-    Edits only the date and time of an existing appointment (doctor and
-    patient stay fixed), and returns the refreshed card. Rejects the
-    change if the doctor already has a different appointment at the
-    new date/time.
-    """
 
     date = request.form.get("date")
     time = request.form.get("time")
