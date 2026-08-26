@@ -144,7 +144,11 @@
                         hx-swap="innerHTML"
                         hx-vals="js:{specialty: document.getElementById('appointment_type').value, date: getSelectedDateISO()}"
                         hx-indicator="#availability-indicator"
-                        hx-on::before-request="document.getElementById('availability-section').classList.remove('is-hidden'); document.getElementById('booking-review').classList.add('is-hidden'); document.getElementById('booking-confirmation').classList.add('is-hidden'); document.getElementById('booking-confirmation').innerHTML = ''; selectedBooking = null;"
+                        hx-on::before-request="document.getElementById('availability-section')
+                        .classList.remove('is-hidden'); document.getElementById('booking-review')
+                        .classList.add('is-hidden'); document.getElementById('booking-confirmation')
+                        .classList.add('is-hidden'); document.getElementById('booking-confirmation')
+                        .innerHTML = ''; selectedBooking = null;"
                     >
                         Continue
                     </button>
@@ -178,7 +182,8 @@
                             hx-post="/appointments/htmx"
                             hx-target="#booking-confirmation"
                             hx-swap="innerHTML"
-                            hx-vals="js:{doctor_id: selectedBooking.doctorId, date: selectedBooking.date, time: selectedBooking.time, patient_id: document.getElementById('patient_id').value}"
+                            hx-vals="js:{doctor_id: selectedBooking.doctorId, date: selectedBooking.date, 
+                                time: selectedBooking.time, patient_id: document.getElementById('patient_id').value}"
                             hx-on::before-request="document.getElementById('booking-confirmation').classList.remove('is-hidden')"
                             hx-on::after-request="if (!event.detail.successful) { refreshAvailability(); }"
                         >
@@ -201,21 +206,21 @@
 <script>
 
 const API_BASE = "/api";
-
+ 
 document.body.addEventListener("htmx:configRequest", function(evt) {
-
+ 
     if (
         evt.detail.path.startsWith("/availability/htmx") ||
         evt.detail.path.startsWith("/appointments/htmx")
     ) {
         evt.detail.path = API_BASE + evt.detail.path;
     }
-
+ 
 });
 document.body.addEventListener("htmx:responseError", function(evt) {
-
+ 
     const path = evt.detail.requestConfig.path;
-
+ 
     if (path.includes("/availability/htmx")) {
         document.getElementById("availability-result").innerHTML = `
             <div class="availability-panel">
@@ -224,13 +229,13 @@ document.body.addEventListener("htmx:responseError", function(evt) {
             </div>
         `;
     }
-
+ 
 });
-
+ 
 document.body.addEventListener("htmx:sendError", function(evt) {
-
+ 
     const path = evt.detail.requestConfig.path;
-
+ 
     if (path.includes("/availability/htmx")) {
         document.getElementById("availability-result").innerHTML = `
             <div class="availability-panel">
@@ -251,7 +256,7 @@ document.body.addEventListener("htmx:sendError", function(evt) {
             </div>
         `;
     }
-
+ 
 });
 
 function refreshAvailability() {
@@ -466,7 +471,86 @@ nextMonthButton.addEventListener("click", function() {
 renderCalendar();
 
 </script>
+<div class="ai-widget" id="ai-widget">
+    <section class="ai-panel">
+        <div class="ai-panel-header">
+            Your AI Assistant
+            <button class="ai-close" type="button" aria-label="Close chat" onclick="toggleChat(false)">✕</button>
+        </div>
+        <div class="ai-messages" id="ai-messages">
+            <div class="msg assistant">
+                Hello! I'm your AI assistant. How can I help you today?
+            </div>
+        </div>
+        <div class="ai-suggestions">
+            <button class="chip" type="button" onclick="sendChip(this)">When is the earliest appointment?</button>
+            <button class="chip" type="button" onclick="sendChip(this)">Show me what type of doctor I need.</button>
+            <button class="chip" type="button" onclick="sendChip(this)">How do you book an appointment?</button>
+        </div>
+        <form class="ai-input-row" onsubmit="return prepChat(event)">
+            <input type="text" id="ai-input" placeholder="Type a message…" autocomplete="off" required>
+            <button type="submit">Send</button>
+        </form>
+    </section>
+</div>
 
+<button class="ai-action" id="ai-action" type="button" onclick="toggleChat(true)">
+    Your AI Assistant
+</button>
+ 
+<script>
+    function toggleChat(open) {
+ 
+ const aiWidget = document.getElementById("ai-widget");
+ const aiAction = document.getElementById("ai-action");
+
+ if (open) {
+     aiWidget.classList.add("open");
+     aiAction.classList.add("hidden");
+     document.getElementById("ai-input").focus();
+ } else {
+     aiWidget.classList.remove("open");
+     aiAction.classList.remove("hidden");
+ }
+}
+
+function sendChip(chip) {
+ document.getElementById("ai-input").value = chip.textContent;
+}
+
+function prepChat(e) {
+
+ e.preventDefault();
+
+ const input = document.getElementById("ai-input");
+ const messages = document.getElementById("ai-messages");
+ const text = input.value.trim();
+
+ if (!text) {
+     return false;
+ }
+
+ const userMsg = document.createElement("div");
+ userMsg.className = "msg user";
+ userMsg.textContent = text;
+ messages.appendChild(userMsg);
+
+ input.value = "";
+ messages.scrollTop = messages.scrollHeight;
+
+ // Placeholder only connect Ai later
+ setTimeout(function() {
+     const reply = document.createElement("div");
+     reply.className = "msg assistant";
+     reply.textContent = "Placeholder";
+     messages.appendChild(reply);
+     messages.scrollTop = messages.scrollHeight;
+ }, 400);
+
+ return false;
+}
+
+</script>
 </body>
 
 </html>
