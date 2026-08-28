@@ -1,19 +1,51 @@
 services:
 
-  3-backend:
-    build: 
-      context: ./3-william-pharmacy
-      dockerfile: backend/Dockerfile
+     # ---------- Student 3: Pharmacy (William) ----------
+  pharmacy-frontend:
+    build:
+      context: ./3-william-pharmacy/frontend
+    container_name: pharmacy-frontend
     ports:
-      - "5103:5103"
-    volumes:
-      - ./3-william-pharmacy/database:/data
-    environment:
-      DATABASE_PATH: /data/pharmacy.db
-
-  3-frontend:
-    build: ./3-william-pharmacy/frontend
-    ports:
-      - "3300:80"
+      - "3003:80"
     depends_on:
-      - 3-backend
+      - pharmacy-backend
+    # networks:
+    #   - healthcare-network
+    restart: unless-stopped
+
+  pharmacy-backend:
+    build:
+      context: ./3-william-pharmacy/backend
+    container_name: pharmacy-backend
+    ports:
+      - "5003:5003"
+    environment:
+      DATABASE_SERVICE_URL: http://pharmacy-database:6003
+      # EHR_DATABASE_API_URL: http://ehr-backend:5002
+      # SHARED_ACCESS_API_URL: http://shared-backend:5000
+      OLLAMA_BASE_URL: http://host.docker.internal:11434/v1
+      OLLAMA_MODEL: qwen2.5:0.5b
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      - pharmacy-database
+      # - shared-backend
+      # - ehr-backend
+    # networks:
+    #   - healthcare-network
+    restart: unless-stopped
+
+  pharmacy-database:
+    build:
+      context: ./3-william-pharmacy/database
+    container_name: pharmacy-database
+    ports:
+      - "6003:6003"
+    volumes:
+      - pharmacy_data:/app/data
+    # networks:
+    #   - healthcare-network
+    restart: unless-stopped
+
+volumes:
+  pharmacy_data:

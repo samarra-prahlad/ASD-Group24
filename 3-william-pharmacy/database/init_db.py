@@ -3,9 +3,8 @@ import sqlite3
 
 database_path = os.environ.get(
     "DATABASE_PATH",
-    "../database/pharmacy.db"
+    "/app/data/pharmacy.db"
 )
-
 conn = sqlite3.connect(database_path)
 
 cursor = conn.cursor()
