@@ -1,0 +1,194 @@
+from flask import Flask, jsonify, request
+import os
+import requests
+
+app = Flask(__name__)
+
+DATABASE_SERVICE_URL = os.environ.get("DATABASE_SERVICE_URL", "http://billing-database:6004")
+APPOINTMENTS_DATABASE_API_URL = os.environ.get("APPOINTMENTS_DATABASE_API_URL", "http://appointments-backend:5001")
+PHARMACY_DATABASE_API_URL = os.environ.get("PHARMACY_DATABASE_API_URL", "http://pharmacy-backend:5003")
+WARDBED_DATABASE_API_URL = os.environ.get("WARDBED_DATABASE_API_URL", "http://wardbed-backend:5006")
+
+REQUEST_TIMEOUT = 3  # seconds - fail fast to mock rather than hang if a teammate's service is down
+
+
+def proxy_get(url):
+    """
+    Forward a GET to another service and return (json_body, status_code).
+    Returns a clean 503 instead of crashing if that service is unreachable.
+    """
+    try:
+        response = requests.get(url, timeout=REQUEST_TIMEOUT)
+        return response.json(), response.status_code
+    except requests.exceptions.RequestException:
+        return {"error": "billing-database is unreachable"}, 503
+
+
+# ---------------------------------------------------------------------------
+# Cross-service cost lookups
+#
+# NOTE: As of writing, none of Appointments/Pharmacy/Ward & Bed's schemas
+# expose a cost field (confirmed for Appointments - its doctors/appointments
+# tables have no price data). These functions try the real API first, but
+# the endpoint paths and response shapes below are GUESSES pending an actual
+# contract with each teammate. The mock fallback values are flat placeholders
+# so invoice generation is testable now - they are NOT real pricing and must
+# be revisited once the real APIs (and cost fields) exist.
+# ---------------------------------------------------------------------------
+
+def get_appointment_cost(appointment_id):
+    if appointment_id is None:
+        return 0.0, "no_appointment"
+
+    try:
+        response = requests.get(
+            f"{APPOINTMENTS_DATABASE_API_URL}/appointments/{appointment_id}",
+            timeout=REQUEST_TIMEOUT,
+        )
+        if response.status_code == 200:
+            data = response.json()
+            if "cost" in data:
+                return float(data["cost"]), "live"
+    except requests.exceptions.RequestException:
+        pass
+
+    # Mock fallback: flat placeholder cost, not real pricing
+    return 150.00, "mock"
+
+
+def get_medication_cost(patient_id):
+    if patient_id is None:
+        return 0.0, "no_patient"
+
+    try:
+        response = requests.get(
+            f"{PHARMACY_DATABASE_API_URL}/prescriptions/patient/{patient_id}",
+            timeout=REQUEST_TIMEOUT,
+        )
+        if response.status_code == 200:
+            data = response.json()
+            if isinstance(data, list):
+                total = sum(item.get("cost", 0) for item in data)
+                return float(total), "live"
+    except requests.exceptions.RequestException:
+        pass
+
+    # Mock fallback: flat placeholder cost, not real pricing
+    return 0.00, "mock"
+
+
+def get_bed_charges(patient_id):
+    if patient_id is None:
+        return 0.0, "no_patient"
+
+    try:
+        response = requests.get(
+            f"{WARDBED_DATABASE_API_URL}/wardstays/patient/{patient_id}",
+            timeout=REQUEST_TIMEOUT,
+        )
+        if response.status_code == 200:
+            data = response.json()
+            if isinstance(data, list):
+                total = sum(item.get("charges", 0) for item in data)
+                return float(total), "live"
+    except requests.exceptions.RequestException:
+        pass
+
+    # Mock fallback: flat placeholder cost, not real pricing
+    return 0.00, "mock"
+
+
+# ---------------------------------------------------------------------------
+# Health check
+# ---------------------------------------------------------------------------
+
+@app.get("/")
+def health():
+    return jsonify({"service": "billing-backend", "status": "running"})
+
+
+# ---------------------------------------------------------------------------
+# Proxy plain CRUD reads to the database tier
+# ---------------------------------------------------------------------------
+
+@app.get("/invoices")
+def get_invoices():
+    body, status = proxy_get(f"{DATABASE_SERVICE_URL}/invoices")
+    return jsonify(body), status
+
+
+@app.get("/invoices/<int:invoice_id>")
+def get_invoice(invoice_id):
+    body, status = proxy_get(f"{DATABASE_SERVICE_URL}/invoices/{invoice_id}")
+    return jsonify(body), status
+
+
+@app.get("/invoices/patient/<int:patient_id>")
+def get_invoices_by_patient(patient_id):
+    body, status = proxy_get(f"{DATABASE_SERVICE_URL}/invoices/patient/{patient_id}")
+    return jsonify(body), status
+
+
+@app.get("/insurance-providers")
+def get_insurance_providers():
+    body, status = proxy_get(f"{DATABASE_SERVICE_URL}/insurance-providers")
+    return jsonify(body), status
+
+
+# ---------------------------------------------------------------------------
+# Business logic: generate an invoice by pulling costs from other services
+# ---------------------------------------------------------------------------
+
+@app.post("/invoices/generate")
+def generate_invoice():
+    data = request.get_json()
+
+    if not data:
+        return jsonify({"error": "Invalid input"}), 400
+
+    if "patient_id" not in data:
+        return jsonify({"error": "patient_id is required"}), 400
+
+    patient_id = data["patient_id"]
+    appointment_id = data.get("appointment_id")
+    insurance_provider_id = data.get("insurance_provider_id")
+
+    appointment_cost, appointment_source = get_appointment_cost(appointment_id)
+    medication_cost, medication_source = get_medication_cost(patient_id)
+    bed_charges, bed_source = get_bed_charges(patient_id)
+
+    invoice_payload = {
+        "patient_id": patient_id,
+        "insurance_provider_id": insurance_provider_id,
+        "appointment_cost": appointment_cost,
+        "medication_cost": medication_cost,
+        "bed_charges": bed_charges,
+    }
+
+    try:
+        response = requests.post(
+            f"{DATABASE_SERVICE_URL}/invoices", json=invoice_payload, timeout=REQUEST_TIMEOUT
+        )
+    except requests.exceptions.RequestException:
+        return jsonify({"error": "billing-database is unreachable"}), 503
+
+    if response.status_code != 201:
+        return jsonify(response.json()), response.status_code
+
+    result = response.json()
+    result["cost_sources"] = {
+        "appointment_cost": appointment_source,
+        "medication_cost": medication_source,
+        "bed_charges": bed_source,
+    }
+
+    return jsonify(result), 201
+
+
+# run application
+if __name__ == "__main__":
+    app.run(
+        host="0.0.0.0",
+        port=5004,
+        debug=True
+    )
