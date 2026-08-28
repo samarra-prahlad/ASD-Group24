@@ -1,0 +1,45 @@
+name: Student 4 - Billing CI
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '4-samarra-billing/**'
+  pull_request:
+    branches: [main]
+    paths:
+      - '4-samarra-billing/**'
+
+jobs:
+  pytest-validation:
+    name: Pre-commit pytest validation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install backend dependencies
+        run: |
+          pip install -r 4-samarra-billing/backend/requirements.txt
+          pip install pytest
+
+      - name: Install database dependencies
+        run: |
+          pip install -r 4-samarra-billing/database/requirements.txt
+
+      - name: Run pytest
+        run: pytest 4-samarra-billing/tests/ -v
+
+  ai-assisted-testing:
+    name: Post-commit AI-assisted unit testing
+    needs: pytest-validation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Placeholder for AI-assisted test step
+        run: echo "AI-assisted unit testing step — to be implemented"
