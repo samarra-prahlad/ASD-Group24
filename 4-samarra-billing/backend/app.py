@@ -1,8 +1,10 @@
 from flask import Flask, jsonify, request
+from flask_cors import CORS
 import os
 import requests
 
 app = Flask(__name__)
+CORS(app)
 
 DATABASE_SERVICE_URL = os.environ.get("DATABASE_SERVICE_URL", "http://billing-database:6004")
 APPOINTMENTS_DATABASE_API_URL = os.environ.get("APPOINTMENTS_DATABASE_API_URL", "http://appointments-backend:5001")
@@ -134,7 +136,46 @@ def get_insurance_providers():
     body, status = proxy_get(f"{DATABASE_SERVICE_URL}/insurance-providers")
     return jsonify(body), status
 
+# ---------------------------------------------------------------------------
+# HTML fragment endpoint for the HTMX frontend
+#
+# hx-get expects HTML to swap into the DOM, not JSON, so this renders the
+# same invoice data as an HTML table body. Optional ?patient_id=<id> filters
+# to one patient's invoices (patient view); omitted, returns all (admin view).
+# ---------------------------------------------------------------------------
 
+def render_invoice_rows(invoices):
+    if not invoices:
+        return "<tr><td colspan='7'>No invoices found.</td></tr>"
+
+    rows = []
+    for inv in invoices:
+        provider_name = inv.get("insurance_provider_name") or "Self-pay"
+        rows.append(f"""<tr>
+            <td>{inv['id']}</td>
+            <td>{inv['patient_id']}</td>
+            <td>{provider_name}</td>
+            <td>${inv['total_amount']:.2f}</td>
+            <td>${inv['insurance_covered_amount']:.2f}</td>
+            <td>${inv['patient_owed_amount']:.2f}</td>
+            <td>{inv['status']}</td>
+        </tr>""")
+    return "".join(rows)
+
+
+@app.get("/invoices/html")
+def get_invoices_html():
+    patient_id = request.args.get("patient_id")
+
+    if patient_id:
+        body, status = proxy_get(f"{DATABASE_SERVICE_URL}/invoices/patient/{patient_id}")
+    else:
+        body, status = proxy_get(f"{DATABASE_SERVICE_URL}/invoices")
+
+    if status != 200:
+        return "<tr><td colspan='7'>Error loading invoices.</td></tr>", status
+
+    return render_invoice_rows(body)
 # ---------------------------------------------------------------------------
 # Business logic: generate an invoice by pulling costs from other services
 # ---------------------------------------------------------------------------
