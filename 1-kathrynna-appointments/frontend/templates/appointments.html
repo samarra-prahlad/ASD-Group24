@@ -147,7 +147,7 @@ if (prefillPatientId) {
 
 </script>
 
-<!--Making the UI of the AI assistant-->
+</script>
 <div class="ai-widget" id="ai-widget">
     <section class="ai-panel">
         <div class="ai-panel-header">
@@ -176,7 +176,7 @@ if (prefillPatientId) {
 </button>
  
 <script>
-    function toggleChat(open) {
+  function toggleChat(open) {
  
  const aiWidget = document.getElementById("ai-widget");
  const aiAction = document.getElementById("ai-action");
@@ -192,39 +192,68 @@ if (prefillPatientId) {
 }
 
 function sendChip(chip) {
-    document.getElementById("ai-input").value = chip.textContent;
+ document.getElementById("ai-input").value = chip.textContent;
+}
+
+let aiChatHistory = [];
+
+function addChatMessage(role, text) {
+ const messages = document.getElementById("ai-messages");
+ const el = document.createElement("div");
+ el.className = `msg ${role}`;
+ el.textContent = text;
+ messages.appendChild(el);
+ messages.scrollTop = messages.scrollHeight;
+ return el;
 }
 
 function prepChat(e) {
-    e.preventDefault();
 
-    const input = document.getElementById("ai-input");
-    const messages = document.getElementById("ai-messages");
-    const text = input.value.trim();
+ e.preventDefault();
 
-    if (!text) {
-        return false;
-    }
+ const input = document.getElementById("ai-input");
+ const text = input.value.trim();
 
-    const userMessage = document.createElement("div");
-    userMessage.classList.add("msg", "user");
-    userMessage.textContent = text;
-    messages.appendChild(userMessage);
+ if (!text) {
+     return false;
+ }
 
-    input.value = "";
-    messages.scrollTop = messages.scrollHeight;
+ addChatMessage("user", text);
+ input.value = "";
 
-    //placeholder for connecting AI later
-    setTimeout(function() {
-        const reply = document.createElement("div");
-        reply.className = "msg assistant";
-        reply.textContent = "Placeholder";
-        messages.appendChild(reply);
-        messages.scrollTop = messages.scrollHeight;
-    }, 400);
+ const typingEl = addChatMessage("assistant", "…");
 
-    return false;
+ const patientId = document.getElementById("patient_id")?.value || null;
+
+ fetch("/api/ai/chat", {
+     method: "POST",
+     headers: { "Content-Type": "application/json" },
+     body: JSON.stringify({
+         message: text,
+         patientId,
+         history: aiChatHistory
+     })
+ })
+     .then(function(res) {
+         return res.json().then(function(data) {
+             if (!res.ok) {
+                 throw new Error(data.error || `Request failed (${res.status})`);
+             }
+             return data;
+         });
+     })
+     .then(function(data) {
+         typingEl.textContent = data.reply;
+         aiChatHistory.push({ role: "user", content: text });
+         aiChatHistory.push({ role: "assistant", content: data.reply });
+     })
+     .catch(function(err) {
+         typingEl.textContent = "Sorry, I couldn't reach the assistant. " + (err.message || "");
+     });
+
+ return false;
 }
+
 </script>
 
 </body>
