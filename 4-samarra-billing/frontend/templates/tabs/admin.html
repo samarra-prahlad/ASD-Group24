@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Billing - Admin View</title>
+    <link rel="stylesheet" href="../css/styles.css">
+    <script src="https://unpkg.com/htmx.org@1.9.12"></script>
+</head>
+<body>
+<div class="card">
+    <h2>All Invoices (Admin)</h2>
+    <table class="invoice-table">
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Patient</th>
+                <th>Insurance</th>
+                <th>Total</th>
+                <th>Covered</th>
+                <th>Owed</th>
+                <th>Status</th>
+            </tr>
+        </thead>
+        <tbody
+            id="invoice-table-body"
+            hx-get="http://localhost:5004/invoices/html"
+            hx-trigger="load"
+            hx-swap="innerHTML"
+        >
+            <tr><td colspan="7">Loading invoices...</td></tr>
+        </tbody>
+    </table>
+</div>
+</body>
+</html>

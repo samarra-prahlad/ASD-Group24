@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Billing & Insurance</title>
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+<main class="app-shell">
+    <header class="app-header">
+        <h1>Billing & Insurance</h1>
+        <p>Group 24 &mdash; Samarra</p>
+    </header>
+
+    <section class="tab-shell card">
+        <nav class="tab-nav" aria-label="Application tabs">
+            <button class="tab-btn is-active" data-tab="patient" type="button">Patient View</button>
+            <button class="tab-btn" data-tab="admin" type="button">Admin View</button>
+        </nav>
+
+        <div class="tab-content">
+            <iframe id="tab-frame-patient" class="tab-frame is-active" src="tabs/patient.html" title="Patient view tab"></iframe>
+            <iframe id="tab-frame-admin" class="tab-frame" src="tabs/admin.html" title="Admin view tab"></iframe>
+        </div>
+    </section>
+</main>
+
+<script>
+const tabButtons = Array.from(document.querySelectorAll(".tab-btn"));
+const tabFrames = {
+    patient: document.getElementById("tab-frame-patient"),
+    admin: document.getElementById("tab-frame-admin"),
+};
+
+function activateTab(tabName) {
+    tabButtons.forEach((button) => {
+        button.classList.toggle("is-active", button.dataset.tab === tabName);
+    });
+
+    Object.entries(tabFrames).forEach(([name, frame]) => {
+        frame.classList.toggle("is-active", name === tabName);
+    });
+
+    window.location.hash = tabName;
+}
+
+tabButtons.forEach((button) => {
+    button.addEventListener("click", () => {
+        activateTab(button.dataset.tab);
+    });
+});
+
+const hashTab = window.location.hash.replace("#", "");
+if (hashTab && tabFrames[hashTab]) {
+    activateTab(hashTab);
+} else {
+    activateTab("patient");
+}
+</script>
+
+</body>
+</html>
