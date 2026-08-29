@@ -32,15 +32,8 @@ ADMIN_INTENTS = [
     "unsupported_action",
 ]
 
-
-# ---------------------------------------------------------------------------
-# PLAN
-# ---------------------------------------------------------------------------
-
 def plan(message, context):
-    """
-    Decide what the user wants and extract useful information.
-    """
+
 
     role = context.get("role", "patient")
 
@@ -94,10 +87,6 @@ def plan(message, context):
 
 
 def _try_parse_json(raw):
-    """
-    Try to extract JSON from the local model's response.
-    """
-
     try:
         return json.loads(raw)
 
@@ -121,14 +110,7 @@ def _try_parse_json(raw):
     return None
 
 
-# ---------------------------------------------------------------------------
-# ACT - DATABASE FUNCTIONS
-# ---------------------------------------------------------------------------
-
 def query_availability(specialty, requested_date):
-    """
-    Get doctors for a specialty and calculate their available slots.
-    """
 
     if not specialty or not requested_date:
         return []
@@ -393,9 +375,6 @@ def search_appointments_by_patient(identifier):
 
 
 def query_next_scheduled_appointment():
-    """
-    Find the soonest upcoming scheduled appointment.
-    """
 
     response = requests.get(
         f"{DATABASE_SERVICE_URL}/appointments",
@@ -448,9 +427,6 @@ def query_next_scheduled_appointment():
 
 
 def query_appointments_count_for_date(requested_date):
-    """
-    Count appointments scheduled for a particular date.
-    """
 
     response = requests.get(
         f"{DATABASE_SERVICE_URL}/appointments/date/{requested_date}",
@@ -464,22 +440,11 @@ def query_appointments_count_for_date(requested_date):
     return len(appointments)
 
 
-# ---------------------------------------------------------------------------
-# ACT
-# ---------------------------------------------------------------------------
-
 def act(plan_result, context):
-    """
-    Execute the action selected during PLAN.
-    """
 
     intent = plan_result["intent"]
 
     try:
-
-        # ---------------------------------------------------------------
-        # PATIENT
-        # ---------------------------------------------------------------
 
         if intent == "check_availability":
 
@@ -531,10 +496,6 @@ def act(plan_result, context):
                 "error": None,
                 "intent": intent
             }
-
-        # ---------------------------------------------------------------
-        # ADMIN
-        # ---------------------------------------------------------------
 
         if intent == "find_patient_appointment":
 
@@ -593,9 +554,6 @@ def act(plan_result, context):
                 "intent": intent
             }
 
-        # ---------------------------------------------------------------
-        # UNSUPPORTED ACTION
-        # ---------------------------------------------------------------
 
         if intent == "unsupported_action":
 
@@ -626,10 +584,6 @@ def act(plan_result, context):
                 "error": None,
                 "intent": intent
             }
-
-        # ---------------------------------------------------------------
-        # GENERAL QUESTION
-        # ---------------------------------------------------------------
 
         reply = _llm_reply(
             "general_question_system_prompt.txt",
@@ -662,34 +616,21 @@ def act(plan_result, context):
         }
 
 
-def _llm_reply(prompt_file, user_message):
+def _llm_reply(prompt_file, user_message, history=None):
+    system_prompt = load_prompt(prompt_file)
 
-    system_prompt = load_prompt(
-        prompt_file
-    )
+    messages = [{"role": "system", "content": system_prompt}]
+    messages.extend((history or [])[-4:]) 
+    messages.append({"role": "user", "content": user_message})
 
     reply = create_chat_completion(
-        [
-            {
-                "role": "system",
-                "content": system_prompt
-            },
-            {
-                "role": "user",
-                "content": user_message
-            }
-        ],
+        messages,
         max_tokens=200,
         temperature=0.3,
         model=OLLAMA_MODEL,
     )
-
     return reply.strip()
 
-
-# ---------------------------------------------------------------------------
-# OBSERVE
-# ---------------------------------------------------------------------------
 
 LIST_RESULT_INTENTS = (
     "check_availability",
@@ -756,11 +697,6 @@ def observe(action_result):
         "flags": flags,
         "needs_adaptation": len(flags) > 0
     }
-
-
-# ---------------------------------------------------------------------------
-# ADAPT
-# ---------------------------------------------------------------------------
 
 def adapt(
     plan_result,
@@ -915,10 +851,6 @@ def adapt(
 
     return data
 
-
-# ---------------------------------------------------------------------------
-# ORCHESTRATOR
-# ---------------------------------------------------------------------------
 
 def run(
     message,
