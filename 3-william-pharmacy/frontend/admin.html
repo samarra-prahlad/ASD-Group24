@@ -1,0 +1,590 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pharmacy Admin</title>
+
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 40px;
+            background: #f5f5f5;
+        }
+
+        h1 {
+            margin-bottom: 30px;
+        }
+
+        section {
+            background: white;
+            padding: 25px;
+            margin-bottom: 25px;
+            border-radius: 8px;
+        }
+
+        h2 {
+            margin-top: 0;
+        }
+
+        h3 {
+            margin-bottom: 10px;
+        }
+
+        input,
+        textarea,
+        select,
+        button {
+            font-size: 16px;
+            padding: 8px;
+        }
+
+        input,
+        textarea,
+        select {
+            width: 100%;
+            max-width: 500px;
+            box-sizing: border-box;
+            margin-bottom: 10px;
+        }
+
+        label {
+            display: block;
+            font-weight: bold;
+            margin-bottom: 4px;
+        }
+
+        form {
+            max-width: 500px;
+            margin-bottom: 10px;
+        }
+
+        button {
+            cursor: pointer;
+            margin-right: 5px;
+        }
+
+        button.danger {
+            background: #c00;
+            color: white;
+            border: none;
+        }
+
+        button.secondary {
+            background: #eee;
+            border: 1px solid #ccc;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+        }
+
+        th,
+        td {
+            border: 1px solid #ccc;
+            padding: 10px;
+            text-align: left;
+        }
+
+        th {
+            background: #eee;
+        }
+
+        td.actions {
+            white-space: nowrap;
+        }
+
+        .error {
+            color: #c00;
+            margin-top: 10px;
+        }
+
+        .success {
+            color: #080;
+            margin-top: 10px;
+        }
+
+        .loading {
+            color: #666;
+        }
+
+        .form-row {
+            display: flex;
+            gap: 10px;
+        }
+
+        .form-row > div {
+            flex: 1;
+        }
+    </style>
+</head>
+
+<body>
+
+    <h1>Pharmacy Admin</h1>
+
+
+    <!-- MEDICATIONS -->
+
+    <section>
+        <h2>Medications</h2>
+
+        <h3 id="medication-form-title">Add Medication</h3>
+
+        <form id="medication-form" onsubmit="submitMedication(event)">
+            <input type="hidden" id="medication-id">
+
+            <label for="medication-name">Name</label>
+            <input type="text" id="medication-name" required>
+
+            <div class="form-row">
+                <div>
+                    <label for="medication-stock">Stock</label>
+                    <input type="number" id="medication-stock" min="0" step="1" required>
+                </div>
+                <div>
+                    <label for="medication-unit-price">Unit price</label>
+                    <input type="number" id="medication-unit-price" min="0" step="0.01" required>
+                </div>
+            </div>
+
+            <button type="submit" id="medication-submit-btn">Add Medication</button>
+            <button type="button" class="secondary" id="medication-cancel-btn" onclick="resetMedicationForm()" style="display:none;">Cancel Edit</button>
+        </form>
+
+        <p id="medication-form-error" class="error"></p>
+
+        <button onclick="loadMedications()">Refresh Medications</button>
+
+        <p id="medications-error" class="error"></p>
+
+        <table>
+            <thead>
+                <tr id="medications-header"></tr>
+            </thead>
+
+            <tbody id="medications">
+                <tr>
+                    <td>Loading...</td>
+                </tr>
+            </tbody>
+        </table>
+    </section>
+
+
+    <!-- PRESCRIPTIONS -->
+
+    <section>
+        <h2>Prescriptions</h2>
+
+        <h3 id="prescription-form-title">Add Prescription</h3>
+
+        <form id="prescription-form" onsubmit="submitPrescription(event)">
+            <input type="hidden" id="prescription-id">
+
+            <div class="form-row">
+                <div>
+                    <label for="prescription-patient-id">Patient ID</label>
+                    <input type="number" id="prescription-patient-id" required>
+                </div>
+                <div>
+                    <label for="prescription-medication-id">Medication</label>
+                    <select id="prescription-medication-id" required></select>
+                </div>
+            </div>
+
+            <label for="prescription-dosage">Dosage</label>
+            <input type="text" id="prescription-dosage" required>
+
+            <label for="prescription-doctor">Prescribing doctor</label>
+            <input type="text" id="prescription-doctor" required>
+
+            <label for="prescription-status">Status</label>
+            <select id="prescription-status">
+                <option value="active">active</option>
+                <option value="completed">completed</option>
+                <option value="cancelled">cancelled</option>
+            </select>
+
+            <button type="submit" id="prescription-submit-btn">Add Prescription</button>
+            <button type="button" class="secondary" id="prescription-cancel-btn" onclick="resetPrescriptionForm()" style="display:none;">Cancel Edit</button>
+        </form>
+
+        <p id="prescription-form-error" class="error"></p>
+
+        <input
+            type="text"
+            id="patient-id"
+            placeholder="Enter patient ID to look up"
+        >
+
+        <button onclick="loadPrescriptions()">Find Prescriptions</button>
+
+        <p id="prescriptions-error" class="error"></p>
+
+        <table>
+            <thead>
+                <tr id="prescriptions-header"></tr>
+            </thead>
+
+            <tbody id="prescriptions">
+            </tbody>
+        </table>
+    </section>
+
+
+    <script>
+
+        const API_URL = "http://localhost:5003";
+
+        let medicationsCache = [];
+
+
+        // -------------------------
+        // MEDICATIONS
+        // -------------------------
+
+        async function loadMedications() {
+
+            const table = document.getElementById("medications");
+            const header = document.getElementById("medications-header");
+            const error = document.getElementById("medications-error");
+
+            table.innerHTML = "<tr><td>Loading...</td></tr>";
+            header.innerHTML = "";
+            error.textContent = "";
+
+            try {
+
+                const response = await fetch(`${API_URL}/medications`);
+
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+
+                const medications = await response.json();
+                medicationsCache = medications;
+                populateMedicationSelect(medications);
+
+                if (medications.length === 0) {
+                    table.innerHTML =
+                        "<tr><td>No medications found.</td></tr>";
+                    return;
+                }
+
+                const dataHeaders = Object.keys(medications[0]);
+
+                header.innerHTML =
+                    dataHeaders.map(h => `<th>${h}</th>`).join("") +
+                    "<th>Actions</th>";
+
+                table.innerHTML = medications
+                    .map(medication => `
+                        <tr>
+                            ${dataHeaders
+                                .map(h => `<td>${medication[h]}</td>`)
+                                .join("")}
+                            <td class="actions">
+                                <button class="secondary" onclick='editMedication(${JSON.stringify(medication)})'>Edit</button>
+                                <button class="danger" onclick="deleteMedication(${medication.id})">Delete</button>
+                            </td>
+                        </tr>
+                    `)
+                    .join("");
+
+            } catch (err) {
+
+                error.textContent = "Failed to load medications.";
+                table.innerHTML = "";
+                console.error(err);
+            }
+        }
+
+        function populateMedicationSelect(medications) {
+            const select = document.getElementById("prescription-medication-id");
+            const current = select.value;
+
+            select.innerHTML = medications
+                .map(m => `<option value="${m.id}">${m.name} (id ${m.id})</option>`)
+                .join("");
+
+            if (current) select.value = current;
+        }
+
+        function editMedication(medication) {
+            document.getElementById("medication-id").value = medication.id;
+            document.getElementById("medication-name").value = medication.name;
+            document.getElementById("medication-stock").value = medication.stock;
+            document.getElementById("medication-unit-price").value = medication.unit_price;
+
+            document.getElementById("medication-form-title").textContent = `Edit Medication #${medication.id}`;
+            document.getElementById("medication-submit-btn").textContent = "Save Changes";
+            document.getElementById("medication-cancel-btn").style.display = "inline-block";
+            document.getElementById("medication-form-error").textContent = "";
+
+            document.getElementById("medication-form").scrollIntoView({ behavior: "smooth" });
+        }
+
+        function resetMedicationForm() {
+            document.getElementById("medication-form").reset();
+            document.getElementById("medication-id").value = "";
+
+            document.getElementById("medication-form-title").textContent = "Add Medication";
+            document.getElementById("medication-submit-btn").textContent = "Add Medication";
+            document.getElementById("medication-cancel-btn").style.display = "none";
+            document.getElementById("medication-form-error").textContent = "";
+        }
+
+        async function submitMedication(event) {
+            event.preventDefault();
+
+            const error = document.getElementById("medication-form-error");
+            error.textContent = "";
+
+            const id = document.getElementById("medication-id").value;
+            const payload = {
+                name: document.getElementById("medication-name").value.trim(),
+                stock: parseInt(document.getElementById("medication-stock").value, 10),
+                unit_price: parseFloat(document.getElementById("medication-unit-price").value)
+            };
+
+            const isEdit = Boolean(id);
+            const url = isEdit ? `${API_URL}/admin/medications/${id}` : `${API_URL}/admin/medications`;
+            const method = isEdit ? "PUT" : "POST";
+
+            try {
+
+                const response = await fetch(url, {
+                    method,
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(payload)
+                });
+
+                const body = await response.json().catch(() => ({}));
+
+                if (!response.ok) {
+                    throw new Error(body.error || body.description || `HTTP ${response.status}`);
+                }
+
+                resetMedicationForm();
+                loadMedications();
+
+            } catch (err) {
+
+                error.textContent = err.message || "Failed to save medication.";
+                console.error(err);
+            }
+        }
+
+        async function deleteMedication(id) {
+
+            if (!confirm(`Delete medication #${id}? This cannot be undone.`)) return;
+
+            const error = document.getElementById("medications-error");
+            error.textContent = "";
+
+            try {
+
+                const response = await fetch(`${API_URL}/admin/medications/${id}`, {
+                    method: "DELETE"
+                });
+
+                const body = await response.json().catch(() => ({}));
+
+                if (!response.ok) {
+                    throw new Error(body.error || body.description || `HTTP ${response.status}`);
+                }
+
+                loadMedications();
+
+            } catch (err) {
+
+                error.textContent = err.message || "Failed to delete medication.";
+                console.error(err);
+            }
+        }
+
+
+        // -------------------------
+        // PRESCRIPTIONS
+        // -------------------------
+
+        async function loadPrescriptions() {
+
+            const patientId =
+                document.getElementById("patient-id").value.trim();
+
+            const table = document.getElementById("prescriptions");
+            const header = document.getElementById("prescriptions-header");
+            const error = document.getElementById("prescriptions-error");
+
+            error.textContent = "";
+            header.innerHTML = "";
+            table.innerHTML = "";
+
+            if (!patientId) {
+                error.textContent = "Please enter a patient ID.";
+                return;
+            }
+
+            table.innerHTML = "<tr><td>Loading...</td></tr>";
+
+            try {
+
+                const response = await fetch(
+                    `${API_URL}/prescriptions/${encodeURIComponent(patientId)}`
+                );
+
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+
+                const prescriptions = await response.json();
+
+                if (prescriptions.length === 0) {
+                    table.innerHTML =
+                        "<tr><td>No prescriptions found.</td></tr>";
+                    return;
+                }
+
+                const dataHeaders = Object.keys(prescriptions[0]);
+
+                header.innerHTML =
+                    dataHeaders.map(h => `<th>${h}</th>`).join("") +
+                    "<th>Actions</th>";
+
+                table.innerHTML = prescriptions
+                    .map(prescription => `
+                        <tr>
+                            ${dataHeaders
+                                .map(h => `<td>${prescription[h]}</td>`)
+                                .join("")}
+                            <td class="actions">
+                                <button class="secondary" onclick='editPrescription(${JSON.stringify(prescription)})'>Edit</button>
+                                <button class="danger" onclick="deletePrescription(${prescription.id})">Delete</button>
+                            </td>
+                        </tr>
+                    `)
+                    .join("");
+
+            } catch (err) {
+
+                error.textContent = "Failed to load prescriptions.";
+                table.innerHTML = "";
+                console.error(err);
+            }
+        }
+
+        function editPrescription(prescription) {
+            document.getElementById("prescription-id").value = prescription.id;
+            document.getElementById("prescription-patient-id").value = prescription.patient_id;
+            document.getElementById("prescription-medication-id").value = prescription.medication_id;
+            document.getElementById("prescription-dosage").value = prescription.dosage;
+            document.getElementById("prescription-doctor").value = prescription.prescribing_doctor;
+            document.getElementById("prescription-status").value = prescription.status;
+
+            document.getElementById("prescription-form-title").textContent = `Edit Prescription #${prescription.id}`;
+            document.getElementById("prescription-submit-btn").textContent = "Save Changes";
+            document.getElementById("prescription-cancel-btn").style.display = "inline-block";
+            document.getElementById("prescription-form-error").textContent = "";
+
+            document.getElementById("prescription-form").scrollIntoView({ behavior: "smooth" });
+        }
+
+        function resetPrescriptionForm() {
+            document.getElementById("prescription-form").reset();
+            document.getElementById("prescription-id").value = "";
+
+            document.getElementById("prescription-form-title").textContent = "Add Prescription";
+            document.getElementById("prescription-submit-btn").textContent = "Add Prescription";
+            document.getElementById("prescription-cancel-btn").style.display = "none";
+            document.getElementById("prescription-form-error").textContent = "";
+        }
+
+        async function submitPrescription(event) {
+            event.preventDefault();
+
+            const error = document.getElementById("prescription-form-error");
+            error.textContent = "";
+
+            const id = document.getElementById("prescription-id").value;
+            const payload = {
+                patient_id: parseInt(document.getElementById("prescription-patient-id").value, 10),
+                medication_id: parseInt(document.getElementById("prescription-medication-id").value, 10),
+                dosage: document.getElementById("prescription-dosage").value.trim(),
+                prescribing_doctor: document.getElementById("prescription-doctor").value.trim(),
+                status: document.getElementById("prescription-status").value
+            };
+
+            const isEdit = Boolean(id);
+            const url = isEdit ? `${API_URL}/admin/prescriptions/${id}` : `${API_URL}/admin/prescriptions`;
+            const method = isEdit ? "PUT" : "POST";
+
+            try {
+
+                const response = await fetch(url, {
+                    method,
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(payload)
+                });
+
+                const body = await response.json().catch(() => ({}));
+
+                if (!response.ok) {
+                    throw new Error(body.error || body.description || `HTTP ${response.status}`);
+                }
+
+                resetPrescriptionForm();
+
+                const patientIdField = document.getElementById("patient-id");
+                if (!patientIdField.value) {
+                    patientIdField.value = payload.patient_id;
+                }
+                loadPrescriptions();
+
+            } catch (err) {
+
+                error.textContent = err.message || "Failed to save prescription.";
+                console.error(err);
+            }
+        }
+
+        async function deletePrescription(id) {
+
+            if (!confirm(`Delete prescription #${id}? This cannot be undone.`)) return;
+
+            const error = document.getElementById("prescriptions-error");
+            error.textContent = "";
+
+            try {
+
+                const response = await fetch(`${API_URL}/admin/prescriptions/${id}`, {
+                    method: "DELETE"
+                });
+
+                const body = await response.json().catch(() => ({}));
+
+                if (!response.ok) {
+                    throw new Error(body.error || body.description || `HTTP ${response.status}`);
+                }
+
+                loadPrescriptions();
+
+            } catch (err) {
+
+                error.textContent = err.message || "Failed to delete prescription.";
+                console.error(err);
+            }
+        }
+
+
+        // Load medications when page opens (also populates the prescription dropdown)
+
+        loadMedications();
+
+    </script>
+
+</body>
+</html>

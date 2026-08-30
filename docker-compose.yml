@@ -148,7 +148,6 @@ services:
       - "5003:5003"
     environment:
       DATABASE_SERVICE_URL: http://pharmacy-database:6003
-      EHR_DATABASE_API_URL: http://ehr-backend:5002
       SHARED_ACCESS_API_URL: http://shared-backend:5000
       OLLAMA_BASE_URL: http://host.docker.internal:11434/v1
       OLLAMA_MODEL: qwen2.5:0.5b
@@ -157,7 +156,6 @@ services:
     depends_on:
       - pharmacy-database
       - shared-backend
-      - ehr-backend
     networks:
       - healthcare-network
     restart: unless-stopped

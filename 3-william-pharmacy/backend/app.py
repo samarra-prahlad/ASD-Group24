@@ -1,4 +1,4 @@
-from flask import Flask, request
+from flask import Flask, jsonify, request
 from flask_cors import CORS
 from openai import OpenAI
 from pathlib import Path
@@ -23,28 +23,71 @@ def load_prompt(filename):
     prompt_path = PROMPT_DIR / filename
     return prompt_path.read_text(encoding="utf-8").strip()
 
+def proxy(method, path, **kwargs):
+    """Forward a request to the database service and pass back its response as-is."""
+    try:
+        response = requests.request(method, f"{DATABASE_URL}{path}", timeout=10, **kwargs)
+    except requests.RequestException as e:
+        print(f"Error calling database service ({method} {path}): {e}")
+        return jsonify({"error": "database service unavailable"}), 502
+
+    # Forward whatever the database service returned — success or error —
+    # instead of swallowing it and returning a generic response.
+    try:
+        body = response.json()
+    except ValueError:
+        body = {"error": "invalid response from database service"}
+    return jsonify(body), response.status_code
+
+
+# --- read endpoints (existing, fixed to forward real status codes) --------
+
 @app.get("/medications")
 def get_medications():
-    try:
-        response = requests.get(f"{DATABASE_URL}/medications")
-        response.raise_for_status()
-        print(f"Retrieved medications: {response.json()}")
-        return response.json()
-    except requests.RequestException as e:
-        print(f"Error fetching medications: {e}")
-        return []
+    return proxy("GET", "/medications")
+
 
 @app.get("/prescriptions/<patient_id>")
 def get_prescriptions(patient_id):
-    try:
-        response = requests.get(f"{DATABASE_URL}/prescriptions/{patient_id}")
-        response.raise_for_status()
-        print(f"Retrieved prescriptions for patient {patient_id}: {response.json()}")
-        return response.json()
-    except requests.RequestException as e:
-        print(f"Error fetching prescriptions for patient {patient_id}: {e}")
-        return []
+    return proxy("GET", f"/prescriptions/{patient_id}")
 
+
+# --- admin: medications -----------------------------------------------
+
+@app.post("/admin/medications")
+def add_medication():
+    return proxy("POST", "/admin/medications/", json=request.get_json(silent=True) or {})
+
+
+@app.put("/admin/medications/<int:med_id>")
+def update_medication(med_id):
+    return proxy("PUT", f"/admin/medications/{med_id}", json=request.get_json(silent=True) or {})
+
+
+@app.delete("/admin/medications/<int:med_id>")
+def delete_medication(med_id):
+    return proxy("DELETE", f"/admin/medications/{med_id}")
+
+
+# --- admin: prescriptions -----------------------------------------------
+
+@app.post("/admin/prescriptions")
+def create_prescription():
+    return proxy("POST", "/admin/prescriptions", json=request.get_json(silent=True) or {})
+
+
+@app.put("/admin/prescriptions/<int:prescription_id>")
+def update_prescription(prescription_id):
+    return proxy("PUT", f"/admin/prescriptions/{prescription_id}", json=request.get_json(silent=True) or {})
+
+
+@app.delete("/admin/prescriptions/<int:prescription_id>")
+def delete_prescription(prescription_id):
+    return proxy("DELETE", f"/admin/prescriptions/{prescription_id}")
+
+
+
+# AI chatbot endpoints
 
 @app.route("/ask", methods=["POST"])
 def ask_local_agent():
@@ -128,6 +171,7 @@ def ask_with_context():
             f"<pre>{exc}</pre>",
             503,
         )
+
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5003, debug=True)
