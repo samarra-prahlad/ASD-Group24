@@ -128,6 +128,7 @@ def create_prescription():
         db.close()
         abort(400, description="medication_id does not exist")
 
+    status = data.get("status", "active")
     cur = db.execute(
         """INSERT INTO prescriptions (patient_id, medication_id, dosage, prescribing_doctor, status)
            VALUES (?, ?, ?, ?, ?)""",
@@ -136,13 +137,13 @@ def create_prescription():
             data["medication_id"],
             data["dosage"],
             data["prescribing_doctor"],
-            data.get("status", "active"),
+            status,
         )
     )
     db.commit()
     new_id = cur.lastrowid
     db.close()
-    return jsonify({"id": new_id, **data}), 201
+    return jsonify({"id": new_id, **data, "status": status}), 201
 
 # update prescriptions
 @app.put("/admin/prescriptions/<int:prescription_id>")

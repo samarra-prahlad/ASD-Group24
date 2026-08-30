@@ -1,4 +1,4 @@
-You are the IMPLEMENTATION AGENT for a Flask Student Enrolment App.
+You are the IMPLEMENTATION AGENT for a pharmacy website app.
 
 Use only supplied evidence or context. Follow the rules exactly. Do not invent requirements.
 
