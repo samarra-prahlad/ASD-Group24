@@ -28,6 +28,8 @@ sleep 1
 
 echo "=== Starting backend (port 5004) ==="
 export DATABASE_SERVICE_URL="http://localhost:6004"
+export OLLAMA_BASE_URL="http://localhost:11434/v1"
+export OLLAMA_MODEL="qwen2.5:0.5b"
 python3 backend/app.py &
 BACKEND_PID=$!
 
@@ -42,6 +44,9 @@ echo "Billing stack is running:"
 echo "  Database:  http://localhost:6004"
 echo "  Backend:   http://localhost:5004"
 echo "  Frontend:  http://localhost:3004/index.html"
+echo ""
+echo "Note: AI chat requires Ollama running locally with qwen2.5:0.5b pulled."
+echo "  Check with: ollama list"
 echo ""
 echo "Press Ctrl+C to stop everything."
 

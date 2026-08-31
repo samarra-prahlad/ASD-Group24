@@ -40,5 +40,20 @@
         </tbody>
     </table>
 </div>
+
+<div class="card">
+    <h2>Ask About Your Bill</h2>
+    <div id="chat-log" class="chat-log"></div>
+    <form
+        class="chat-form"
+        hx-post="http://localhost:5004/ai/chat/html"
+        hx-target="#chat-log"
+        hx-swap="beforeend"
+        hx-on::after-request="this.reset()"
+    >
+        <input type="text" name="message" placeholder="e.g. What do I owe on my latest invoice?" required>
+        <button type="submit">Send</button>
+    </form>
+</div>
 </body>
 </html>

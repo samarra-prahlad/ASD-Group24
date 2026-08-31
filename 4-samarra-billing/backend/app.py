@@ -1,5 +1,6 @@
 from flask import Flask, jsonify, request
 from flask_cors import CORS
+from markupsafe import escape
 import os
 import requests
 
@@ -10,8 +11,18 @@ DATABASE_SERVICE_URL = os.environ.get("DATABASE_SERVICE_URL", "http://billing-da
 APPOINTMENTS_DATABASE_API_URL = os.environ.get("APPOINTMENTS_DATABASE_API_URL", "http://appointments-backend:5001")
 PHARMACY_DATABASE_API_URL = os.environ.get("PHARMACY_DATABASE_API_URL", "http://pharmacy-backend:5003")
 WARDBED_DATABASE_API_URL = os.environ.get("WARDBED_DATABASE_API_URL", "http://wardbed-backend:5006")
+OLLAMA_BASE_URL = os.environ.get("OLLAMA_BASE_URL", "http://host.docker.internal:11434/v1")
+OLLAMA_MODEL = os.environ.get("OLLAMA_MODEL", "qwen2.5:0.5b")
 
+AI_TIMEOUT = 30  # seconds - LLM responses are slower than normal service calls
 REQUEST_TIMEOUT = 3  # seconds - fail fast to mock rather than hang if a teammate's service is down
+
+AI_SYSTEM_PROMPT = (
+    "You are a helpful billing assistant for a healthcare application. "
+    "Answer questions about invoices, insurance coverage, and billing status "
+    "concisely and in plain language. If you don't have enough information "
+    "to answer, say so rather than guessing."
+)
 
 
 def proxy_get(url):
@@ -136,6 +147,7 @@ def get_insurance_providers():
     body, status = proxy_get(f"{DATABASE_SERVICE_URL}/insurance-providers")
     return jsonify(body), status
 
+
 # ---------------------------------------------------------------------------
 # HTML fragment endpoint for the HTMX frontend
 #
@@ -176,6 +188,8 @@ def get_invoices_html():
         return "<tr><td colspan='7'>Error loading invoices.</td></tr>", status
 
     return render_invoice_rows(body)
+
+
 # ---------------------------------------------------------------------------
 # Business logic: generate an invoice by pulling costs from other services
 # ---------------------------------------------------------------------------
@@ -224,6 +238,78 @@ def generate_invoice():
     }
 
     return jsonify(result), 201
+
+
+# ---------------------------------------------------------------------------
+# AI-Mode: Frontend -> Backend/API -> Ollama -> LLM
+# ---------------------------------------------------------------------------
+
+def call_ollama(user_message):
+    """
+    Sends the user's message to Ollama's OpenAI-compatible chat completions
+    endpoint. Returns (reply_text, error_message) - exactly one is None.
+    """
+    try:
+        response = requests.post(
+            f"{OLLAMA_BASE_URL}/chat/completions",
+            json={
+                "model": OLLAMA_MODEL,
+                "messages": [
+                    {"role": "system", "content": AI_SYSTEM_PROMPT},
+                    {"role": "user", "content": user_message},
+                ],
+            },
+            timeout=AI_TIMEOUT,
+        )
+    except requests.exceptions.RequestException:
+        return None, "AI service is unreachable"
+
+    if response.status_code != 200:
+        return None, "AI service returned an error"
+
+    try:
+        reply = response.json()["choices"][0]["message"]["content"]
+    except (KeyError, IndexError, ValueError):
+        return None, "Unexpected AI response format"
+
+    return reply, None
+
+
+@app.post("/ai/chat")
+def ai_chat():
+    data = request.get_json()
+
+    if not data or "message" not in data or not data["message"].strip():
+        return jsonify({"error": "message is required"}), 400
+
+    reply, error = call_ollama(data["message"])
+
+    if error:
+        return jsonify({"error": error}), 503
+
+    return jsonify({"reply": reply})
+
+
+@app.post("/ai/chat/html")
+def ai_chat_html():
+    """
+    HTML fragment version for the HTMX chat widget. Appends a user bubble and
+    an assistant bubble to the chat log on each request.
+    """
+    user_message = request.form.get("message", "").strip()
+
+    if not user_message:
+        return "<div class='chat-msg chat-error'>Please enter a message.</div>", 400
+
+    reply, error = call_ollama(user_message)
+
+    user_bubble = f"<div class='chat-msg chat-user'><strong>You:</strong> {escape(user_message)}</div>"
+
+    if error:
+        return f"{user_bubble}<div class='chat-msg chat-error'>{escape(error)}</div>", 503
+
+    bot_bubble = f"<div class='chat-msg chat-bot'><strong>Assistant:</strong> {escape(reply)}</div>"
+    return f"{user_bubble}{bot_bubble}"
 
 
 # run application
