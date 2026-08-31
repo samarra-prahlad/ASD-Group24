@@ -163,7 +163,7 @@ def get_appointments_by_date(date):
     """, (date,)).fetchall()
     conn.close()
     return jsonify([dict(row) for row in appointments])
-# --- end new ---
+
 
 
 # Create a new appointment
@@ -194,11 +194,6 @@ def create_appointment():
         conn.close()
         return jsonify({"error": "Doctor not found"}), 404
 
-    # NOTE: the UNIQUE(doctor_id, date, time) constraint on the appointments
-    # table (added in init_db.py) is what actually prevents double-booking.
-    # This insert can still race with a concurrent request for the same
-    # slot; sqlite3.IntegrityError below is how we catch that race safely,
-    # since the database serializes the two writes and only one can win.
     try:
         cursor = conn.execute("""
             INSERT INTO appointments (patient_id, doctor_id, date, time, status)
