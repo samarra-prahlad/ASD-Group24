@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Group 24 — Patient Home</title>
+    <link rel="stylesheet" href="http://localhost:3000/css/theme.css">
+    <link rel="stylesheet" href="http://localhost:3000/css/index.css">
+</head>
+<body>
+    <div class="home-shell">
+        <header class="home-header">
+            <h1>Welcome, {{ first_name }}</h1>
+        </header>
+
+        <div class="feature-grid">
+            <a class="feature-card" href="http://localhost:3001?token={{ token }}" target="_blank" rel="noopener">
+                <h2>Appointments</h2>
+                <p>Kathrynna</p>
+            </a>
+            <a class="feature-card" href="http://localhost:3002?token={{ token }}" target="_blank" rel="noopener">
+                <h2>EHR</h2>
+                <p>Divyansh</p>
+            </a>
+            <a class="feature-card" href="http://localhost:3003?token={{ token }}" target="_blank" rel="noopener">
+                <h2>Pharmacy</h2>
+                <p>William</p>
+            </a>
+            <a class="feature-card" href="http://localhost:3004?token={{ token }}" target="_blank" rel="noopener">
+                <h2>Billing &amp; Insurance</h2>
+                <p>Samarra</p>
+            </a>
+            <a class="feature-card" href="http://localhost:3005?token={{ token }}" target="_blank" rel="noopener">
+                <h2>Lab Tests</h2>
+                <p>Maximilian</p>
+            </a>
+            <a class="feature-card" href="http://localhost:3006?token={{ token }}" target="_blank" rel="noopener">
+                <h2>Ward &amp; Bed Management</h2>
+                <p>Brian</p>
+            </a>
+        </div>
+
+        <p class="auth-switch"><a href="/logout/html">Log out</a></p>
+    </div>
+</body>
+</html>
