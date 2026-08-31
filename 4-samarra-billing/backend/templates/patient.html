@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Billing - Patient View</title>
+    <link rel="stylesheet" href="http://localhost:3000/css/theme.css">
+    <link rel="stylesheet" href="http://localhost:3004/css/styles.css">
+    <script src="https://unpkg.com/htmx.org@1.9.12"></script>
+</head>
+<body>
+<div class="app-shell">
+    <header class="app-header">
+        <h1>Billing &amp; Insurance</h1>
+    </header>
+
+    <div class="card">
+        <h2>My Invoices</h2>
+
+        <form
+            class="patient-form"
+            hx-get="http://localhost:5004/invoices/html"
+            hx-target="#invoice-table-body"
+            hx-trigger="submit"
+        >
+            <input type="hidden" name="token" value="{{ token }}">
+            <div>
+                <label for="patient_id">Patient ID</label>
+                <input type="number" id="patient_id" name="patient_id" required>
+            </div>
+            <button type="submit">View Invoices</button>
+        </form>
+
+        <table class="invoice-table">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Patient</th>
+                    <th>Insurance</th>
+                    <th>Total</th>
+                    <th>Covered</th>
+                    <th>Owed</th>
+                    <th>Status</th>
+                </tr>
+            </thead>
+            <tbody id="invoice-table-body">
+                <tr><td colspan="7">Enter a patient ID above to view invoices.</td></tr>
+            </tbody>
+        </table>
+    </div>
+
+    <div class="card">
+        <h2>Ask About Your Bill</h2>
+        <div id="chat-log" class="chat-log"></div>
+        <form
+            class="chat-form"
+            hx-post="http://localhost:5004/ai/chat/html"
+            hx-target="#chat-log"
+            hx-swap="beforeend"
+            hx-on::after-request="this.reset()"
+        >
+            <input type="hidden" name="token" value="{{ token }}">
+            <input type="text" name="message" placeholder="e.g. What do I owe on my latest invoice?" required>
+            <button type="submit">Send</button>
+        </form>
+    </div>
+
+    <p class="auth-switch"><a href="http://localhost:5000/home">&larr; Back to Home</a></p>
+</div>
+</body>
+</html>

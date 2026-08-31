@@ -1,21 +1,25 @@
-from flask import Flask, jsonify, request
-from flask_cors import CORS
-from markupsafe import escape
 import os
 import requests
+from flask import Flask, jsonify, request, render_template, redirect
+from flask_cors import CORS
+from markupsafe import escape
 
-app = Flask(__name__)
+BACKEND_DIR = os.path.dirname(os.path.abspath(__file__))
+app = Flask(__name__, template_folder=os.path.join(BACKEND_DIR, "templates"))
 CORS(app)
 
 DATABASE_SERVICE_URL = os.environ.get("DATABASE_SERVICE_URL", "http://billing-database:6004")
 APPOINTMENTS_DATABASE_API_URL = os.environ.get("APPOINTMENTS_DATABASE_API_URL", "http://appointments-backend:5001")
 PHARMACY_DATABASE_API_URL = os.environ.get("PHARMACY_DATABASE_API_URL", "http://pharmacy-backend:5003")
 WARDBED_DATABASE_API_URL = os.environ.get("WARDBED_DATABASE_API_URL", "http://wardbed-backend:5006")
+SHARED_ACCESS_API_URL = os.environ.get("SHARED_ACCESS_API_URL", "http://shared-backend:5000")
 OLLAMA_BASE_URL = os.environ.get("OLLAMA_BASE_URL", "http://host.docker.internal:11434/v1")
 OLLAMA_MODEL = os.environ.get("OLLAMA_MODEL", "qwen2.5:0.5b")
 
 AI_TIMEOUT = 30  # seconds - LLM responses are slower than normal service calls
 REQUEST_TIMEOUT = 3  # seconds - fail fast to mock rather than hang if a teammate's service is down
+
+SHARED_LOGIN_URL = "http://localhost:5000/login"
 
 AI_SYSTEM_PROMPT = (
     "You are a helpful billing assistant for a healthcare application. "
@@ -35,6 +39,38 @@ def proxy_get(url):
         return response.json(), response.status_code
     except requests.exceptions.RequestException:
         return {"error": "billing-database is unreachable"}, 503
+
+
+# ---------------------------------------------------------------------------
+# Shared access control
+#
+# Calls shared-backend's /session/verify to find out who's making a request
+# and what role they have. Billing enforces: admin = read/write, patient =
+# read-only (Billing is not the Appointments exception).
+# ---------------------------------------------------------------------------
+
+def verify_session(token):
+    """
+    Verifies a session token against shared-backend.
+    Returns (session_dict, None) on success, or (None, error_kind) on failure,
+    where error_kind is "missing", "unreachable", or "invalid".
+    """
+    if not token:
+        return None, "missing"
+
+    try:
+        response = requests.post(
+            f"{SHARED_ACCESS_API_URL}/session/verify",
+            json={"token": token},
+            timeout=REQUEST_TIMEOUT,
+        )
+    except requests.exceptions.RequestException:
+        return None, "unreachable"
+
+    if response.status_code != 200:
+        return None, "invalid"
+
+    return response.json(), None
 
 
 # ---------------------------------------------------------------------------
@@ -65,7 +101,6 @@ def get_appointment_cost(appointment_id):
     except requests.exceptions.RequestException:
         pass
 
-    # Mock fallback: flat placeholder cost, not real pricing
     return 150.00, "mock"
 
 
@@ -86,7 +121,6 @@ def get_medication_cost(patient_id):
     except requests.exceptions.RequestException:
         pass
 
-    # Mock fallback: flat placeholder cost, not real pricing
     return 0.00, "mock"
 
 
@@ -107,7 +141,6 @@ def get_bed_charges(patient_id):
     except requests.exceptions.RequestException:
         pass
 
-    # Mock fallback: flat placeholder cost, not real pricing
     return 0.00, "mock"
 
 
@@ -118,6 +151,23 @@ def get_bed_charges(patient_id):
 @app.get("/")
 def health():
     return jsonify({"service": "billing-backend", "status": "running"})
+
+
+# ---------------------------------------------------------------------------
+# Role-gated view - decides which template to render based on the caller's
+# session, same pattern as shared-backend's /home route.
+# ---------------------------------------------------------------------------
+
+@app.get("/view")
+def view():
+    token = request.args.get("token")
+    session, error = verify_session(token)
+
+    if session is None:
+        return redirect(SHARED_LOGIN_URL)
+
+    template = "admin.html" if session["role"] == "admin" else "patient.html"
+    return render_template(template, token=token, first_name=session.get("first_name"))
 
 
 # ---------------------------------------------------------------------------
@@ -154,6 +204,7 @@ def get_insurance_providers():
 # hx-get expects HTML to swap into the DOM, not JSON, so this renders the
 # same invoice data as an HTML table body. Optional ?patient_id=<id> filters
 # to one patient's invoices (patient view); omitted, returns all (admin view).
+# Read-only, so no session check - both roles can view invoices.
 # ---------------------------------------------------------------------------
 
 def render_invoice_rows(invoices):
@@ -192,10 +243,24 @@ def get_invoices_html():
 
 # ---------------------------------------------------------------------------
 # Business logic: generate an invoice by pulling costs from other services
+#
+# Write operation - requires a valid admin session. Patients have read-only
+# access to Billing (Billing is not the Appointments exception).
 # ---------------------------------------------------------------------------
 
 @app.post("/invoices/generate")
 def generate_invoice():
+    token = request.args.get("token")
+    session, error = verify_session(token)
+
+    if session is None:
+        if error == "unreachable":
+            return jsonify({"error": "Shared access service is unreachable"}), 503
+        return jsonify({"error": "Invalid or missing session token"}), 401
+
+    if session["role"] != "admin":
+        return jsonify({"error": "Patients have read-only access to Billing"}), 403
+
     data = request.get_json()
 
     if not data:
