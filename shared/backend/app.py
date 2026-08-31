@@ -188,9 +188,7 @@ def home_page():
         return redirect("/login")
 
     template = "home_admin.html" if session["role"] == "admin" else "home_patient.html"
-    return render_template(template, first_name=session["first_name"])
-
-
+    return render_template(template, first_name=session["first_name"], token=token)
 @app.get("/logout/html")
 def logout_html():
     token = request.cookies.get("session_token")
