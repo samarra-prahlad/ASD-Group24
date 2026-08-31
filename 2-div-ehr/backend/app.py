@@ -2,6 +2,8 @@ import os
 
 from flask import Flask, jsonify, request
 from flask_cors import CORS
+from openai import OpenAI
+from pathlib import Path
 import requests
 
 app = Flask(__name__)
@@ -9,6 +11,14 @@ CORS(app)
 
 DATABASE_SERVICE_URL = os.environ.get("DATABASE_SERVICE_URL", "http://ehr-database:6002")
 SHARED_ACCESS_API_URL = os.environ.get("SHARED_ACCESS_API_URL", "http://shared-backend:5000")
+OLLAMA_BASE_URL = os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434/v1")
+OLLAMA_MODEL = os.environ.get("OLLAMA_MODEL", "qwen2.5:0.5b")
+PROMPT_DIR = Path(__file__).with_name("prompts")
+
+client = OpenAI(
+    base_url=OLLAMA_BASE_URL,
+    api_key="ollama"
+)
 
 def validate_user(user_id):
     try:
@@ -26,6 +36,9 @@ def validate_user(user_id):
     response.raise_for_status()
     return response.json().get("role"), None
 
+def load_prompt(filename):
+    prompt_path = PROMPT_DIR / filename
+    return prompt_path.read_text(encoding="utf-8").strip()
 
 #---Medical_Records---
 
@@ -115,7 +128,7 @@ def delete_record(record_id):
 
     return jsonify(response.json())
 
-#---Diagnosis (this is what Pharmacy's backend calls)---
+#---Diagnosis---
 
 @app.get("/diagnosis/<int:patient_id>")
 def get_diagnosis(patient_id):
@@ -155,7 +168,7 @@ def get_all_change_requests():
 
     return jsonify(response.json())
 
-# READ (by patient)
+# READ (patient)
 @app.get("/change_requests/<int:patient_id>")
 def get_change_requests(patient_id):
     requester_id = request.args.get("requester_id")
@@ -219,6 +232,86 @@ def update_change_request(request_id):
         return jsonify({"error": "EHR Database unavailable", "details": str(exc)}), 503
 
     return jsonify(response.json())
+
+#---AI chatbot endpoints---
+
+@app.route("/ask", methods=["POST"])
+def ask_local_agent():
+    question = request.form.get("question", "").strip()
+
+    if not question:
+        return "<p>Question is required.</p>", 400
+
+    try:
+        response = client.chat.completions.create(
+            model=OLLAMA_MODEL,
+            messages=[
+                {
+                    "role": "system",
+                    "content": (
+                        "You are a concise software engineering assistant. "
+                        "Answer in one short paragraph unless asked otherwise."
+                    )
+                },
+                {
+                    "role": "user",
+                    "content": question
+                }
+            ],
+            max_tokens=200,
+            temperature=0.2,
+        )
+
+        answer = response.choices[0].message.content
+        return f"<p>{answer}</p>"
+
+    except Exception as exc:
+        return (
+            "<p>Local AI agent request failed. "
+            "Check that Ollama is running and that qwen2.5:0.5b is installed.</p>"
+            f"<pre>{exc}</pre>",
+            503,
+        )
+
+@app.route("/ask-with-context", methods=["POST"])
+def ask_with_context():
+    question = request.form.get("question", "").strip()
+
+    if not question:
+        return "<p>Question is required.</p>", 400
+
+    loaded_system_prompt = load_prompt("implementation_system_prompt.txt")
+    loaded_task_prompt = load_prompt("context_qa_task_prompt.txt")
+
+    final_prompt = loaded_task_prompt + "\n\n" + question
+
+    try:
+        response = client.chat.completions.create(
+            model=OLLAMA_MODEL,
+            messages=[
+                {
+                    "role": "system",
+                    "content": loaded_system_prompt
+                },
+                {
+                    "role": "user",
+                    "content": final_prompt
+                }
+            ],
+            max_tokens=300,
+            temperature=0.0,
+        )
+
+        answer = response.choices[0].message.content
+        return f"<p>{answer}</p>"
+
+    except Exception as exc:
+        return (
+            "<p>Context-aware request failed. "
+            "Check that Ollama is running and that qwen2.5:0.5b is installed.</p>"
+            f"<pre>{exc}</pre>",
+            503,
+        )
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5002, debug=True)
