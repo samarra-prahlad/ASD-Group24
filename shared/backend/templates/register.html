@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Group 24 — Register</title>
+    <link rel="stylesheet" href="http://localhost:3000/css/theme.css">
+    <link rel="stylesheet" href="http://localhost:3000/css/login.css">
+</head>
+<body>
+    <div class="login-shell">
+        <header class="login-header">
+            <h1>Group 24 — Healthcare Microservices App</h1>
+            <p>Create an account</p>
+        </header>
+
+        {% if error %}
+        <div class="auth-message auth-error">{{ error }}</div>
+        {% endif %}
+
+        <form method="POST" action="/register/html" class="auth-form">
+            <label for="reg-first-name">First name</label>
+            <input type="text" id="reg-first-name" name="first_name" required>
+
+            <label for="reg-last-name">Last name</label>
+            <input type="text" id="reg-last-name" name="last_name" required>
+
+            <label for="reg-address">Address</label>
+            <input type="text" id="reg-address" name="address" required>
+
+            <label for="reg-email">Email address</label>
+            <input type="email" id="reg-email" name="email_address" required>
+
+            <label for="reg-password">Password</label>
+            <input type="password" id="reg-password" name="password" required>
+
+            <label for="reg-phone">Phone number</label>
+            <input type="tel" id="reg-phone" name="phone_number" required>
+
+            <label for="reg-emergency">Emergency contact number</label>
+            <input type="tel" id="reg-emergency" name="emergency_contact_number" required>
+
+            <button type="submit">Register</button>
+        </form>
+
+        <p class="auth-switch">Already have an account? <a href="/login">Log in here</a></p>
+    </div>
+</body>
+</html>

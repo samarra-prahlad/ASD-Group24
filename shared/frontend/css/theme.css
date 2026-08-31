@@ -1,0 +1,25 @@
+/*
+  All six frontends should reference these variables instead of
+  redefining their own hex codes.
+*/
+
+:root {
+    --color-bg: #f1f8e9;
+    --color-panel: #dcedc8;
+    --color-mid: #aed581;
+    --color-accent: #81c784;
+    --color-dark: #558b2f;
+    --color-text: #1b1b1b;
+    --color-muted: #4b5d3a;
+}
+
+* {
+    box-sizing: border-box;
+}
+
+body {
+    margin: 0;
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    background: var(--color-bg);
+    color: var(--color-text);
+}
