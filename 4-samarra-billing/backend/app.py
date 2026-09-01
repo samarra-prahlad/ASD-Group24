@@ -45,8 +45,9 @@ def proxy_get(url):
 # Shared access control
 #
 # Calls shared-backend's /session/verify to find out who's making a request
-# and what role they have. Billing enforces: admin = read/write, patient =
-# read-only (Billing is not the Appointments exception).
+# and what role they have. Billing enforces: admin = read/write on everyone's
+# invoices, patient = read-only on their OWN invoices only (Billing is not
+# the Appointments exception).
 # ---------------------------------------------------------------------------
 
 def verify_session(token):
@@ -71,6 +72,12 @@ def verify_session(token):
         return None, "invalid"
 
     return response.json(), None
+
+
+def session_error_response(error):
+    if error == "unreachable":
+        return jsonify({"error": "Shared access service is unreachable"}), 503
+    return jsonify({"error": "Invalid or missing session token"}), 401
 
 
 # ---------------------------------------------------------------------------
@@ -167,27 +174,65 @@ def view():
         return redirect(SHARED_LOGIN_URL)
 
     template = "admin.html" if session["role"] == "admin" else "patient.html"
-    return render_template(template, token=token, first_name=session.get("first_name"))
+    return render_template(
+        template,
+        token=token,
+        first_name=session.get("first_name"),
+        patient_id=session.get("patient_id"),
+    )
 
 
 # ---------------------------------------------------------------------------
 # Proxy plain CRUD reads to the database tier
+#
+# All read endpoints now require a valid session token. Admins can read
+# everyone's invoices. Patients can only read their own - any invoice or
+# patient_id belonging to someone else returns 403, regardless of what was
+# requested in the URL.
 # ---------------------------------------------------------------------------
 
 @app.get("/invoices")
 def get_invoices():
+    token = request.args.get("token")
+    session, error = verify_session(token)
+
+    if session is None:
+        return session_error_response(error)
+
+    if session["role"] != "admin":
+        return jsonify({"error": "Patients cannot list all invoices"}), 403
+
     body, status = proxy_get(f"{DATABASE_SERVICE_URL}/invoices")
     return jsonify(body), status
 
 
 @app.get("/invoices/<int:invoice_id>")
 def get_invoice(invoice_id):
+    token = request.args.get("token")
+    session, error = verify_session(token)
+
+    if session is None:
+        return session_error_response(error)
+
     body, status = proxy_get(f"{DATABASE_SERVICE_URL}/invoices/{invoice_id}")
+
+    if status == 200 and session["role"] != "admin" and body.get("patient_id") != session["patient_id"]:
+        return jsonify({"error": "You can only view your own invoices"}), 403
+
     return jsonify(body), status
 
 
 @app.get("/invoices/patient/<int:patient_id>")
 def get_invoices_by_patient(patient_id):
+    token = request.args.get("token")
+    session, error = verify_session(token)
+
+    if session is None:
+        return session_error_response(error)
+
+    if session["role"] != "admin" and patient_id != session["patient_id"]:
+        return jsonify({"error": "You can only view your own invoices"}), 403
+
     body, status = proxy_get(f"{DATABASE_SERVICE_URL}/invoices/patient/{patient_id}")
     return jsonify(body), status
 
@@ -202,9 +247,10 @@ def get_insurance_providers():
 # HTML fragment endpoint for the HTMX frontend
 #
 # hx-get expects HTML to swap into the DOM, not JSON, so this renders the
-# same invoice data as an HTML table body. Optional ?patient_id=<id> filters
-# to one patient's invoices (patient view); omitted, returns all (admin view).
-# Read-only, so no session check - both roles can view invoices.
+# same invoice data as an HTML table body. Requires a valid token. Patients
+# always see only their own invoices - any ?patient_id in the request is
+# ignored in favour of their session's own ID. Admins may filter by
+# ?patient_id, or omit it to see everyone's.
 # ---------------------------------------------------------------------------
 
 def render_invoice_rows(invoices):
@@ -228,7 +274,16 @@ def render_invoice_rows(invoices):
 
 @app.get("/invoices/html")
 def get_invoices_html():
-    patient_id = request.args.get("patient_id")
+    token = request.args.get("token")
+    session, error = verify_session(token)
+
+    if session is None:
+        return "<tr><td colspan='7'>Please log in again.</td></tr>", 401
+
+    if session["role"] == "admin":
+        patient_id = request.args.get("patient_id")
+    else:
+        patient_id = session["patient_id"]
 
     if patient_id:
         body, status = proxy_get(f"{DATABASE_SERVICE_URL}/invoices/patient/{patient_id}")
@@ -254,9 +309,7 @@ def generate_invoice():
     session, error = verify_session(token)
 
     if session is None:
-        if error == "unreachable":
-            return jsonify({"error": "Shared access service is unreachable"}), 503
-        return jsonify({"error": "Invalid or missing session token"}), 401
+        return session_error_response(error)
 
     if session["role"] != "admin":
         return jsonify({"error": "Patients have read-only access to Billing"}), 403

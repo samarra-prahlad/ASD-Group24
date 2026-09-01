@@ -115,3 +115,134 @@ class TestGenerateInvoicePermissions:
                     "/invoices/generate?token=admin-token", json={"patient_id": 5}
                 )
         assert response.status_code == 201
+
+
+class TestInvoiceReadPermissions:
+    def test_get_all_invoices_without_token_returns_401(self, client):
+        test_client, module = client
+        response = test_client.get("/invoices")
+        assert response.status_code == 401
+
+    def test_get_all_invoices_with_patient_token_returns_403(self, client):
+        test_client, module = client
+        with patch("requests.post") as mock_post:
+            mock_post.return_value = fake_response(
+                {"valid": True, "patient_id": 101, "role": "patient", "first_name": "John"}, status=200
+            )
+            response = test_client.get("/invoices?token=patient-token")
+        assert response.status_code == 403
+
+    def test_get_all_invoices_with_admin_token_returns_200(self, client):
+        test_client, module = client
+        with patch("requests.post") as mock_post:
+            mock_post.return_value = fake_response(
+                {"valid": True, "patient_id": 2, "role": "admin", "first_name": "Grace"}, status=200
+            )
+            with patch("requests.get") as mock_get:
+                mock_get.return_value = fake_response([{"id": 1, "patient_id": 101}], status=200)
+                response = test_client.get("/invoices?token=admin-token")
+        assert response.status_code == 200
+
+    def test_get_single_invoice_patient_owns_it_returns_200(self, client):
+        test_client, module = client
+        with patch("requests.post") as mock_post:
+            mock_post.return_value = fake_response(
+                {"valid": True, "patient_id": 101, "role": "patient", "first_name": "John"}, status=200
+            )
+            with patch("requests.get") as mock_get:
+                mock_get.return_value = fake_response({"id": 5, "patient_id": 101}, status=200)
+                response = test_client.get("/invoices/5?token=patient-token")
+        assert response.status_code == 200
+
+    def test_get_single_invoice_patient_does_not_own_it_returns_403(self, client):
+        test_client, module = client
+        with patch("requests.post") as mock_post:
+            mock_post.return_value = fake_response(
+                {"valid": True, "patient_id": 101, "role": "patient", "first_name": "John"}, status=200
+            )
+            with patch("requests.get") as mock_get:
+                mock_get.return_value = fake_response({"id": 5, "patient_id": 999}, status=200)
+                response = test_client.get("/invoices/5?token=patient-token")
+        assert response.status_code == 403
+
+    def test_get_single_invoice_admin_can_view_any(self, client):
+        test_client, module = client
+        with patch("requests.post") as mock_post:
+            mock_post.return_value = fake_response(
+                {"valid": True, "patient_id": 2, "role": "admin", "first_name": "Grace"}, status=200
+            )
+            with patch("requests.get") as mock_get:
+                mock_get.return_value = fake_response({"id": 5, "patient_id": 999}, status=200)
+                response = test_client.get("/invoices/5?token=admin-token")
+        assert response.status_code == 200
+
+    def test_get_single_invoice_without_token_returns_401(self, client):
+        test_client, module = client
+        response = test_client.get("/invoices/5")
+        assert response.status_code == 401
+
+    def test_get_invoices_by_patient_matching_own_id_returns_200(self, client):
+        test_client, module = client
+        with patch("requests.post") as mock_post:
+            mock_post.return_value = fake_response(
+                {"valid": True, "patient_id": 101, "role": "patient", "first_name": "John"}, status=200
+            )
+            with patch("requests.get") as mock_get:
+                mock_get.return_value = fake_response([{"id": 1, "patient_id": 101}], status=200)
+                response = test_client.get("/invoices/patient/101?token=patient-token")
+        assert response.status_code == 200
+
+    def test_get_invoices_by_patient_different_id_returns_403(self, client):
+        test_client, module = client
+        with patch("requests.post") as mock_post:
+            mock_post.return_value = fake_response(
+                {"valid": True, "patient_id": 101, "role": "patient", "first_name": "John"}, status=200
+            )
+            response = test_client.get("/invoices/patient/999?token=patient-token")
+        assert response.status_code == 403
+
+    def test_get_invoices_by_patient_admin_can_view_any(self, client):
+        test_client, module = client
+        with patch("requests.post") as mock_post:
+            mock_post.return_value = fake_response(
+                {"valid": True, "patient_id": 2, "role": "admin", "first_name": "Grace"}, status=200
+            )
+            with patch("requests.get") as mock_get:
+                mock_get.return_value = fake_response([{"id": 1, "patient_id": 999}], status=200)
+                response = test_client.get("/invoices/patient/999?token=admin-token")
+        assert response.status_code == 200
+
+    def test_invoices_html_patient_ignores_supplied_patient_id(self, client):
+        test_client, module = client
+        with patch("requests.post") as mock_post:
+            mock_post.return_value = fake_response(
+                {"valid": True, "patient_id": 101, "role": "patient", "first_name": "John"}, status=200
+            )
+            with patch("requests.get") as mock_get:
+                mock_get.return_value = fake_response([{"id": 1, "patient_id": 101, "insurance_provider_name": "Bupa",
+                                                          "total_amount": 100.0, "insurance_covered_amount": 50.0,
+                                                          "patient_owed_amount": 50.0, "status": "pending"}], status=200)
+                response = test_client.get("/invoices/html?token=patient-token&patient_id=999")
+        mock_get.assert_called_with(
+            "http://billing-database:6004/invoices/patient/101", timeout=module.REQUEST_TIMEOUT
+        )
+        assert response.status_code == 200
+
+    def test_invoices_html_admin_can_filter_by_any_patient_id(self, client):
+        test_client, module = client
+        with patch("requests.post") as mock_post:
+            mock_post.return_value = fake_response(
+                {"valid": True, "patient_id": 2, "role": "admin", "first_name": "Grace"}, status=200
+            )
+            with patch("requests.get") as mock_get:
+                mock_get.return_value = fake_response([], status=200)
+                response = test_client.get("/invoices/html?token=admin-token&patient_id=999")
+        mock_get.assert_called_with(
+            "http://billing-database:6004/invoices/patient/999", timeout=module.REQUEST_TIMEOUT
+        )
+        assert response.status_code == 200
+
+    def test_invoices_html_without_token_returns_401(self, client):
+        test_client, module = client
+        response = test_client.get("/invoices/html")
+        assert response.status_code == 401
