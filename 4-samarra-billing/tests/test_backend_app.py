@@ -51,6 +51,22 @@ def client():
         yield test_client
 
 
+@pytest.fixture(autouse=True)
+def mock_admin_session(monkeypatch):
+    """
+    This test file predates session-based access control and exercises
+    proxying/cost-calculation logic, not authorization - permission
+    enforcement itself is covered separately in test_view_and_permissions.py.
+    Auto-patch verify_session so every request here is treated as a valid
+    admin, regardless of whether a token was passed.
+    """
+    monkeypatch.setattr(
+        billing_backend_app,
+        "verify_session",
+        lambda token: ({"patient_id": 1, "role": "admin", "first_name": "Test Admin"}, None),
+    )
+
+
 # ---------------------------------------------------------------------------
 # Health check
 # ---------------------------------------------------------------------------
