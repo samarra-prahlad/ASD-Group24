@@ -5,6 +5,15 @@ let myId = null;
 let myRole = null;
 let patientList = [];
 
+function setupNavLinks() {
+  document.getElementById("nav-appointments").href = `http://localhost:3001?token=${token}`;
+  document.getElementById("nav-ehr").href = `http://localhost:3002?token=${token}`;
+  document.getElementById("nav-pharmacy").href = `http://localhost:3003?token=${token}`;
+  document.getElementById("nav-billing").href = `http://localhost:3004?token=${token}`;
+  document.getElementById("nav-labtests").href = `http://localhost:3005?token=${token}`;
+  document.getElementById("nav-wardbed").href = `http://localhost:3006?token=${token}`;
+}
+
 async function start() {
   const params = new URLSearchParams(window.location.search);
   token = params.get("token");
@@ -23,6 +32,8 @@ async function start() {
   const me = await resp.json();
   myId = me.patient_id;
   myRole = me.role;
+
+  setupNavLinks();
 
   if (myRole === "patient") {
     document.getElementById("patient-section").style.display = "block";
