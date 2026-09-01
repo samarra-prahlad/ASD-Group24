@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>EHR</title>
+</head>
+<body>
+
+<h1>EHR</h1>
+
+<!-- PATIENT VIEW -->
+<div id="patient-section" style="display:none;">
+  <h2>My Records</h2>
+  <button onclick="loadOwnRecords()">Refresh Records</button>
+  <div id="patient-records"></div>
+
+  <h2>Request a Change</h2>
+  <select id="req-type">
+    <option>Update Allergies</option>
+    <option>Update Diagnosis</option>
+    <option>Update Treatment</option>
+    <option>Update Notes</option>
+    <option>Other</option>
+  </select>
+  <br>
+  <textarea id="req-details" placeholder="Describe the change"></textarea>
+  <br>
+  <button onclick="submitChangeRequest()">Submit Request</button>
+  <p id="req-status"></p>
+
+  <h2>My Change Requests</h2>
+  <button onclick="loadOwnRequests()">Refresh My Requests</button>
+  <div id="patient-requests"></div>
+</div>
+
+<!-- STAFF VIEW -->
+<div id="staff-section" style="display:none;">
+  <h2>Staff View</h2>
+
+  <h3>Patients</h3>
+  <input id="patient-search" type="text" placeholder="Search by ID or name">
+  <button onclick="searchPatients()">Search</button>
+  <button onclick="loadPatientTable()">Clear</button>
+<table id="patient-table" border="1">
+  <thead><tr><th>ID</th><th>Name</th><th></th></tr></thead>
+  <tbody id="patient-table-body"></tbody>
+</table>
+
+  <div id="patient-detail" style="display:none;">
+    <h3>Patient: <span id="detail-patient-name"></span></h3>
+    <button onclick="closePatientDetail()">Close</button>
+
+    <h4>Records</h4>
+    <div id="detail-records"></div>
+
+    <h4>Change Requests</h4>
+    <div id="detail-requests"></div>
+  </div>
+
+  <h3>Add Record</h3>
+  <input id="add-patient-id" type="number" placeholder="Patient ID">
+  <input id="add-visit-date" type="date">
+  <input id="add-diagnosis" placeholder="Diagnosis">
+  <input id="add-doctor" placeholder="Doctor Name">
+  <input id="add-treatment" placeholder="Treatment">
+  <input id="add-notes" placeholder="Notes">
+  <input id="add-allergies" placeholder="Allergies">
+  <button onclick="addRecord()">Add Record</button>
+  <p id="add-status"></p>
+</div>
+
+<!-- CHATBOT -->
+<div id="chatbot-section">
+  <h2>Ask the Assistant</h2>
+  <textarea id="chat-question" placeholder="Ask a question..."></textarea>
+  <br>
+  <button onclick="askAgent()">Ask</button>
+  <button onclick="askWithContext()">Ask With Context</button>
+  <div id="chat-result"></div>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>
