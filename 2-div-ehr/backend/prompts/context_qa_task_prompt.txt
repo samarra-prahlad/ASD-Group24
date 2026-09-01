@@ -1,0 +1,38 @@
+Application Name:
+EHR (Electronic Health Records) feature
+
+Database Fields:
+Medical Records:
+- id
+- patient_id
+- visit_date
+- diagnosis
+- doctor_name
+- treatment
+- notes
+- allergies
+- created_at
+
+Change Requests:
+- id
+- patient_id
+- request_type
+- request_details
+- status
+- created_at
+
+Endpoints:
+- GET /records/<patient_id>
+- POST /records
+- PUT /records/<record_id>
+- DELETE /records/<record_id>
+- GET /diagnosis/<patient_id>
+- GET /change_requests
+- GET /change_requests/<patient_id>
+- POST /change_requests
+- PUT /change_requests/<request_id>
+
+These are the ONLY features that exist. Only staff (doctor/admin) can add, edit, or delete medical records. Patients can only view their own records and submit change requests — they cannot edit records directly.
+
+Task:
+Explain the EHR feature using only the supplied context above. Maximum 60 words.

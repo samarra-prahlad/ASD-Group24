@@ -1,0 +1,317 @@
+import os
+
+from flask import Flask, jsonify, request
+from flask_cors import CORS
+from openai import OpenAI
+from pathlib import Path
+import requests
+
+app = Flask(__name__)
+CORS(app)
+
+DATABASE_SERVICE_URL = os.environ.get("DATABASE_SERVICE_URL", "http://ehr-database:6002")
+SHARED_ACCESS_API_URL = os.environ.get("SHARED_ACCESS_API_URL", "http://shared-backend:5000")
+OLLAMA_BASE_URL = os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434/v1")
+OLLAMA_MODEL = os.environ.get("OLLAMA_MODEL", "qwen2.5:0.5b")
+PROMPT_DIR = Path(__file__).with_name("prompts")
+
+client = OpenAI(
+    base_url=OLLAMA_BASE_URL,
+    api_key="ollama"
+)
+
+def validate_user(user_id):
+    try:
+        response = requests.get(
+            f"{SHARED_ACCESS_API_URL}/validate",
+            params={"patient_id": user_id},
+            timeout=5,
+        )
+    except requests.RequestException as exc:
+        return None, (jsonify({"error": "Shared access service is unavailable", "details": str(exc)}), 503)
+
+    if response.status_code == 404:
+        return None, (jsonify({"error": "User not found"}), 404)
+
+    response.raise_for_status()
+    return response.json().get("role"), None
+
+def load_prompt(filename):
+    prompt_path = PROMPT_DIR / filename
+    return prompt_path.read_text(encoding="utf-8").strip()
+
+#---Medical_Records---
+
+# READ
+@app.get("/records/<int:patient_id>")
+def get_records(patient_id):
+    requester_id = request.args.get("requester_id")
+    if not requester_id:
+        return jsonify({"error": "requester_id is required"}), 400
+
+    role, error_response = validate_user(requester_id)
+    if error_response:
+        return error_response
+    if role == "patient" and int(requester_id) != patient_id:
+        return jsonify({"error": "Patients can only access their own records"}), 403
+
+    try:
+        response = requests.get(f"{DATABASE_SERVICE_URL}/records/{patient_id}", timeout=5)
+        response.raise_for_status()
+    except requests.RequestException as exc:
+        return jsonify({"error": "EHR Database unavailable", "details": str(exc)}), 503
+
+    return jsonify(response.json())
+
+# CREATE
+@app.post("/records")
+def create_record():
+    data = request.get_json()
+    requester_id = data.get("requester_id")
+    if not requester_id:
+        return jsonify({"error": "requester_id is required"}), 400
+
+    role, error_response = validate_user(requester_id)
+    if error_response:
+        return error_response
+    if role not in ("doctor", "admin"):
+        return jsonify({"error": "Only staff can add medical records"}), 403
+
+    try:
+        response = requests.post(f"{DATABASE_SERVICE_URL}/records", json=data, timeout=5)
+        response.raise_for_status()
+    except requests.RequestException as exc:
+        return jsonify({"error": "EHR Database unavailable", "details": str(exc)}), 503
+
+    return jsonify(response.json()), 201
+
+# UPDATE
+@app.put("/records/<int:record_id>")
+def update_record(record_id):
+    data = request.get_json()
+    requester_id = data.get("requester_id")
+    if not requester_id:
+        return jsonify({"error": "requester_id is required"}), 400
+
+    role, error_response = validate_user(requester_id)
+    if error_response:
+        return error_response
+    if role not in ("doctor", "admin"):
+        return jsonify({"error": "Only staff can edit medical records"}), 403
+
+    try:
+        response = requests.put(f"{DATABASE_SERVICE_URL}/records/{record_id}", json=data, timeout=5)
+        response.raise_for_status()
+    except requests.RequestException as exc:
+        return jsonify({"error": "EHR Database unavailable", "details": str(exc)}), 503
+
+    return jsonify(response.json())
+
+# DELETE
+@app.delete("/records/<int:record_id>")
+def delete_record(record_id):
+    requester_id = request.args.get("requester_id")
+    if not requester_id:
+        return jsonify({"error": "requester_id is required"}), 400
+
+    role, error_response = validate_user(requester_id)
+    if error_response:
+        return error_response
+    if role not in ("doctor", "admin"):
+        return jsonify({"error": "Only staff can delete medical records"}), 403
+
+    try:
+        response = requests.delete(f"{DATABASE_SERVICE_URL}/records/{record_id}", timeout=5)
+        response.raise_for_status()
+    except requests.RequestException as exc:
+        return jsonify({"error": "EHR Database unavailable", "details": str(exc)}), 503
+
+    return jsonify(response.json())
+
+#---Diagnosis---
+
+@app.get("/diagnosis/<int:patient_id>")
+def get_diagnosis(patient_id):
+    try:
+        response = requests.get(f"{DATABASE_SERVICE_URL}/records/{patient_id}", timeout=5)
+        response.raise_for_status()
+    except requests.RequestException as exc:
+        return jsonify({"error": "EHR Database unavailable", "details": str(exc)}), 503
+
+    records = response.json()
+    if not records:
+        return jsonify({"diagnosis": None, "allergies": None}), 404
+
+    latest = records[0]
+    return jsonify({"diagnosis": latest.get("diagnosis"), "allergies": latest.get("allergies")})
+
+#---Change_Requests---
+
+# READ (all)
+@app.get("/change_requests")
+def get_all_change_requests():
+    requester_id = request.args.get("requester_id")
+    if not requester_id:
+        return jsonify({"error": "requester_id is required"}), 400
+
+    role, error_response = validate_user(requester_id)
+    if error_response:
+        return error_response
+    if role not in ("doctor", "admin"):
+        return jsonify({"error": "Only staff can view change requests"}), 403
+
+    try:
+        response = requests.get(f"{DATABASE_SERVICE_URL}/change_requests", timeout=5)
+        response.raise_for_status()
+    except requests.RequestException as exc:
+        return jsonify({"error": "EHR Database unavailable", "details": str(exc)}), 503
+
+    return jsonify(response.json())
+
+# READ (patient)
+@app.get("/change_requests/<int:patient_id>")
+def get_change_requests(patient_id):
+    requester_id = request.args.get("requester_id")
+    if not requester_id:
+        return jsonify({"error": "requester_id is required"}), 400
+
+    role, error_response = validate_user(requester_id)
+    if error_response:
+        return error_response
+    if role == "patient" and int(requester_id) != patient_id:
+        return jsonify({"error": "Patients can only access their own change requests"}), 403
+
+    try:
+        response = requests.get(f"{DATABASE_SERVICE_URL}/change_requests/{patient_id}", timeout=5)
+        response.raise_for_status()
+    except requests.RequestException as exc:
+        return jsonify({"error": "EHR Database unavailable", "details": str(exc)}), 503
+
+    return jsonify(response.json())
+
+# CREATE
+@app.post("/change_requests")
+def create_change_request():
+    data = request.get_json()
+    requester_id = data.get("requester_id")
+    if not requester_id:
+        return jsonify({"error": "requester_id is required"}), 400
+
+    role, error_response = validate_user(requester_id)
+    if error_response:
+        return error_response
+    if role == "patient" and int(requester_id) != data.get("patient_id"):
+        return jsonify({"error": "Patients can only submit requests for themselves"}), 403
+
+    try:
+        response = requests.post(f"{DATABASE_SERVICE_URL}/change_requests", json=data, timeout=5)
+        response.raise_for_status()
+    except requests.RequestException as exc:
+        return jsonify({"error": "EHR Database unavailable", "details": str(exc)}), 503
+
+    return jsonify(response.json()), 201
+
+# UPDATE
+@app.put("/change_requests/<int:request_id>")
+def update_change_request(request_id):
+    data = request.get_json()
+    requester_id = data.get("requester_id")
+    if not requester_id:
+        return jsonify({"error": "requester_id is required"}), 400
+
+    role, error_response = validate_user(requester_id)
+    if error_response:
+        return error_response
+    if role not in ("doctor", "admin"):
+        return jsonify({"error": "Only staff can review change requests"}), 403
+
+    try:
+        response = requests.put(f"{DATABASE_SERVICE_URL}/change_requests/{request_id}", json=data, timeout=5)
+        response.raise_for_status()
+    except requests.RequestException as exc:
+        return jsonify({"error": "EHR Database unavailable", "details": str(exc)}), 503
+
+    return jsonify(response.json())
+
+#---AI chatbot endpoints---
+
+@app.route("/ask", methods=["POST"])
+def ask_local_agent():
+    question = request.form.get("question", "").strip()
+
+    if not question:
+        return "<p>Question is required.</p>", 400
+
+    try:
+        response = client.chat.completions.create(
+            model=OLLAMA_MODEL,
+            messages=[
+                {
+                    "role": "system",
+                    "content": (
+                        "You are a concise software engineering assistant. "
+                        "Answer in one short paragraph unless asked otherwise."
+                    )
+                },
+                {
+                    "role": "user",
+                    "content": question
+                }
+            ],
+            max_tokens=200,
+            temperature=0.2,
+        )
+
+        answer = response.choices[0].message.content
+        return f"<p>{answer}</p>"
+
+    except Exception as exc:
+        return (
+            "<p>Local AI agent request failed. "
+            "Check that Ollama is running and that qwen2.5:0.5b is installed.</p>"
+            f"<pre>{exc}</pre>",
+            503,
+        )
+
+@app.route("/ask-with-context", methods=["POST"])
+def ask_with_context():
+    question = request.form.get("question", "").strip()
+
+    if not question:
+        return "<p>Question is required.</p>", 400
+
+    loaded_system_prompt = load_prompt("implementation_system_prompt.txt")
+    loaded_task_prompt = load_prompt("context_qa_task_prompt.txt")
+
+    final_prompt = loaded_task_prompt + "\n\n" + question
+
+    try:
+        response = client.chat.completions.create(
+            model=OLLAMA_MODEL,
+            messages=[
+                {
+                    "role": "system",
+                    "content": loaded_system_prompt
+                },
+                {
+                    "role": "user",
+                    "content": final_prompt
+                }
+            ],
+            max_tokens=300,
+            temperature=0.0,
+        )
+
+        answer = response.choices[0].message.content
+        return f"<p>{answer}</p>"
+
+    except Exception as exc:
+        return (
+            "<p>Context-aware request failed. "
+            "Check that Ollama is running and that qwen2.5:0.5b is installed.</p>"
+            f"<pre>{exc}</pre>",
+            503,
+        )
+
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=5002, debug=True)
