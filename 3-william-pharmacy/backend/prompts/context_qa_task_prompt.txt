@@ -1,0 +1,29 @@
+Application Name:
+Pharmacy feature
+
+Database Fields:
+Medications:
+- id
+- name
+- stock
+- unit_price
+Prescriptions:
+- id
+- patient_id 
+- medication_id
+- dosage
+- prescribing_doctor
+- status
+- created_at
+
+
+Endpoints:
+- GET /medications
+- GET /prescriptions/<patient_id>
+- POST /ask
+- POST /ask-with-context
+
+These are the ONLY features that exist. Do not mention create, add, update, delete, or edit operations for the pharmacy feature — they are not implemented.
+
+Task:
+Explain the Pharmacy feature using only the supplied context above. Maximum 60 words.
