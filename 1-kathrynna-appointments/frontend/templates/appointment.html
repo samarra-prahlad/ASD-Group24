@@ -1,0 +1,589 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Book an Appointment</title>
+    <link rel="stylesheet" href="/css/styles.css">
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/htmx/1.9.12/htmx.min.js"></script>
+</head>
+
+<body>
+
+<main class="booking-page">
+
+    <section class="booking-container">
+
+        <header class="booking-header">
+            <h1>Appointment Booking</h1>
+            <p>Book an appointment with one of our healthcare professionals.</p>
+            <a href="appointments.html" class="nav-link">View / manage my appointments →</a>
+        </header>
+
+        <div class="booking-layout">
+
+            <aside class="calendar-panel">
+
+                <div class="calendar-header">
+                    <button type="button" class="calendar-arrow" id="previous-month">‹</button>
+                    <h2 id="calendar-month">August 2026</h2>
+                    <button type="button" class="calendar-arrow" id="next-month">›</button>
+                </div>
+
+                <div class="calendar-weekdays">
+                    <span>Sun</span><span>Mon</span><span>Tue</span><span>Wed</span>
+                    <span>Thu</span><span>Fri</span><span>Sat</span>
+                </div>
+
+                <div class="calendar-grid" id="calendar-grid"></div>
+
+                <div class="calendar-selected">
+                    <strong>Selected date</strong>
+                    <span id="selected-date">No date selected</span>
+                </div>
+
+            </aside>
+
+            <section class="booking-content">
+
+                <section class="booking-step">
+                    <h2>Patient ID</h2>
+                    <p>
+                        Enter your existing patient ID. This is required
+                        to confirm a booking.
+                    </p>
+                    <input
+                        type="text"
+                        inputmode="numeric"
+                        pattern="[0-9]*"
+                        id="patient_id"
+                        placeholder="e.g. 101"
+                        class="patient-id-input"
+                    >
+                </section>
+                <section class="booking-step">
+                    <h2>1. Who is this appointment for?</h2>
+                    <div class="option-group">
+                        <button type="button" class="option-card"
+                            onclick="selectOption(this, 'patient_type', 'self')">
+                            <strong>Myself</strong>
+                            <span>I am booking an appointment for myself.</span>
+                        </button>
+                        <button type="button" class="option-card"
+                            onclick="selectOption(this, 'patient_type', 'other')">
+                            <strong>Someone else</strong>
+                            <span>I am booking an appointment for another patient.</span>
+                        </button>
+                    </div>
+                    <input type="hidden" id="patient_type">
+                </section>
+
+                <section class="booking-step">
+                    <h2>2. Have you visited this medical practice before?</h2>
+                    <div class="option-group">
+                        <button type="button" class="option-card"
+                            onclick="selectOption(this, 'existing_patient', 'yes')">
+                            <strong>Yes</strong>
+                            <span>I have visited this practice before.</span>
+                        </button>
+                        <button type="button" class="option-card"
+                            onclick="selectOption(this, 'existing_patient', 'no')">
+                            <strong>No</strong>
+                            <span>This is my first visit.</span>
+                        </button>
+                    </div>
+                    <input type="hidden" id="existing_patient">
+                </section>
+                <section class="booking-step">
+                    <h2>3. What type of appointment do you need?</h2>
+                    <div class="option-group" id="appointment-type-group">
+                        <button type="button" class="option-card" data-specialty="Cardiology" onclick="selectAppointmentType(this)">
+                            <strong>Cardiology</strong><span>Heart and cardiovascular care.</span>
+                        </button>
+                        <button type="button" class="option-card" data-specialty="Dermatology" onclick="selectAppointmentType(this)">
+                            <strong>Dermatology</strong><span>Skin, hair and nail concerns.</span>
+                        </button>
+                        <button type="button" class="option-card" data-specialty="General Practice" onclick="selectAppointmentType(this)">
+                            <strong>General Practice</strong><span>General health concerns and consultations.</span>
+                        </button>
+                        <button type="button" class="option-card" data-specialty="Pediatrics" onclick="selectAppointmentType(this)">
+                            <strong>Pediatrics</strong><span>Medical care for children.</span>
+                        </button>
+                        <button type="button" class="option-card" data-specialty="Psychiatry" onclick="selectAppointmentType(this)">
+                            <strong>Psychiatry</strong><span>Mental health and psychiatric care.</span>
+                        </button>
+                        <button type="button" class="option-card" data-specialty="Neurology" onclick="selectAppointmentType(this)">
+                            <strong>Neurology</strong><span>Brain and nervous system care.</span>
+                        </button>
+                        <button type="button" class="option-card" data-specialty="Orthopedics" onclick="selectAppointmentType(this)">
+                            <strong>Orthopedics</strong><span>Bones, joints and musculoskeletal care.</span>
+                        </button>
+                        <button type="button" class="option-card" data-specialty="Physiotherapy" onclick="selectAppointmentType(this)">
+                            <strong>Physiotherapy</strong><span>Movement, rehabilitation and physical care.</span>
+                        </button>
+                        <button type="button" class="option-card" data-specialty="Endocrinology" onclick="selectAppointmentType(this)">
+                            <strong>Endocrinology</strong><span>Hormones and endocrine health.</span>
+                        </button>
+                        <button type="button" class="option-card" data-specialty="Geriatrics" onclick="selectAppointmentType(this)">
+                            <strong>Geriatrics</strong><span>Healthcare for older adults.</span>
+                        </button>
+                    </div>
+                    <input type="hidden" id="appointment_type">
+                </section>
+
+                <div class="booking-actions">
+                    <button
+                        type="button"
+                        class="primary-button"
+                        id="continue-button"
+                        hx-get="/availability/htmx"
+                        hx-trigger="click[validateSelections()]"
+                        hx-target="#availability-result"
+                        hx-swap="innerHTML"
+                        hx-vals="js:{specialty: document.getElementById('appointment_type').value, date: getSelectedDateISO()}"
+                        hx-indicator="#availability-indicator"
+                        hx-on::before-request="document.getElementById('availability-section')
+                        .classList.remove('is-hidden'); document.getElementById('booking-review')
+                        .classList.add('is-hidden'); document.getElementById('booking-confirmation')
+                        .classList.add('is-hidden'); document.getElementById('booking-confirmation')
+                        .innerHTML = ''; selectedBooking = null;"
+                    >
+                        Continue
+                    </button>
+                </div>
+
+                <section id="availability-section" class="booking-step is-hidden">
+                    <h2>4. Available appointments</h2>
+
+                    <p id="availability-indicator" class="htmx-indicator">
+                        Loading available doctors...
+                    </p>
+
+                    <div id="availability-result" class="availability-panel">
+                        <p>Select an appointment type and date to see available doctors.</p>
+                    </div>
+                </section>
+
+                <section id="booking-review" class="booking-step is-hidden">
+                    <h2>5. Review your booking</h2>
+
+                    <div class="review-card">
+                        <p><strong>Doctor:</strong> <span id="review-doctor"></span></p>
+                        <p><strong>Date:</strong> <span id="review-date"></span></p>
+                        <p><strong>Time:</strong> <span id="review-time"></span></p>
+                    </div>
+
+                    <div class="booking-actions">
+                        <button
+                            type="button"
+                            class="primary-button"
+                            hx-post="/appointments/htmx"
+                            hx-target="#booking-confirmation"
+                            hx-swap="innerHTML"
+                            hx-vals="js:{doctor_id: selectedBooking.doctorId, date: selectedBooking.date, 
+                                time: selectedBooking.time, patient_id: document.getElementById('patient_id').value}"
+                            hx-on::before-request="document.getElementById('booking-confirmation').classList.remove('is-hidden')"
+                            hx-on::after-request="if (!event.detail.successful) { refreshAvailability(); }"
+                        >
+                            Confirm Booking
+                        </button>
+                    </div>
+                </section>
+
+                <section id="booking-confirmation" class="booking-step is-hidden"></section>
+
+            </section>
+
+        </div>
+
+    </section>
+
+</main>
+
+
+<script>
+
+const API_BASE = "/api";
+ 
+document.body.addEventListener("htmx:configRequest", function(evt) {
+ 
+    if (
+        evt.detail.path.startsWith("/availability/htmx") ||
+        evt.detail.path.startsWith("/appointments/htmx")
+    ) {
+        evt.detail.path = API_BASE + evt.detail.path;
+    }
+ 
+});
+document.body.addEventListener("htmx:responseError", function(evt) {
+ 
+    const path = evt.detail.requestConfig.path;
+ 
+    if (path.includes("/availability/htmx")) {
+        document.getElementById("availability-result").innerHTML = `
+            <div class="availability-panel">
+                <h3>Unable to load doctors</h3>
+                <p>The server responded with an error (status ${evt.detail.xhr.status}).</p>
+            </div>
+        `;
+    }
+ 
+});
+ 
+document.body.addEventListener("htmx:sendError", function(evt) {
+ 
+    const path = evt.detail.requestConfig.path;
+ 
+    if (path.includes("/availability/htmx")) {
+        document.getElementById("availability-result").innerHTML = `
+            <div class="availability-panel">
+                <h3>Unable to load doctors</h3>
+                <p>
+                    Could not reach the appointments service at
+                    <code>${API_BASE}</code>. Check that it is running
+                    and reachable from this device.
+                </p>
+            </div>
+        `;
+    } else if (path.includes("/appointments/htmx")) {
+        document.getElementById("booking-confirmation").classList.remove("is-hidden");
+        document.getElementById("booking-confirmation").innerHTML = `
+            <div class="availability-panel">
+                <h3>Booking failed</h3>
+                <p>Could not reach the appointments service. Check your connection and try again.</p>
+            </div>
+        `;
+    }
+ 
+});
+
+function refreshAvailability() {
+
+    const specialty = document.getElementById("appointment_type").value;
+    const date = getSelectedDateISO();
+
+    if (!specialty || !date) {
+        return;
+    }
+
+    selectedBooking = null;
+    document.getElementById("booking-review").classList.add("is-hidden");
+
+    htmx.ajax("GET", "/availability/htmx", {
+        target: "#availability-result",
+        swap: "innerHTML",
+        values: { specialty, date }
+    });
+}
+
+
+let selectedBooking = null;
+
+function selectSlot(button, doctorId, doctorName, specialty, date, time) {
+
+    document.querySelectorAll(".slot-button").forEach(function(b) {
+        b.classList.remove("selected");
+    });
+
+    button.classList.add("selected");
+
+    selectedBooking = { doctorId, doctorName, specialty, date, time };
+
+    document.getElementById("review-doctor").textContent =
+        `${doctorName} (${specialty})`;
+    document.getElementById("review-date").textContent = date;
+    document.getElementById("review-time").textContent = time;
+
+    document.getElementById("booking-review").classList.remove("is-hidden");
+    document.getElementById("booking-confirmation").classList.add("is-hidden");
+    document.getElementById("booking-confirmation").innerHTML = "";
+
+    document.getElementById("booking-review").scrollIntoView({ behavior: "smooth", block: "nearest" });
+}
+
+
+function selectOption(button, inputId, value) {
+
+    const group = button.parentElement;
+
+    group.querySelectorAll(".option-card").forEach(function(card) {
+        card.classList.remove("selected");
+    });
+
+    button.classList.add("selected");
+    document.getElementById(inputId).value = value;
+}
+
+
+function selectAppointmentType(button) {
+
+    const group = button.parentElement;
+
+    group.querySelectorAll(".option-card").forEach(function(card) {
+        card.classList.remove("selected");
+    });
+
+    button.classList.add("selected");
+    document.getElementById("appointment_type").value =
+        button.dataset.specialty;
+}
+
+function validateSelections() {
+
+    const patientId = document.getElementById("patient_id").value;
+    const patientType = document.getElementById("patient_type").value;
+    const existingPatient = document.getElementById("existing_patient").value;
+    const appointmentType = document.getElementById("appointment_type").value;
+
+    if (!patientId) {
+        alert("Please enter your patient ID.");
+        return false;
+    }
+
+    if (!/^\d+$/.test(patientId)) {
+        alert("Patient ID must be numbers only.");
+        return false;
+    }
+
+    if (!patientType || !existingPatient || !appointmentType) {
+        alert("Please answer all questions before continuing.");
+        return false;
+    }
+
+    if (!selectedDate) {
+        alert("Please select a date from the calendar.");
+        return false;
+    }
+
+    return true;
+}
+
+
+function getSelectedDateISO() {
+
+    if (!selectedDate) {
+        return "";
+    }
+
+    const year = selectedDate.getFullYear();
+    const month = String(selectedDate.getMonth() + 1).padStart(2, "0");
+    const day = String(selectedDate.getDate()).padStart(2, "0");
+
+    return `${year}-${month}-${day}`;
+}
+
+const calendarGrid = document.getElementById("calendar-grid");
+const calendarMonth = document.getElementById("calendar-month");
+const selectedDateText = document.getElementById("selected-date");
+const previousMonthButton = document.getElementById("previous-month");
+const nextMonthButton = document.getElementById("next-month");
+
+const today = new Date();
+
+let calendarDate = new Date(today.getFullYear(), today.getMonth(), 1);
+let selectedDate = null;
+
+const monthNames = [
+    "January", "February", "March", "April", "May", "June",
+    "July", "August", "September", "October", "November", "December"
+];
+
+
+function renderCalendar() {
+
+    calendarGrid.innerHTML = "";
+
+    const year = calendarDate.getFullYear();
+    const month = calendarDate.getMonth();
+
+    calendarMonth.textContent = `${monthNames[month]} ${year}`;
+
+    const firstDay = new Date(year, month, 1).getDay();
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+
+    for (let i = 0; i < firstDay; i++) {
+        const emptyCell = document.createElement("span");
+        emptyCell.classList.add("calendar-empty");
+        calendarGrid.appendChild(emptyCell);
+    }
+
+    for (let day = 1; day <= daysInMonth; day++) {
+
+        const button = document.createElement("button");
+        button.type = "button";
+        button.textContent = day;
+        button.classList.add("calendar-day");
+
+        const date = new Date(year, month, day);
+
+        if (
+            selectedDate &&
+            selectedDate.getFullYear() === year &&
+            selectedDate.getMonth() === month &&
+            selectedDate.getDate() === day
+        ) {
+            button.classList.add("selected");
+        }
+
+        if (date.toDateString() === today.toDateString()) {
+            button.classList.add("today");
+        }
+
+        button.addEventListener("click", function() {
+            selectedDate = date;
+            updateSelectedDate();
+            renderCalendar();
+        });
+
+        calendarGrid.appendChild(button);
+    }
+}
+
+
+function updateSelectedDate() {
+
+    if (!selectedDate) {
+        selectedDateText.textContent = "No date selected";
+        return;
+    }
+
+    selectedDateText.textContent = selectedDate.toLocaleDateString("en-AU", {
+        weekday: "long",
+        day: "numeric",
+        month: "long",
+        year: "numeric"
+    });
+}
+
+
+previousMonthButton.addEventListener("click", function() {
+    calendarDate.setMonth(calendarDate.getMonth() - 1);
+    renderCalendar();
+});
+
+nextMonthButton.addEventListener("click", function() {
+    calendarDate.setMonth(calendarDate.getMonth() + 1);
+    renderCalendar();
+});
+
+renderCalendar();
+
+</script>
+<div class="ai-widget" id="ai-widget">
+    <section class="ai-panel">
+        <div class="ai-panel-header">
+            Your AI Assistant
+            <button class="ai-close" type="button" aria-label="Close chat" onclick="toggleChat(false)">✕</button>
+        </div>
+        <div class="ai-messages" id="ai-messages">
+            <div class="msg assistant">
+                Hello! I'm your AI assistant. How can I help you today?
+            </div>
+        </div>
+        <div class="ai-suggestions">
+            <button class="chip" type="button" onclick="sendChip(this)">When is the earliest appointment?</button>
+            <button class="chip" type="button" onclick="sendChip(this)">Show me what type of doctor I need.</button>
+            <button class="chip" type="button" onclick="sendChip(this)">How do you book an appointment?</button>
+        </div>
+        <form class="ai-input-row" onsubmit="return prepChat(event)">
+            <input type="text" id="ai-input" placeholder="Type a message…" autocomplete="off" required>
+            <button type="submit">Send</button>
+        </form>
+    </section>
+</div>
+
+<button class="ai-action" id="ai-action" type="button" onclick="toggleChat(true)">
+    Your AI Assistant
+</button>
+ 
+<script>
+  function toggleChat(open) {
+ 
+ const aiWidget = document.getElementById("ai-widget");
+ const aiAction = document.getElementById("ai-action");
+
+ if (open) {
+     aiWidget.classList.add("open");
+     aiAction.classList.add("hidden");
+     document.getElementById("ai-input").focus();
+ } else {
+     aiWidget.classList.remove("open");
+     aiAction.classList.remove("hidden");
+ }
+}
+
+function sendChip(chip) {
+ document.getElementById("ai-input").value = chip.textContent;
+}
+
+let aiChatHistory = [];
+
+function addChatMessage(role, text) {
+ const messages = document.getElementById("ai-messages");
+ const el = document.createElement("div");
+ el.className = `msg ${role}`;
+ el.textContent = text;
+ messages.appendChild(el);
+ messages.scrollTop = messages.scrollHeight;
+ return el;
+}
+
+function prepChat(e) {
+
+ e.preventDefault();
+
+ const input = document.getElementById("ai-input");
+ const text = input.value.trim();
+
+ if (!text) {
+     return false;
+ }
+
+ addChatMessage("user", text);
+ input.value = "";
+
+ const typingEl = addChatMessage("assistant", "…");
+
+ const patientId = document.getElementById("patient_id")?.value || null;
+
+ fetch("/api/ai/chat", {
+     method: "POST",
+     headers: { "Content-Type": "application/json" },
+     body: JSON.stringify({
+         message: text,
+         patientId,
+         history: aiChatHistory
+     })
+ })
+     .then(function(res) {
+         return res.json().then(function(data) {
+             if (!res.ok) {
+                 throw new Error(data.error || `Request failed (${res.status})`);
+             }
+             return data;
+         });
+     })
+     .then(function(data) {
+         typingEl.textContent = data.reply;
+         aiChatHistory.push({ role: "user", content: text });
+         aiChatHistory.push({ role: "assistant", content: data.reply });
+     })
+     .catch(function(err) {
+         typingEl.textContent = "Sorry, I couldn't reach the assistant. " + (err.message || "");
+     });
+
+ return false;
+}
+
+</script>
+</body>
+
+</html>
+
+
+
+
+
+

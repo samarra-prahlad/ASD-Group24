@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin — Appointments</title>
+    <link rel="stylesheet" href="/css/styles.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/htmx/1.9.12/htmx.min.js"></script>
+</head>
+
+<body>
+
+<main class="booking-page">
+
+    <section class="booking-container">
+
+        <header class="booking-header">
+            <h1>Admin — Appointments</h1>
+            <p>Review requested time changes and see everyone's schedule for a given day.</p>
+            
+        </header>
+
+        <div class="booking-layout">
+
+            <aside class="calendar-panel">
+                <div class="calendar-header">
+                    <button type="button" class="calendar-arrow" id="previous-month">‹</button>
+                    <h2 id="calendar-month">August 2026</h2>
+                    <button type="button" class="calendar-arrow" id="next-month">›</button>
+                </div>
+                <div class="calendar-weekdays">
+                    <span>Sun</span><span>Mon</span><span>Tue</span><span>Wed</span>
+                    <span>Thu</span><span>Fri</span><span>Sat</span>
+                </div>
+                <div class="calendar-grid" id="calendar-grid"></div>
+                <div class="calendar-selected">
+                    <strong>Viewing date</strong>
+                    <span id="selected-date">No date selected</span>
+                </div>
+            </aside>
+
+            <section class="booking-content">
+
+                <section class="booking-step">
+                    <h2>Appointments on this date</h2>
+                    <div id="admin-day-appointments" class="availability-panel">
+                        <p>Pick a date from the calendar to see that day's appointments.</p>
+                    </div>
+                </section>
+
+                <section class="booking-step">
+                    <h2>Pending change requests</h2>
+                    <div
+                        id="admin-pending-changes"
+                        class="availability-panel"
+                        hx-get="/api/admin/changes/htmx"
+                        hx-trigger="load, every 30s"
+                        hx-swap="innerHTML"
+                    >
+                        <p>Loading pending change requests…</p>
+                    </div>
+                </section>
+
+            </section>
+
+        </div>
+
+    </section>
+
+</main>
+
+<script>
+
+const API_BASE = "/api";
+
+document.body.addEventListener("htmx:configRequest", function(evt) {
+    if (
+        evt.detail.path.startsWith("/admin/appointments/htmx") ||
+        evt.detail.path.startsWith("/admin/changes/htmx")
+    ) {
+        evt.detail.path = API_BASE + evt.detail.path;
+    }
+});
+
+document.body.addEventListener("htmx:responseError", function(evt) {
+    const path = evt.detail.requestConfig.path;
+    if (path.includes("/admin/appointments/htmx")) {
+        document.getElementById("admin-day-appointments").innerHTML =
+            `<div class="availability-panel"><h3>Unable to load</h3><p>Server responded with status ${evt.detail.xhr.status}.</p></div>`;
+    }
+});
+
+document.body.addEventListener("htmx:sendError", function(evt) {
+    const path = evt.detail.requestConfig.path;
+    if (path.includes("/admin/appointments/htmx")) {
+        document.getElementById("admin-day-appointments").innerHTML =
+            `<div class="availability-panel"><h3>Unable to load</h3><p>Could not reach the appointments service.</p></div>`;
+    }
+});
+
+function loadDay(dateISO) {
+    htmx.ajax("GET", "/admin/appointments/htmx", {
+        target: "#admin-day-appointments",
+        swap: "innerHTML",
+        values: { date: dateISO }
+    });
+}
+
+const calendarGrid = document.getElementById("calendar-grid");
+const calendarMonth = document.getElementById("calendar-month");
+const selectedDateText = document.getElementById("selected-date");
+const previousMonthButton = document.getElementById("previous-month");
+const nextMonthButton = document.getElementById("next-month");
+
+const today = new Date();
+let calendarDate = new Date(today.getFullYear(), today.getMonth(), 1);
+let selectedDate = null;
+
+const monthNames = [
+    "January", "February", "March", "April", "May", "June",
+    "July", "August", "September", "October", "November", "December"
+];
+
+function getISO(date) {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+}
+
+function renderCalendar() {
+    calendarGrid.innerHTML = "";
+
+    const year = calendarDate.getFullYear();
+    const month = calendarDate.getMonth();
+    calendarMonth.textContent = `${monthNames[month]} ${year}`;
+
+    const firstDay = new Date(year, month, 1).getDay();
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+
+    for (let i = 0; i < firstDay; i++) {
+        const emptyCell = document.createElement("span");
+        emptyCell.classList.add("calendar-empty");
+        calendarGrid.appendChild(emptyCell);
+    }
+
+    for (let day = 1; day <= daysInMonth; day++) {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.textContent = day;
+        button.classList.add("calendar-day");
+
+        const date = new Date(year, month, day);
+
+        if (selectedDate &&
+            selectedDate.getFullYear() === year &&
+            selectedDate.getMonth() === month &&
+            selectedDate.getDate() === day) {
+            button.classList.add("selected");
+        }
+
+        if (date.toDateString() === today.toDateString()) {
+            button.classList.add("today");
+        }
+
+        button.addEventListener("click", function() {
+            selectedDate = date;
+            selectedDateText.textContent = date.toLocaleDateString("en-AU", {
+                weekday: "long", day: "numeric", month: "long", year: "numeric"
+            });
+            renderCalendar();
+            loadDay(getISO(date));
+        });
+
+        calendarGrid.appendChild(button);
+    }
+}
+
+previousMonthButton.addEventListener("click", function() {
+    calendarDate.setMonth(calendarDate.getMonth() - 1);
+    renderCalendar();
+});
+
+nextMonthButton.addEventListener("click", function() {
+    calendarDate.setMonth(calendarDate.getMonth() + 1);
+    renderCalendar();
+});
+
+renderCalendar();
+
+// default to today's view
+selectedDate = today;
+selectedDateText.textContent = today.toLocaleDateString("en-AU", {
+    weekday: "long", day: "numeric", month: "long", year: "numeric"
+});
+renderCalendar();
+loadDay(getISO(today));
+
+</script>
+
+<!--Admin AI assistant-->
+<div class="ai-widget" id="ai-widget">
+    <section class="ai-panel">
+
+        <div class="ai-panel-header">
+            Your AI Assistant
+            <button class="ai-close" type="button" aria-label="Close chat" onclick="toggleChat(false)">✕</button>
+        </div>
+
+        <div class="ai-messages" id="ai-messages">
+            <div class="msg assistant">
+                Hi! I can help you look up patient appointments and today's schedule.
+            </div>
+        </div>
+
+        <div class="ai-suggestions">
+            <button class="chip" type="button" onclick="sendChip(this)">Find me this specific patient's appointment</button>
+            <button class="chip" type="button" onclick="sendChip(this)">When is my next scheduled appointment?</button>
+            <button class="chip" type="button" onclick="sendChip(this)">How many appointments do I have scheduled today?</button>
+        </div>
+
+        <form class="ai-input-row" onsubmit="return prepChat(event)">
+            <input type="text" id="ai-input" placeholder="Type a message…" autocomplete="off" required>
+            <button type="submit">Send</button>
+        </form>
+
+    </section>
+</div>
+
+<button class="ai-action" id="ai-action" type="button" onclick="toggleChat(true)">
+    Your AI Assistant
+</button>
+
+<script>
+function toggleChat(open) {
+
+    const aiWidget = document.getElementById("ai-widget");
+    const aiAction = document.getElementById("ai-action");
+
+    if (open) {
+        aiWidget.classList.add("open");
+        aiAction.classList.add("hidden");
+        document.getElementById("ai-input").focus();
+    } else {
+        aiWidget.classList.remove("open");
+        aiAction.classList.remove("hidden");
+    }
+}
+
+function sendChip(chip) {
+    document.getElementById("ai-input").value = chip.textContent;
+}
+
+let aiChatHistory = [];
+
+function addChatMessage(role, text) {
+    const messages = document.getElementById("ai-messages");
+    const el = document.createElement("div");
+    el.className = `msg ${role}`;
+    el.textContent = text;
+    messages.appendChild(el);
+    messages.scrollTop = messages.scrollHeight;
+    return el;
+}
+
+function prepChat(e) {
+
+    e.preventDefault();
+
+    const input = document.getElementById("ai-input");
+    const text = input.value.trim();
+
+    if (!text) {
+        return false;
+    }
+
+    addChatMessage("user", text);
+    input.value = "";
+
+    const typingEl = addChatMessage("assistant", "…");
+
+    fetch("/api/ai/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+            message: text,
+            role: "admin",
+            history: aiChatHistory
+        })
+    })
+        .then(function(res) {
+            return res.json().then(function(data) {
+                if (!res.ok) {
+                    throw new Error(data.error || `Request failed (${res.status})`);
+                }
+                return data;
+            });
+        })
+        .then(function(data) {
+            typingEl.textContent = data.reply;
+            aiChatHistory.push({ role: "user", content: text });
+            aiChatHistory.push({ role: "assistant", content: data.reply });
+        })
+        .catch(function(err) {
+            typingEl.textContent = "Sorry, I couldn't reach the assistant. " + (err.message || "");
+        });
+
+    return false;
+}
+</script>
+
+</body>
+</html>
