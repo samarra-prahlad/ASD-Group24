@@ -92,9 +92,30 @@
 
 
     <script>
-
         const API_URL = "http://localhost:5003";
 
+        const params = new URLSearchParams(window.location.search);
+        const token = params.get("token");
+
+        if (!token) {
+            window.location.href = "http://localhost:5000/login";
+        } else {
+            fetch(`http://localhost:5003/session/role?token=${encodeURIComponent(token)}`)
+                .then(res => res.json())
+                .then(data => {
+                    if (!data.valid) {
+                        window.location.href = "http://localhost:5000/login";
+                        return;
+                    }
+                    if (data.role === "admin") {
+                        window.location.href = `admin.html?token=${encodeURIComponent(token)}`;
+                    }
+                    // else: patient — do nothing, stay on this page
+                })
+                .catch(() => {
+                    window.location.href = "http://localhost:5000/login";
+                });
+        }
 
         // -------------------------
         // MEDICATIONS
