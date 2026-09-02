@@ -31,6 +31,9 @@ def get_records(patient_id):
 @app.post("/records")
 def create_record():
     data = request.get_json()
+    if not data or not data.get("patient_id"):
+        return jsonify({"error": "patient_id is required"}), 400
+
     db = get_db()
     cursor = db.execute("""
         INSERT INTO medical_records (patient_id, visit_date, diagnosis, doctor_name, treatment, notes, allergies)
@@ -109,6 +112,9 @@ def get_patient_change_requests(patient_id):
 @app.post("/change_requests")
 def create_change_request():
     data = request.get_json()
+    if not data or not data.get("patient_id") or not data.get("request_type"):
+        return jsonify({"error": "patient_id and request_type are required"}), 400
+
     db = get_db()
     cursor = db.execute("""
         INSERT INTO change_requests (patient_id, request_type, request_details)
@@ -128,6 +134,9 @@ def create_change_request():
 @app.put("/change_requests/<int:request_id>")
 def update_change_request(request_id):
     data = request.get_json()
+    if not data or not data.get("status"):
+        return jsonify({"error": "status is required"}), 400
+
     db = get_db()
     db.execute("""
         UPDATE change_requests
@@ -138,9 +147,7 @@ def update_change_request(request_id):
     db.commit()
     db.close()
     return jsonify({"message": "Change request updated successfully"})
-            
+
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=6002, debug=True)
-
-                       

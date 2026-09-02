@@ -11,6 +11,7 @@ CORS(app)
 
 DATABASE_SERVICE_URL = os.environ.get("DATABASE_SERVICE_URL", "http://ehr-database:6002")
 SHARED_ACCESS_API_URL = os.environ.get("SHARED_ACCESS_API_URL", "http://shared-backend:5000")
+SHARED_DB_URL = os.environ.get("SHARED_DB_URL", "http://shared-database:6000")
 OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434/v1")
 OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "qwen2.5:0.5b")
 PROMPT_DIR = Path(__file__).with_name("prompts")
@@ -58,6 +59,23 @@ def whoami():
     if err:
         return err
     return jsonify({"patient_id": patient_id, "role": role})
+
+
+@app.get("/patients")
+def get_patients():
+    token = request.args.get("token")
+    caller_id, role, err = check_session(token)
+    if err:
+        return err
+    if role != "admin":
+        return jsonify({"error": "Staff access required"}), 403
+
+    try:
+        resp = requests.get(f"{SHARED_DB_URL}/patients", timeout=5)
+    except requests.RequestException as exc:
+        return jsonify({"error": "Shared database service unavailable", "details": str(exc)}), 503
+
+    return jsonify(resp.json()), resp.status_code
 
 
 #---Medical_Records---
@@ -316,6 +334,70 @@ def ask_with_context():
             f"<pre>{exc}</pre>",
             503,
         )
+
+#---Patient history summarization---
+
+@app.post("/summarize")
+def summarize_history():
+    data = request.get_json()
+    token = data.get("token")
+    patient_id = data.get("patient_id")
+    question = data.get("question", "").strip()
+
+    caller_id, role, err = check_session(token)
+    if err:
+        return err
+    if role == "patient" and caller_id != patient_id:
+        return jsonify({"error": "Patients can only view their own history"}), 403
+
+    try:
+        resp = requests.get(f"{DATABASE_SERVICE_URL}/records/{patient_id}", timeout=5)
+        resp.raise_for_status()
+    except requests.RequestException as exc:
+        return jsonify({"error": "EHR Database unavailable", "details": str(exc)}), 503
+
+    records = resp.json()
+    if not records:
+        return jsonify({"reply": "No medical history found for this patient."})
+
+    history_lines = [
+        f"- {r.get('visit_date')}: {r.get('diagnosis')} "
+        f"(treatment: {r.get('treatment')}, notes: {r.get('notes')}, allergies: {r.get('allergies')})"
+        for r in records
+    ]
+    history_text = "\n".join(history_lines)
+
+    default_question = "Summarize this patient's medical history in a few sentences."
+    user_prompt = (
+        f"Patient history:\n{history_text}\n\n"
+        f"Question: {question or default_question}"
+    )
+
+    try:
+        completion = client.chat.completions.create(
+            model=OLLAMA_MODEL,
+            messages=[
+                {
+                    "role": "system",
+                    "content": (
+                        "You are a clinical assistant summarising a patient's medical history "
+                        "for a healthcare worker or the patient themselves. Be concise and factual. "
+                        "Only use the history provided — do not invent details."
+                    )
+                },
+                {"role": "user", "content": user_prompt}
+            ],
+            max_tokens=250,
+            temperature=0.2,
+        )
+        answer = completion.choices[0].message.content
+        return jsonify({"reply": answer})
+
+    except Exception as exc:
+        return jsonify({
+            "error": "Local AI agent request failed. Check that Ollama is running and qwen2.5:0.5b is installed.",
+            "detail": str(exc)
+        }), 503
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5002, debug=True)

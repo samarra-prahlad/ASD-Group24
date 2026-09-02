@@ -1,9 +1,13 @@
 const API_URL = "http://localhost:5002";
-const SHARED_DB_URL = "http://localhost:6000";
 let token = null;
 let myId = null;
 let myRole = null;
+let summaryPatientId = null;
 let patientList = [];
+
+function escAttr(str) {
+  return String(str).replace(/'/g, "&#39;");
+}
 
 function setupNavLinks() {
   document.getElementById("nav-appointments").href = `http://localhost:3001?token=${token}`;
@@ -51,21 +55,61 @@ function formatDate(dateStr) {
   return `${day}/${month}/${year}`;
 }
 
-function showRecords(records, container) {
+function showRecords(records, container, editable = false) {
   if (!records.length) {
     container.innerHTML = "<p>No records found.</p>";
     return;
   }
   container.innerHTML = records.map(r => `
-    <div>
-      <strong>${formatDate(r.visit_date)}</strong> - ${r.diagnosis}<br>
-      Doctor: ${r.doctor_name}<br>
-      Treatment: ${r.treatment}<br>
-      Notes: ${r.notes}<br>
-      Allergies: ${r.allergies}
+    <div id="record-${r.id}">
+      <div id="record-view-${r.id}">
+        <strong>${formatDate(r.visit_date)}</strong> - ${r.diagnosis}<br>
+        Doctor: ${r.doctor_name}<br>
+        Treatment: ${r.treatment}<br>
+        Notes: ${r.notes}<br>
+        Allergies: ${r.allergies}
+        ${editable ? `<br><button onclick='startEdit(${escAttr(JSON.stringify(r))})'>Edit</button>` : ""}
+      </div>
     </div>
-    <hr>
   `).join("");
+}
+
+function startEdit(record) {
+  const container = document.getElementById(`record-view-${record.id}`);
+  container.innerHTML = `
+    <input id="edit-date-${record.id}" type="date" value="${record.visit_date}">
+    <input id="edit-diagnosis-${record.id}" value="${record.diagnosis}" placeholder="Diagnosis">
+    <input id="edit-doctor-${record.id}" value="${record.doctor_name}" placeholder="Doctor">
+    <input id="edit-treatment-${record.id}" value="${record.treatment}" placeholder="Treatment">
+    <input id="edit-notes-${record.id}" value="${record.notes}" placeholder="Notes">
+    <input id="edit-allergies-${record.id}" value="${record.allergies}" placeholder="Allergies">
+    <button onclick="saveEdit(${record.id})">Save</button>
+    <button onclick="viewPatient(${record.patient_id}, document.getElementById('detail-patient-name').textContent)">Cancel</button>
+  `;
+}
+
+async function saveEdit(recordId) {
+  const resp = await fetch(`${API_URL}/records/${recordId}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      token: token,
+      visit_date: document.getElementById(`edit-date-${recordId}`).value,
+      diagnosis: document.getElementById(`edit-diagnosis-${recordId}`).value,
+      doctor_name: document.getElementById(`edit-doctor-${recordId}`).value,
+      treatment: document.getElementById(`edit-treatment-${recordId}`).value,
+      notes: document.getElementById(`edit-notes-${recordId}`).value,
+      allergies: document.getElementById(`edit-allergies-${recordId}`).value
+    })
+  });
+
+  if (resp.ok) {
+    const patientName = document.getElementById("detail-patient-name").textContent;
+    const currentId = summaryPatientId;
+    viewPatient(currentId, patientName);
+  } else {
+    alert("Failed to save changes.");
+  }
 }
 
 async function loadMyRecords() {
@@ -109,7 +153,7 @@ async function sendChangeRequest() {
 }
 
 async function loadPatients() {
-  const resp = await fetch(`${SHARED_DB_URL}/patients`);
+  const resp = await fetch(`${API_URL}/patients?token=${token}`);
   const patients = await resp.json();
   patientList = patients.filter(p => !p.email_address.toLowerCase().endsWith("@admin.com"));
   showPatients(patientList);
@@ -121,7 +165,7 @@ function showPatients(patients) {
     <tr>
       <td>${p.patient_id}</td>
       <td>${p.first_name} ${p.last_name}</td>
-      <td><button onclick="viewPatient(${p.patient_id}, '${p.first_name} ${p.last_name}')">View</button></td>
+      <td><button onclick="viewPatient(${p.patient_id}, '${escAttr(`${p.first_name} ${p.last_name}`)}')">View</button></td>
     </tr>
   `).join("");
 }
@@ -140,12 +184,14 @@ function filterPatients() {
 }
 
 async function viewPatient(patientId, patientName) {
+  summaryPatientId = patientId;
+  document.getElementById("assistant-target").textContent = `Summarizing: ${patientName}`;
   document.getElementById("patient-detail").style.display = "block";
   document.getElementById("detail-patient-name").textContent = patientName;
 
   const recordsResp = await fetch(`${API_URL}/records/${patientId}?token=${token}`);
   const records = await recordsResp.json();
-  showRecords(records, document.getElementById("detail-records"));
+  showRecords(records, document.getElementById("detail-records"), true);
 
   const requestsResp = await fetch(`${API_URL}/change_requests/${patientId}?token=${token}`);
   const requests = await requestsResp.json();
@@ -153,7 +199,7 @@ async function viewPatient(patientId, patientName) {
   box.innerHTML = requests.map(r => `
     <div>
       ${r.request_type} - ${r.request_details} - <strong>${r.status}</strong>
-      ${r.status === "pending" ? `<button onclick="approveRequest(${r.id}, ${patientId}, '${patientName}')">Approve</button>` : ""}
+      ${r.status === "pending" ? `<button onclick="approveRequest(${r.id}, ${patientId}, '${escAttr(patientName)}')">Approve</button>` : ""}
     </div>
   `).join("") || "<p>No requests found.</p>";
 }
@@ -196,44 +242,25 @@ async function addRecord() {
   }
 }
 
-async function askBot() {
+async function summarizeHistory() {
   const question = document.getElementById("chat-question").value.trim();
   const box = document.getElementById("chat-result");
-  if (!question) return;
+
+  if (!summaryPatientId) {
+    box.textContent = "Select a patient first.";
+    return;
+  }
 
   box.textContent = "Thinking...";
-  const formData = new FormData();
-  formData.append("question", question);
 
-  const resp = await fetch(`${API_URL}/ask`, { method: "POST", body: formData });
-  box.innerHTML = await resp.text();
+  const resp = await fetch(`${API_URL}/summarize`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ token: token, patient_id: summaryPatientId, question: question })
+  });
+
+  const data = await resp.json();
+  box.textContent = data.reply || data.error || "Something went wrong.";
 }
 
-async function askBotWithContext() {
-  const question = document.getElementById("chat-question").value.trim();
-  const box = document.getElementById("chat-result");
-  if (!question) return;
-
-  box.textContent = "Thinking with context...";
-  const formData = new FormData();
-  formData.append("question", question);
-
-  const resp = await fetch(`${API_URL}/ask-with-context`, { method: "POST", body: formData });
-  box.innerHTML = await resp.text();
-}
-
-document.addEventListener("DOMContentLoaded", () => {
-  start();
-
-  document.getElementById("req-details").addEventListener("keypress", (e) => {
-    if (e.key === "Enter") sendChangeRequest();
-  });
-
-  document.getElementById("patient-search").addEventListener("keypress", (e) => {
-    if (e.key === "Enter") filterPatients();
-  });
-
-  document.getElementById("chat-question").addEventListener("keypress", (e) => {
-    if (e.key === "Enter") askBot();
-  });
-});
+   start();
