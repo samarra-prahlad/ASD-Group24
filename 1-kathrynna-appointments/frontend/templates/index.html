@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Appointments — Redirecting…</title>
+    <link rel="stylesheet" href="/css/styles.css">
+</head>
+<body>
+
+<main class="booking-page">
+    <section class="booking-container">
+        <p>Loading your appointments…</p>
+    </section>
+</main>
+
+<script src="auth.js"></script>
+<script>
+requireSession(["patient", "admin"]).then(function(session) {
+    if (!session) return;
+    window.location.href = session.role === "admin" ? "admin.html" : "appointment.html";
+});
+</script>
+
+</body>
+</html>

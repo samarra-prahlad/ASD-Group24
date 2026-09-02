@@ -11,6 +11,14 @@
 
 <body>
 
+<nav class="top-nav">
+    <div class="top-nav-left">
+        <a href="http://localhost:5000/home" class="top-nav-home">
+            ← Home
+        </a>
+    </div>
+</nav>
+
 <main class="booking-page">
 
     <section class="booking-container">
@@ -18,7 +26,6 @@
         <header class="booking-header">
             <h1>Admin — Appointments</h1>
             <p>Review requested time changes and see everyone's schedule for a given day.</p>
-            
         </header>
 
         <div class="booking-layout">
@@ -72,14 +79,14 @@
 
 <script>
 
-const API_BASE = "/api";
+const APPOINTMENTS_API = "http://localhost:5001";
 
 document.body.addEventListener("htmx:configRequest", function(evt) {
     if (
         evt.detail.path.startsWith("/admin/appointments/htmx") ||
         evt.detail.path.startsWith("/admin/changes/htmx")
     ) {
-        evt.detail.path = API_BASE + evt.detail.path;
+        evt.detail.path = APPOINTMENTS_API + evt.detail.path;
     }
 });
 
@@ -197,6 +204,11 @@ selectedDateText.textContent = today.toLocaleDateString("en-AU", {
 renderCalendar();
 loadDay(getISO(today));
 
+</script>
+
+<script src="auth.js"></script>
+<script>
+requireSession(["admin"]);
 </script>
 
 <!--Admin AI assistant-->
