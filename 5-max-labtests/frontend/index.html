@@ -9,7 +9,7 @@
 <body>
     <header>
         <h1>Lab Tests & Diagnostics</h1>
-        <a href="/">← Back to Home</a>
+        <a href="http://localhost:5000/home">← Back to Home</a>
     </header>
 
     <main>
@@ -36,6 +36,17 @@
                 <button type="submit">Submit Order</button>
             </form>
             <p id="order-response"></p>
+        </section>
+
+        <section>
+            <h2>Add a Lab Result</h2>
+            <form id="result-form">
+                <label>Order ID: <input type="number" id="result_order_id" required></label>
+                <label>Result Value: <input type="text" id="result_value" placeholder="e.g. WBC 15.8 x10^9/L" required></label>
+                <label>Reference Range: <input type="text" id="reference_range" placeholder="e.g. 4.0-11.0 x10^9/L" required></label>
+                <button type="submit">Submit Result</button>
+            </form>
+            <p id="result-response"></p>
         </section>
 
         <section>
@@ -144,6 +155,29 @@
                 loadOrders();
             } else {
                 responseEl.textContent = `Error: ${data.error}`;
+            }
+        });
+
+        document.getElementById("result-form").addEventListener("submit", async (e) => {
+            e.preventDefault();
+            const payload = {
+                order_id: parseInt(document.getElementById("result_order_id").value),
+                result_value: document.getElementById("result_value").value,
+                reference_range: document.getElementById("reference_range").value,
+            };
+            const responseEl = document.getElementById("result-response");
+            responseEl.textContent = "Submitting to AI for review...";
+            const res = await fetch(`${BACKEND}/results`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(payload),
+            });
+            const data = await res.json();
+            if (res.ok) {
+                responseEl.textContent = "Result added.";
+                loadResults();
+            } else {
+                responseEl.textContent = `Error: ${data.error || "failed to add result"}`;
             }
         });
 

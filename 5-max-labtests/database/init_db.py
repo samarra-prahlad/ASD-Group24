@@ -31,16 +31,16 @@ CREATE TABLE IF NOT EXISTS lab_results (
 c.execute("SELECT COUNT(*) FROM lab_orders")
 if c.fetchone()[0] == 0:
     sample_orders = [
-        (101, 'Complete Blood Count', 'Dr. Nguyen', 'completed'),
-        (102, 'Lipid Panel', 'Dr. Osei', 'completed'),
-        (103, 'Thyroid Function Test', 'Dr. Nguyen', 'in_progress'),
-        (104, 'Blood Glucose', 'Dr. Patel', 'completed'),
-        (105, 'Liver Function Test', 'Dr. Osei', 'pending'),
-        (106, 'Urinalysis', 'Dr. Patel', 'completed'),
-        (107, 'Chest X-Ray', 'Dr. Nguyen', 'completed'),
-        (108, 'Complete Blood Count', 'Dr. Osei', 'pending'),
-        (109, 'HbA1c', 'Dr. Patel', 'completed'),
-        (110, 'Electrolyte Panel', 'Dr. Nguyen', 'in_progress'),
+        (1, 'Complete Blood Count', 'Dr. Nguyen', 'completed'),
+        (2, 'Lipid Panel', 'Dr. Osei', 'completed'),
+        (3, 'Thyroid Function Test', 'Dr. Nguyen', 'in_progress'),
+        (4, 'Blood Glucose', 'Dr. Patel', 'completed'),
+        (5, 'Liver Function Test', 'Dr. Osei', 'pending'),
+        (6, 'Urinalysis', 'Dr. Patel', 'completed'),
+        (7, 'Chest X-Ray', 'Dr. Nguyen', 'completed'),
+        (8, 'Complete Blood Count', 'Dr. Osei', 'pending'),
+        (9, 'HbA1c', 'Dr. Patel', 'completed'),
+        (10, 'Electrolyte Panel', 'Dr. Nguyen', 'in_progress'),
     ]
     c.executemany(
         "INSERT INTO lab_orders (patient_id, test_type, ordered_by, status) VALUES (?, ?, ?, ?)",

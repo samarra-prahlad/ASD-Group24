@@ -14,7 +14,7 @@ def test_get_orders_returns_list():
 
 def test_create_order_valid_patient():
     r = requests.post(f"{BASE_URL}/orders", json={
-        "patient_id": 101,
+        "patient_id": 1,
         "test_type": "Test Panel",
         "ordered_by": "Dr. Test"
     })
@@ -50,7 +50,7 @@ def test_get_all_results():
 def test_delete_order():
     # create one to delete, so we don't destroy seed data
     created = requests.post(f"{BASE_URL}/orders", json={
-        "patient_id": 101, "test_type": "Temp Test", "ordered_by": "Dr. Test"
+        "patient_id": 1, "test_type": "Temp Test", "ordered_by": "Dr. Test"
     }).json()
     r = requests.delete(f"{BASE_URL}/orders/{created['order_id']}")
     assert r.status_code == 200
