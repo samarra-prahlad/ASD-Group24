@@ -1,4 +1,5 @@
 import os
+import re
 import requests
 from flask import Flask, jsonify, request
 from flask_cors import CORS
@@ -8,6 +9,7 @@ CORS(app)
 
 DATABASE_SERVICE_URL = os.getenv("DATABASE_SERVICE_URL", "http://labtests-database:6005")
 SHARED_ACCESS_API_URL = os.getenv("SHARED_ACCESS_API_URL", "http://shared-backend:5000")
+SHARED_DATABASE_URL = os.getenv("SHARED_DATABASE_URL", "http://shared-database:6000")
 OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://host.docker.internal:11434/v1")
 OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "qwen2.5:0.5b")
 
@@ -29,11 +31,11 @@ def create_order():
     patient_id = data.get("patient_id")
 
     try:
-        v = requests.get(f"{SHARED_ACCESS_API_URL}/validate", params={"patient_id": patient_id}, timeout=5)
-        if v.status_code != 200 or not v.json().get("valid"):
+        v = requests.get(f"{SHARED_DATABASE_URL}/patients/{patient_id}", timeout=5)
+        if v.status_code != 200:
             return jsonify({"error": "Invalid patient_id"}), 400
     except requests.RequestException as exc:
-        return jsonify({"error": "Shared access API unavailable", "detail": str(exc)}), 503
+        return jsonify({"error": "Shared database unavailable", "detail": str(exc)}), 503
 
     r = requests.post(f"{DATABASE_SERVICE_URL}/orders", json=data, timeout=5)
     return jsonify(r.json()), r.status_code
@@ -60,9 +62,11 @@ def create_result():
 def flag_result_with_ai(result_value, reference_range):
     prompt = (
         f"Lab result: {result_value}\n"
-        f"Reference range: {reference_range}\n"
-        "Is this result abnormal? Reply with exactly 'YES' or 'NO' on the first line, "
-        "then a one-sentence reason on the second line."
+        f"Reference range: {reference_range}\n\n"
+        "Task: decide if this result is abnormal given the reference range.\n"
+        "Respond in exactly this format, two lines, no extra text:\n"
+        "VERDICT: YES or NO\n"
+        "REASON: one short sentence explaining why"
     )
     try:
         r = requests.post(
@@ -74,9 +78,19 @@ def flag_result_with_ai(result_value, reference_range):
             timeout=15,
         )
         text = r.json()["choices"][0]["message"]["content"].strip()
-        lines = text.split("\n", 1)
-        flagged = 1 if lines[0].strip().upper().startswith("YES") else 0
-        ai_notes = lines[1].strip() if len(lines) > 1 else ""
+        upper_text = text.upper()
+
+        verdict_match = re.search(r"VERDICT:\s*(YES|NO)", upper_text)
+        if verdict_match:
+            flagged = 1 if verdict_match.group(1) == "YES" else 0
+        else:
+            # model didn't follow the format — fall back to scanning for abnormality language
+            abnormal_keywords = ["ABNORMAL", "OUTSIDE", "ELEVATED", "HIGH", "LOW", "NOT NORMAL", "FLAG"]
+            flagged = 1 if any(kw in upper_text for kw in abnormal_keywords) else 0
+
+        reason_match = re.search(r"REASON:\s*(.+)", text, re.IGNORECASE | re.DOTALL)
+        ai_notes = reason_match.group(1).strip() if reason_match else text
+
         return flagged, ai_notes
     except Exception as exc:
         return 0, f"AI flagging unavailable: {exc}"
@@ -124,6 +138,27 @@ def delete_order(order_id):
 def get_all_results():
     r = requests.get(f"{DATABASE_SERVICE_URL}/results", timeout=5)
     return jsonify(r.json())
+
+@app.get("/my-results")
+def get_my_results():
+    token = request.args.get("token")
+    if not token:
+        return jsonify({"error": "token is required"}), 400
+
+    # resolve token -> patient_id via shared session verify
+    v = requests.post(f"{SHARED_ACCESS_API_URL}/session/verify", json={"token": token}, timeout=5)
+    if v.status_code != 200 or not v.json().get("valid"):
+        return jsonify({"error": "Invalid or expired session"}), 401
+    patient_id = v.json()["patient_id"]
+
+    # get this patient's orders, then their results
+    orders_resp = requests.get(f"{DATABASE_SERVICE_URL}/orders", timeout=5)
+    my_order_ids = [o["order_id"] for o in orders_resp.json() if o["patient_id"] == patient_id]
+
+    all_results_resp = requests.get(f"{DATABASE_SERVICE_URL}/results", timeout=5)
+    my_results = [r for r in all_results_resp.json() if r["order_id"] in my_order_ids]
+
+    return jsonify(my_results)
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5005, debug=True)
