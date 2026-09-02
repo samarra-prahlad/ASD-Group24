@@ -135,6 +135,44 @@ def get_appointment(appointment_id):
 
     return jsonify(response.json())
 
+@app.put("/appointments/<int:appointment_id>")
+def update_appointment(appointment_id):
+    data = request.get_json()
+
+    if not data:
+        return jsonify({"error": "Invalid JSON payload"}), 400
+
+    try:
+        existing = requests.get(
+            f"{DATABASE_SERVICE_URL}/appointments/{appointment_id}",
+            timeout=5
+        )
+    except requests.RequestException as exc:
+        return jsonify({
+            "error": "Appointments database unavailable",
+            "detail": str(exc)
+        }), 503
+
+    if existing.status_code == 404:
+        return jsonify({"error": f"Appointment {appointment_id} not found"}), 404
+
+    if existing.status_code != 200:
+        return jsonify({"error": "Unable to retrieve appointment"}), existing.status_code
+
+    try:
+        response = requests.put(
+            f"{DATABASE_SERVICE_URL}/appointments/{appointment_id}",
+            json=data,
+            timeout=5
+        )
+    except requests.RequestException as exc:
+        return jsonify({
+            "error": "Unable to connect to appointments database",
+            "detail": str(exc)
+        }), 503
+
+    return jsonify(response.json()), response.status_code
+
 @app.get("/appointments/patient/<int:patient_id>")
 def get_appointments_by_patient(patient_id):
     patient_result, patient_status = validate_patient(patient_id)
