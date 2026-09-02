@@ -1,10 +1,12 @@
 import os
 import secrets
 import requests
+from flask_cors import CORS
 from flask import Flask, jsonify, request, render_template, redirect, make_response
 
 BACKEND_DIR = os.path.dirname(os.path.abspath(__file__))
 app = Flask(__name__, template_folder=os.path.join(BACKEND_DIR, "templates"))
+CORS(app)
 
 DATABASE_SERVICE_URL = os.environ.get("DATABASE_SERVICE_URL", "http://shared-database:6000")
 REQUEST_TIMEOUT = 3  # seconds - fail fast rather than hang if the database service is down
@@ -108,6 +110,43 @@ def logout():
     return jsonify({"message": "Logged out"}), 200
 
 
+def role_from_email(email):
+    return "admin" if email.lower().endswith("@admin.com") else "patient"
+
+
+@app.get("/validate")
+def validate():
+    """
+    Used by the appointments gateway (port 5001) to confirm a patient ID
+    exists before allowing booking/viewing/editing/cancelling actions.
+    Expects: GET /validate?patient_id=<id>
+    """
+    patient_id = request.args.get("patient_id")
+    if not patient_id:
+        return jsonify({"error": "patient_id is required"}), 400
+
+    try:
+        response = requests.get(
+            f"{DATABASE_SERVICE_URL}/patients/{patient_id}",
+            timeout=REQUEST_TIMEOUT,
+        )
+    except requests.exceptions.RequestException:
+        return jsonify({"error": "Database service is unreachable"}), 503
+
+    if response.status_code == 404:
+        return jsonify({"valid": False, "error": "Patient not found"}), 404
+
+    if response.status_code != 200:
+        return jsonify({"error": "Unable to validate patient"}), response.status_code
+
+    patient = response.json()
+    return jsonify({
+        "valid": True,
+        "patient_id": patient["patient_id"],
+        "role": role_from_email(patient["email_address"]),
+    }), 200
+
+
 # ---------------------------------------------------------------------------
 # HTML pages (rendered directly by this backend - login/register/home)
 # ---------------------------------------------------------------------------
@@ -189,6 +228,8 @@ def home_page():
 
     template = "home_admin.html" if session["role"] == "admin" else "home_patient.html"
     return render_template(template, first_name=session["first_name"], token=token)
+
+
 @app.get("/logout/html")
 def logout_html():
     token = request.cookies.get("session_token")
