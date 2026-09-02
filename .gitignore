@@ -1,2 +1,6 @@
+**/__pycache__/
+.pytest_cache/
+database/data/
+tests/.test_data/
 __pycache__/
 *.py[cod]
