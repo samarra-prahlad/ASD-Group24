@@ -195,7 +195,7 @@ services:
       DATABASE_SERVICE_URL: http://billing-database:6004
       APPOINTMENTS_DATABASE_API_URL: http://appointments-backend:5001
       PHARMACY_DATABASE_API_URL: http://pharmacy-backend:5003
-      WARDBED_DATABASE_API_URL: http://wardbed-backend:5006
+      # WARDBED_DATABASE_API_URL: http://wardbed-backend:5006
       SHARED_ACCESS_API_URL: http://shared-backend:5000
       OLLAMA_BASE_URL: http://host.docker.internal:11434/v1
       OLLAMA_MODEL: qwen2.5:0.5b
