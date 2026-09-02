@@ -12,15 +12,40 @@
 
 <body>
 
-<main class="booking-page">
+    <nav class="top-nav">
 
-    <section class="booking-container">
-
-        <header class="booking-header">
-            <h1>My Appointments</h1>
-            <p>View, edit, or cancel your booked appointments.</p>
-            <a href="appointment.html" class="nav-link">← Book a new appointment</a>
-        </header>
+        <div class="top-nav-left">
+    
+            <a href="http://localhost:5000/home" class="top-nav-home">
+                ← Home
+            </a>
+    
+            <a href="appointment.html">
+                Book Appointment
+            </a>
+    
+            <a href="appointments.html">
+                My Appointments
+            </a>
+    
+        </div>
+    
+    </nav>
+    
+    
+    <main class="booking-page">
+    
+        <section class="booking-container">
+    
+            <header class="booking-header">
+    
+                <h1>My Appointments</h1>
+    
+                <p>
+                    View, edit, or cancel your booked appointments.
+                </p>
+    
+            </header>
 
         <section class="booking-step">
             <h2>Enter your patient ID</h2>
@@ -136,18 +161,26 @@ function handleSaveResult(event) {
     loadAppointments();
 }
 
-
-const urlParams = new URLSearchParams(window.location.search);
-const prefillPatientId = urlParams.get("patient_id");
-
-if (prefillPatientId) {
-    document.getElementById("lookup_patient_id").value = prefillPatientId;
-    loadAppointments();
-}
-
 </script>
 
+<script src="auth.js"></script>
+<script>
+requireSession(["patient", "admin"]).then(function(session) {
+    if (!session) return;
+
+    const urlParams = new URLSearchParams(window.location.search);
+    const prefillPatientId = urlParams.get("patient_id");
+
+    if (prefillPatientId) {
+        document.getElementById("lookup_patient_id").value = prefillPatientId;
+        loadAppointments();
+    } else if (session.role === "patient") {
+        document.getElementById("lookup_patient_id").value = session.patient_id;
+        loadAppointments();
+    }
+});
 </script>
+
 <div class="ai-widget" id="ai-widget">
     <section class="ai-panel">
         <div class="ai-panel-header">

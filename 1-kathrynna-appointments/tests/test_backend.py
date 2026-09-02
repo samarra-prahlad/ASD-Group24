@@ -21,13 +21,13 @@ def test_get_all_appointments():
 
 # testing getting a specific appointment 
 def test_get_appointment():
-    response = requests.get(f"{BASE_URL}/appointments/1")
+    response = requests.get(f"{BASE_URL}/appointments/101")
 
     assert response.status_code == 200
 
     data = response.json()
 
-    assert data["id"] == 1
+    assert data["id"] == 101
     assert "patient_id" in data
     assert "doctor_id" in data
     assert "date" in data
@@ -43,14 +43,14 @@ def test_get_invalid_appointment():
 # testing retreiving appointments for a patient 
 def test_get_patient_appointments():
     response = requests.get(
-        f"{BASE_URL}/appointments/patient/101"
+        f"{BASE_URL}/appointments/patient/3"
     )
 
     assert response.status_code == 200
     assert isinstance(response.json(), list)
 
     for appointment in response.json():
-        assert appointment["patient_id"] == 101
+        assert appointment["patient_id"] == 3
 
 # testing invalid patient 
 def test_invalid_patient():
@@ -102,10 +102,10 @@ def test_get_invalid_doctor():
 # Testing creating an appointment
 def test_create_appointment():
     appointment = {
-        "patient_id": 101,
+        "patient_id": 3,
         "doctor_id": 206,
         "date": "2026-11-01",
-        "time": "10:30",
+        "time": "09:00",
         "status": "scheduled"
     }
 
@@ -127,6 +127,9 @@ def test_create_appointment():
     )
 
     assert check_response.status_code == 200
+
+    # Clean up so this test can be re-run without colliding with itself
+    requests.delete(f"{BASE_URL}/appointments/{appointment_id}")
 
 # Creating an appointment but patient is invalid 
 def test_create_appointment_invalid_patient():
@@ -153,7 +156,7 @@ def test_create_appointment_invalid_patient():
 # Creating an appointment but doctor is invalid
 def test_create_appointment_invalid_doctor():
     appointment = {
-        "patient_id": 101,
+        "patient_id": 3,
         "doctor_id": 99999,
         "date": "2026-11-01",
         "time": "10:30",
@@ -175,7 +178,7 @@ def test_create_appointment_invalid_doctor():
 # CReating an appointment with a missing field
 def test_create_appointment_missing_field():
     appointment = {
-        "patient_id": 101,
+        "patient_id": 3,
         "doctor_id": 206,
         "date": "2026-11-01"
     }
@@ -195,10 +198,10 @@ def test_create_appointment_missing_field():
 # Testing updating an appointment
 def test_update_appointment():
     appointment ={
-        "patient_id": 101,
+        "patient_id": 3,
         "doctor_id": 206,
         "date": "2026-11-01",
-        "time": "10:30",
+        "time": "11:30",
         "status": "scheduled"
     }
 
@@ -211,8 +214,8 @@ def test_update_appointment():
     appointment_id = create_response.json()["appointment_id"]
 
     update_data = {
-        "date": "2026-11-02",
-        "time": "11:00",
+        "date": "2026-12-15",
+        "time": "14:00",
         "status": "rescheduled"
     }
 
@@ -229,8 +232,11 @@ def test_update_appointment():
     assert check_response.status_code == 200
     data = check_response.json()
 
-    assert data["date"] == "2026-11-02"
-    assert data["time"] == "11:00"
+    assert data["date"] == "2026-12-15"
+    assert data["time"] == "14:00"
+
+    # Clean up so this test can be re-run without colliding with itself
+    requests.delete(f"{BASE_URL}/appointments/{appointment_id}")
 
 # Testing updating invalid appointment 
 def test_update_appointment_invalid():
@@ -255,10 +261,10 @@ def test_update_appointment_invalid():
 # testing appoinment deletion 
 def test_delete_appointment():
     appointment = {
-        "patient_id": 101,
+        "patient_id": 3,
         "doctor_id": 206,
         "date": "2026-11-01",
-        "time": "10:30",
+        "time": "12:30",
         "status": "scheduled"
     }
 
