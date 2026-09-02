@@ -18,6 +18,34 @@ client = OpenAI(
     api_key="ollama"
 )
 
+SHARED_ACCESS_API_URL = os.environ.get("SHARED_ACCESS_API_URL", "http://shared-backend:5000")
+
+@app.get("/session/role")
+def session_role():
+    token = request.args.get("token")
+    if not token:
+        return jsonify({"error": "token is required"}), 400
+
+    try:
+        resp = requests.post(
+            f"{SHARED_ACCESS_API_URL}/session/verify",
+            json={"token": token},
+            timeout=5,
+        )
+    except requests.RequestException:
+        return jsonify({"error": "auth service unavailable"}), 502
+
+    if resp.status_code != 200:
+        return jsonify({"valid": False}), 401
+
+    data = resp.json()
+    return jsonify({
+        "valid": True,
+        "role": data["role"],
+        "first_name": data["first_name"],
+    })
+
+
 
 def load_prompt(filename):
     prompt_path = PROMPT_DIR / filename
