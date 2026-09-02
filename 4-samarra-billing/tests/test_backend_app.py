@@ -74,47 +74,57 @@ class TestHealth:
 
 class TestProxyRoutes:
 
+    @patch.object(billing_backend_app, "verify_session")
     @patch("requests.get")
-    def test_get_invoices_proxies_database_response(self, mock_get, client):
+    def test_get_invoices_proxies_database_response(self, mock_get, mock_verify_session, client):
+        mock_verify_session.return_value = ({"role": "admin", "first_name": "Admin"}, None)
         mock_get.return_value = fake_response([{"id": 1}, {"id": 2}], 200)
 
-        response = client.get("/invoices")
+        response = client.get("/invoices?token=fake-token")
 
         assert response.status_code == 200
         assert response.get_json() == [{"id": 1}, {"id": 2}]
 
+    @patch.object(billing_backend_app, "verify_session")
     @patch("requests.get")
-    def test_get_invoices_passes_through_upstream_error_status(self, mock_get, client):
+    def test_get_invoices_passes_through_upstream_error_status(self, mock_get, mock_verify_session, client):
+        mock_verify_session.return_value = ({"role": "admin", "first_name": "Admin"}, None)
         mock_get.return_value = fake_response({"error": "Invoice not found"}, 404)
 
-        response = client.get("/invoices/999999")
+        response = client.get("/invoices/999999?token=fake-token")
 
         assert response.status_code == 404
         assert response.get_json() == {"error": "Invoice not found"}
 
+    @patch.object(billing_backend_app, "verify_session")
     @patch("requests.get")
-    def test_get_invoices_returns_503_when_database_unreachable(self, mock_get, client):
+    def test_get_invoices_returns_503_when_database_unreachable(self, mock_get, mock_verify_session, client):
+        mock_verify_session.return_value = ({"role": "admin", "first_name": "Admin"}, None)
         mock_get.side_effect = requests.exceptions.ConnectionError()
 
-        response = client.get("/invoices")
+        response = client.get("/invoices?token=fake-token")
 
         assert response.status_code == 503
         assert "error" in response.get_json()
 
+    @patch.object(billing_backend_app, "verify_session")
     @patch("requests.get")
-    def test_get_single_invoice_proxies_correctly(self, mock_get, client):
+    def test_get_single_invoice_proxies_correctly(self, mock_get, mock_verify_session, client):
+        mock_verify_session.return_value = ({"role": "admin", "first_name": "Admin"}, None)
         mock_get.return_value = fake_response({"id": 3, "patient_id": 101}, 200)
 
-        response = client.get("/invoices/3")
+        response = client.get("/invoices/3?token=fake-token")
 
         assert response.status_code == 200
         assert response.get_json()["patient_id"] == 101
 
+    @patch.object(billing_backend_app, "verify_session")
     @patch("requests.get")
-    def test_get_invoices_by_patient_proxies_correctly(self, mock_get, client):
+    def test_get_invoices_by_patient_proxies_correctly(self, mock_get, mock_verify_session, client):
+        mock_verify_session.return_value = ({"role": "admin", "first_name": "Admin"}, None)
         mock_get.return_value = fake_response([{"id": 1, "patient_id": 101}], 200)
 
-        response = client.get("/invoices/patient/101")
+        response = client.get("/invoices/patient/101?token=fake-token")
 
         assert response.status_code == 200
         assert len(response.get_json()) == 1
@@ -252,18 +262,26 @@ class TestGetBedCharges:
 
 class TestGenerateInvoice:
 
-    def test_generate_invoice_with_no_body_returns_400(self, client):
-        response = client.post("/invoices/generate", data="", content_type="application/json")
+    @patch.object(billing_backend_app, "verify_session")
+    def test_generate_invoice_with_no_body_returns_400(self, mock_verify_session, client):
+        mock_verify_session.return_value = ({"role": "admin", "first_name": "Admin"}, None)
+
+        response = client.post("/invoices/generate?token=fake-token", data="", content_type="application/json")
         assert response.status_code == 400
 
-    def test_generate_invoice_missing_patient_id_returns_400(self, client):
-        response = client.post("/invoices/generate", json={"appointment_id": 1})
+    @patch.object(billing_backend_app, "verify_session")
+    def test_generate_invoice_missing_patient_id_returns_400(self, mock_verify_session, client):
+        mock_verify_session.return_value = ({"role": "admin", "first_name": "Admin"}, None)
+
+        response = client.post("/invoices/generate?token=fake-token", json={"appointment_id": 1})
         assert response.status_code == 400
         assert "error" in response.get_json()
 
+    @patch.object(billing_backend_app, "verify_session")
     @patch("requests.post")
     @patch("requests.get")
-    def test_generate_invoice_succeeds_with_all_mock_costs(self, mock_get, mock_post, client):
+    def test_generate_invoice_succeeds_with_all_mock_costs(self, mock_get, mock_post, mock_verify_session, client):
+        mock_verify_session.return_value = ({"role": "admin", "first_name": "Admin"}, None)
         # All three dependent services unreachable -> every cost falls back to mock
         mock_get.side_effect = requests.exceptions.ConnectionError()
         mock_post.return_value = fake_response({
@@ -274,7 +292,7 @@ class TestGenerateInvoice:
             "patient_owed_amount": 22.5,
         }, 201)
 
-        response = client.post("/invoices/generate", json={
+        response = client.post("/invoices/generate?token=fake-token", json={
             "patient_id": 777,
             "appointment_id": 999,
             "insurance_provider_id": 302,
@@ -287,13 +305,15 @@ class TestGenerateInvoice:
         assert data["cost_sources"]["medication_cost"] == "mock"
         assert data["cost_sources"]["bed_charges"] == "mock"
 
+    @patch.object(billing_backend_app, "verify_session")
     @patch("requests.post")
     @patch("requests.get")
-    def test_generate_invoice_forwards_database_validation_error(self, mock_get, mock_post, client):
+    def test_generate_invoice_forwards_database_validation_error(self, mock_get, mock_post, mock_verify_session, client):
+        mock_verify_session.return_value = ({"role": "admin", "first_name": "Admin"}, None)
         mock_get.side_effect = requests.exceptions.ConnectionError()
         mock_post.return_value = fake_response({"error": "Insurance provider not found"}, 404)
 
-        response = client.post("/invoices/generate", json={
+        response = client.post("/invoices/generate?token=fake-token", json={
             "patient_id": 778,
             "insurance_provider_id": 999999,
         })
@@ -301,20 +321,24 @@ class TestGenerateInvoice:
         assert response.status_code == 404
         assert response.get_json() == {"error": "Insurance provider not found"}
 
+    @patch.object(billing_backend_app, "verify_session")
     @patch("requests.post")
     @patch("requests.get")
-    def test_generate_invoice_returns_503_when_database_unreachable(self, mock_get, mock_post, client):
+    def test_generate_invoice_returns_503_when_database_unreachable(self, mock_get, mock_post, mock_verify_session, client):
+        mock_verify_session.return_value = ({"role": "admin", "first_name": "Admin"}, None)
         mock_get.side_effect = requests.exceptions.ConnectionError()
         mock_post.side_effect = requests.exceptions.ConnectionError()
 
-        response = client.post("/invoices/generate", json={"patient_id": 779})
+        response = client.post("/invoices/generate?token=fake-token", json={"patient_id": 779})
 
         assert response.status_code == 503
         assert "error" in response.get_json()
 
+    @patch.object(billing_backend_app, "verify_session")
     @patch("requests.post")
     @patch("requests.get")
-    def test_generate_invoice_uses_live_appointment_cost_when_available(self, mock_get, mock_post, client):
+    def test_generate_invoice_uses_live_appointment_cost_when_available(self, mock_get, mock_post, mock_verify_session, client):
+        mock_verify_session.return_value = ({"role": "admin", "first_name": "Admin"}, None)
         mock_get.return_value = fake_response({"id": 1, "cost": 200.0}, 200)
         mock_post.return_value = fake_response({
             "message": "Invoice created successfully",
@@ -324,7 +348,7 @@ class TestGenerateInvoice:
             "patient_owed_amount": 200.0,
         }, 201)
 
-        response = client.post("/invoices/generate", json={
+        response = client.post("/invoices/generate?token=fake-token", json={
             "patient_id": 780,
             "appointment_id": 1,
         })
