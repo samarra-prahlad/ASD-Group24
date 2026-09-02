@@ -228,8 +228,15 @@ def home_page():
 
     template = "home_admin.html" if session["role"] == "admin" else "home_patient.html"
     return render_template(template, first_name=session["first_name"], token=token)
+<<<<<<< HEAD
 
 
+||||||| parent of f1f437c (shared microservice architecture complete)
+    return render_template(template, first_name=session["first_name"])
+
+
+=======
+>>>>>>> f1f437c (shared microservice architecture complete)
 @app.get("/logout/html")
 def logout_html():
     token = request.cookies.get("session_token")
