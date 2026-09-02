@@ -359,3 +359,166 @@ class TestGenerateInvoice:
         # Confirm the live cost was actually forwarded to billing-database
         posted_payload = mock_post.call_args.kwargs["json"]
         assert posted_payload["appointment_cost"] == 200.0
+
+# ---------------------------------------------------------------------------
+# POST /invoices/create/html - admin-only HTMX form endpoint for manually
+# creating an invoice with directly-entered cost values (not derived via
+# appointment_id like /invoices/generate).
+# ---------------------------------------------------------------------------
+
+class TestCreateInvoiceHtml:
+
+    def test_create_invoice_html_requires_token(self, client):
+        response = client.post("/invoices/create/html", data={
+            "patient_id": "3",
+            "appointment_cost": "100",
+            "medication_cost": "0",
+            "bed_charges": "0",
+        })
+
+        assert response.status_code == 401
+
+    @patch.object(billing_backend_app, "verify_session")
+    def test_create_invoice_html_requires_admin(self, mock_verify_session, client):
+        mock_verify_session.return_value = ({"role": "patient", "patient_id": 3}, None)
+
+        response = client.post("/invoices/create/html?token=fake-token", data={
+            "patient_id": "3",
+            "appointment_cost": "100",
+            "medication_cost": "0",
+            "bed_charges": "0",
+        })
+
+        assert response.status_code == 403
+
+    @patch.object(billing_backend_app, "verify_session")
+    @patch("requests.post")
+    def test_create_invoice_html_success(self, mock_post, mock_verify_session, client):
+        mock_verify_session.return_value = ({"role": "admin", "first_name": "Admin"}, None)
+        mock_post.return_value = fake_response({
+            "message": "Invoice created successfully",
+            "invoice_id": 20,
+            "total_amount": 250.0,
+            "insurance_covered_amount": 0.0,
+            "patient_owed_amount": 250.0,
+        }, 201)
+
+        response = client.post("/invoices/create/html?token=fake-token", data={
+            "patient_id": "3",
+            "insurance_provider_id": "",
+            "appointment_cost": "150",
+            "medication_cost": "50",
+            "bed_charges": "50",
+            "status": "pending",
+        })
+
+        assert response.status_code == 201
+        assert b"created" in response.data.lower()
+
+    @patch.object(billing_backend_app, "verify_session")
+    @patch("requests.post")
+    def test_create_invoice_html_invalid_provider(self, mock_post, mock_verify_session, client):
+        mock_verify_session.return_value = ({"role": "admin", "first_name": "Admin"}, None)
+        mock_post.return_value = fake_response({"error": "Insurance provider not found"}, 404)
+
+        response = client.post("/invoices/create/html?token=fake-token", data={
+            "patient_id": "3",
+            "insurance_provider_id": "999999",
+            "appointment_cost": "150",
+            "medication_cost": "0",
+            "bed_charges": "0",
+        })
+
+        assert response.status_code == 404
+        assert b"not found" in response.data.lower()
+
+    @patch.object(billing_backend_app, "verify_session")
+    @patch("requests.post")
+    def test_create_invoice_html_database_unreachable(self, mock_post, mock_verify_session, client):
+        mock_verify_session.return_value = ({"role": "admin", "first_name": "Admin"}, None)
+        mock_post.side_effect = requests.exceptions.ConnectionError()
+
+        response = client.post("/invoices/create/html?token=fake-token", data={
+            "patient_id": "3",
+            "appointment_cost": "150",
+            "medication_cost": "0",
+            "bed_charges": "0",
+        })
+
+        assert response.status_code == 503
+
+    @patch.object(billing_backend_app, "verify_session")
+    def test_create_invoice_html_missing_patient_id(self, mock_verify_session, client):
+        mock_verify_session.return_value = ({"role": "admin", "first_name": "Admin"}, None)
+
+        response = client.post("/invoices/create/html?token=fake-token", data={
+            "appointment_cost": "150",
+        })
+
+        assert response.status_code == 400
+
+
+# ---------------------------------------------------------------------------
+# PUT /invoices/<invoice_id>/html - admin-only HTMX form endpoint for editing
+# an existing invoice's fields. Proxies to the database tier's existing
+# PUT /invoices/<id>.
+# ---------------------------------------------------------------------------
+
+class TestUpdateInvoiceHtml:
+
+    def test_update_invoice_html_requires_token(self, client):
+        response = client.put("/invoices/1/html", data={"status": "paid"})
+
+        assert response.status_code == 401
+
+    @patch.object(billing_backend_app, "verify_session")
+    def test_update_invoice_html_requires_admin(self, mock_verify_session, client):
+        mock_verify_session.return_value = ({"role": "patient", "patient_id": 3}, None)
+
+        response = client.put("/invoices/1/html?token=fake-token", data={"status": "paid"})
+
+        assert response.status_code == 403
+
+    @patch.object(billing_backend_app, "verify_session")
+    @patch("requests.put")
+    def test_update_invoice_html_success(self, mock_put, mock_verify_session, client):
+        mock_verify_session.return_value = ({"role": "admin", "first_name": "Admin"}, None)
+        mock_put.return_value = fake_response({
+            "message": "Invoice updated",
+            "invoice_id": 1,
+            "total_amount": 200.0,
+            "insurance_covered_amount": 100.0,
+            "patient_owed_amount": 100.0,
+        }, 200)
+
+        response = client.put("/invoices/1/html?token=fake-token", data={
+            "status": "paid",
+        })
+
+        assert response.status_code == 200
+        assert b"updated" in response.data.lower()
+
+    @patch.object(billing_backend_app, "verify_session")
+    @patch("requests.put")
+    def test_update_invoice_html_invoice_not_found(self, mock_put, mock_verify_session, client):
+        mock_verify_session.return_value = ({"role": "admin", "first_name": "Admin"}, None)
+        mock_put.return_value = fake_response({"error": "Invoice not found"}, 404)
+
+        response = client.put("/invoices/999999/html?token=fake-token", data={
+            "status": "paid",
+        })
+
+        assert response.status_code == 404
+        assert b"not found" in response.data.lower()
+
+    @patch.object(billing_backend_app, "verify_session")
+    @patch("requests.put")
+    def test_update_invoice_html_database_unreachable(self, mock_put, mock_verify_session, client):
+        mock_verify_session.return_value = ({"role": "admin", "first_name": "Admin"}, None)
+        mock_put.side_effect = requests.exceptions.ConnectionError()
+
+        response = client.put("/invoices/1/html?token=fake-token", data={
+            "status": "paid",
+        })
+
+        assert response.status_code == 503
