@@ -250,7 +250,8 @@ def get_insurance_providers():
 # same invoice data as an HTML table body. Requires a valid token. Patients
 # always see only their own invoices - any ?patient_id in the request is
 # ignored in favour of their session's own ID. Admins may filter by
-# ?patient_id, or omit it to see everyone's.
+# ?patient_id, ?status, and/or ?insurance, or omit them to see everyone's.
+# Sorting via ?sort_by=<field>&sort_dir=asc|desc is available to both roles.
 # ---------------------------------------------------------------------------
 
 def render_invoice_rows(invoices):
@@ -270,6 +271,12 @@ def render_invoice_rows(invoices):
             <td>{inv['status']}</td>
         </tr>""")
     return "".join(rows)
+
+
+SORTABLE_FIELDS = {
+    "id", "patient_id", "total_amount", "insurance_covered_amount",
+    "patient_owed_amount", "status",
+}
 
 
 @app.get("/invoices/html")
@@ -293,7 +300,32 @@ def get_invoices_html():
     if status != 200:
         return "<tr><td colspan='7'>Error loading invoices.</td></tr>", status
 
-    return render_invoice_rows(body)
+    invoices = body
+
+    # Filtering (admin only - patients are already scoped to their own patient_id above)
+    if session["role"] == "admin":
+        status_filter = request.args.get("status")
+        if status_filter:
+            invoices = [inv for inv in invoices if inv.get("status") == status_filter]
+
+        insurance_filter = request.args.get("insurance")
+        if insurance_filter:
+            invoices = [
+                inv for inv in invoices
+                if (inv.get("insurance_provider_name") or "Self-pay") == insurance_filter
+            ]
+
+    # Sorting (available to both roles)
+    sort_by = request.args.get("sort_by")
+    if sort_by in SORTABLE_FIELDS:
+        sort_dir = request.args.get("sort_dir", "asc")
+        invoices = sorted(
+            invoices,
+            key=lambda inv: inv.get(sort_by) if inv.get(sort_by) is not None else "",
+            reverse=(sort_dir == "desc"),
+        )
+
+    return render_invoice_rows(invoices)
 
 
 # ---------------------------------------------------------------------------

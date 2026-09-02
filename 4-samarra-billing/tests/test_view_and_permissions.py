@@ -246,3 +246,101 @@ class TestInvoiceReadPermissions:
         test_client, module = client
         response = test_client.get("/invoices/html")
         assert response.status_code == 401
+
+class TestInvoiceHtmlFilteringAndSorting:
+    def _admin_session(self, mock_post):
+        mock_post.return_value = fake_response(
+            {"valid": True, "patient_id": 2, "role": "admin", "first_name": "Grace"}, status=200
+        )
+
+    def test_filter_by_status(self, client):
+        test_client, module = client
+        with patch("requests.post") as mock_post:
+            self._admin_session(mock_post)
+            with patch("requests.get") as mock_get:
+                mock_get.return_value = fake_response([
+                    {"id": 1, "patient_id": 101, "insurance_provider_name": "Bupa", "total_amount": 100.0,
+                     "insurance_covered_amount": 50.0, "patient_owed_amount": 50.0, "status": "paid"},
+                    {"id": 2, "patient_id": 102, "insurance_provider_name": "NIB", "total_amount": 200.0,
+                     "insurance_covered_amount": 0.0, "patient_owed_amount": 200.0, "status": "pending"},
+                ], status=200)
+                response = test_client.get("/invoices/html?token=admin-token&status=pending")
+        assert b"NIB" in response.data
+        assert b"Bupa" not in response.data
+
+    def test_filter_by_insurance_provider(self, client):
+        test_client, module = client
+        with patch("requests.post") as mock_post:
+            self._admin_session(mock_post)
+            with patch("requests.get") as mock_get:
+                mock_get.return_value = fake_response([
+                    {"id": 1, "patient_id": 101, "insurance_provider_name": "Bupa", "total_amount": 100.0,
+                     "insurance_covered_amount": 50.0, "patient_owed_amount": 50.0, "status": "paid"},
+                    {"id": 2, "patient_id": 102, "insurance_provider_name": "NIB", "total_amount": 200.0,
+                     "insurance_covered_amount": 0.0, "patient_owed_amount": 200.0, "status": "pending"},
+                ], status=200)
+                response = test_client.get("/invoices/html?token=admin-token&insurance=NIB")
+        assert b"NIB" in response.data
+        assert b"Bupa" not in response.data
+
+    def test_sort_by_total_amount_ascending(self, client):
+        test_client, module = client
+        with patch("requests.post") as mock_post:
+            self._admin_session(mock_post)
+            with patch("requests.get") as mock_get:
+                mock_get.return_value = fake_response([
+                    {"id": 1, "patient_id": 101, "insurance_provider_name": "Bupa", "total_amount": 300.0,
+                     "insurance_covered_amount": 0.0, "patient_owed_amount": 300.0, "status": "pending"},
+                    {"id": 2, "patient_id": 102, "insurance_provider_name": "NIB", "total_amount": 100.0,
+                     "insurance_covered_amount": 0.0, "patient_owed_amount": 100.0, "status": "pending"},
+                ], status=200)
+                response = test_client.get("/invoices/html?token=admin-token&sort_by=total_amount&sort_dir=asc")
+        body = response.data.decode()
+        assert body.index("100.00") < body.index("300.00")
+
+    def test_sort_by_total_amount_descending(self, client):
+        test_client, module = client
+        with patch("requests.post") as mock_post:
+            self._admin_session(mock_post)
+            with patch("requests.get") as mock_get:
+                mock_get.return_value = fake_response([
+                    {"id": 1, "patient_id": 101, "insurance_provider_name": "Bupa", "total_amount": 100.0,
+                     "insurance_covered_amount": 0.0, "patient_owed_amount": 100.0, "status": "pending"},
+                    {"id": 2, "patient_id": 102, "insurance_provider_name": "NIB", "total_amount": 300.0,
+                     "insurance_covered_amount": 0.0, "patient_owed_amount": 300.0, "status": "pending"},
+                ], status=200)
+                response = test_client.get("/invoices/html?token=admin-token&sort_by=total_amount&sort_dir=desc")
+        body = response.data.decode()
+        assert body.index("300.00") < body.index("100.00")
+
+    def test_sort_by_status(self, client):
+        test_client, module = client
+        with patch("requests.post") as mock_post:
+            self._admin_session(mock_post)
+            with patch("requests.get") as mock_get:
+                mock_get.return_value = fake_response([
+                    {"id": 1, "patient_id": 101, "insurance_provider_name": "Bupa", "total_amount": 100.0,
+                     "insurance_covered_amount": 0.0, "patient_owed_amount": 100.0, "status": "pending"},
+                    {"id": 2, "patient_id": 102, "insurance_provider_name": "NIB", "total_amount": 200.0,
+                     "insurance_covered_amount": 0.0, "patient_owed_amount": 200.0, "status": "paid"},
+                ], status=200)
+                response = test_client.get("/invoices/html?token=admin-token&sort_by=status&sort_dir=asc")
+        body = response.data.decode()
+        assert body.index(">paid<") < body.index(">pending<")
+
+    def test_patient_cannot_use_status_filter_to_see_others(self, client):
+        # Patients are always scoped to their own patient_id regardless of any other filter params
+        test_client, module = client
+        with patch("requests.post") as mock_post:
+            mock_post.return_value = fake_response(
+                {"valid": True, "patient_id": 101, "role": "patient", "first_name": "John"}, status=200
+            )
+            with patch("requests.get") as mock_get:
+                mock_get.return_value = fake_response([
+                    {"id": 1, "patient_id": 101, "insurance_provider_name": "Bupa", "total_amount": 100.0,
+                     "insurance_covered_amount": 0.0, "patient_owed_amount": 100.0, "status": "pending"}
+                ], status=200)
+                response = test_client.get("/invoices/html?token=patient-token&status=paid")
+        mock_get.assert_called_with(
+            "http://billing-database:6004/invoices/patient/101", timeout=module.REQUEST_TIMEOUT
+        )
