@@ -71,8 +71,11 @@ function showRecords(records, container, editable = false) {
         Treatment: ${r.treatment}<br>
         Notes: ${r.notes}<br>
         Allergies: ${r.allergies}
-        ${editable ? `<br><button onclick='startEdit(${escAttr(JSON.stringify(r))})'>Edit</button>` : ""}
-      </div>
+        ${editable ? `
+          <br><button onclick='startEdit(${escAttr(JSON.stringify(r))})'>Edit</button>
+          <button onclick="deleteRecord(${r.id}, ${r.patient_id})">Delete</button>
+        ` : ""}      
+    </div>
     </div>
   `).join("");
 }
@@ -112,6 +115,22 @@ async function saveEdit(recordId) {
     viewPatient(currentId, patientName);
   } else {
     alert("Failed to save changes.");
+  }
+}
+
+async function deleteRecord(recordId, patientId) {
+  const confirmed = confirm("Delete this record? This cannot be undone.");
+  if (!confirmed) return;
+
+  const resp = await fetch(`${API_URL}/records/${recordId}?token=${token}`, {
+    method: "DELETE"
+  });
+
+  if (resp.ok) {
+    const patientName = document.getElementById("detail-patient-name").textContent;
+    viewPatient(patientId, patientName);
+  } else {
+    alert("Failed to delete record.");
   }
 }
 
