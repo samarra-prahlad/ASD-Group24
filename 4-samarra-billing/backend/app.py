@@ -284,7 +284,7 @@ def filter_and_sort_invoices(invoices, invoice_id=None, status=None, insurance=N
     return result
 
 
-def render_invoice_rows(invoices, token):
+def render_invoice_rows(invoices, token, role="admin"):
     if not invoices:
         return "<tr><td colspan='8'>No invoices found.</td></tr>"
 
@@ -292,6 +292,21 @@ def render_invoice_rows(invoices, token):
     for inv in invoices:
         provider_name = inv.get("insurance_provider_name") or "Self-pay"
         provider_id = inv.get("insurance_provider_id") or ""
+
+        if role == "admin":
+            action_cell = f'<button type="button" onclick="toggleEditInvoice({inv["id"]})">Edit</button>'
+        elif inv["status"] != "paid":
+            action_cell = f"""<button
+                    type="button"
+                    hx-post="http://localhost:5004/invoices/{inv['id']}/pay/html?token={token}"
+                    hx-target="#invoice-pay-message-{inv['id']}"
+                    hx-swap="innerHTML"
+                    hx-confirm="Mark this invoice as paid?"
+                >Pay</button>
+                <div id="invoice-pay-message-{inv['id']}"></div>"""
+        else:
+            action_cell = "<span>Paid</span>"
+
         rows.append(f"""<tr id="invoice-row-{inv['id']}">
             <td>{inv['id']}</td>
             <td>{inv['patient_id']}</td>
@@ -300,42 +315,43 @@ def render_invoice_rows(invoices, token):
             <td>${inv['insurance_covered_amount']:.2f}</td>
             <td>${inv['patient_owed_amount']:.2f}</td>
             <td>{inv['status']}</td>
-            <td>
-                <button type="button" onclick="toggleEditInvoice({inv['id']})">Edit</button>
-            </td>
-        </tr>
-        <tr id="invoice-edit-{inv['id']}" class="edit-row is-hidden">
-            <td colspan="8">
-                <form
-                    hx-put="http://localhost:5004/invoices/{inv['id']}/html?token={token}"
-                    hx-target="#invoice-edit-message-{inv['id']}"
-                    hx-swap="innerHTML"
-                >
-                    <label>Insurance Provider ID
-                        <input type="number" name="insurance_provider_id" value="{provider_id}">
-                    </label>
-                    <label>Appointment Cost
-                        <input type="number" step="0.01" name="appointment_cost" value="{inv['appointment_cost']}">
-                    </label>
-                    <label>Medication Cost
-                        <input type="number" step="0.01" name="medication_cost" value="{inv['medication_cost']}">
-                    </label>
-                    <label>Bed Charges
-                        <input type="number" step="0.01" name="bed_charges" value="{inv['bed_charges']}">
-                    </label>
-                    <label>Status
-                        <select name="status">
-                            <option value="pending" {"selected" if inv['status'] == "pending" else ""}>Pending</option>
-                            <option value="paid" {"selected" if inv['status'] == "paid" else ""}>Paid</option>
-                            <option value="partially_paid" {"selected" if inv['status'] == "partially_paid" else ""}>Partially paid</option>
-                        </select>
-                    </label>
-                    <button type="submit">Save</button>
-                    <button type="button" onclick="toggleEditInvoice({inv['id']})">Cancel</button>
-                </form>
-                <div id="invoice-edit-message-{inv['id']}"></div>
-            </td>
+            <td>{action_cell}</td>
         </tr>""")
+
+        if role == "admin":
+            rows.append(f"""<tr id="invoice-edit-{inv['id']}" class="edit-row is-hidden">
+                <td colspan="8">
+                    <form
+                        hx-put="http://localhost:5004/invoices/{inv['id']}/html?token={token}"
+                        hx-target="#invoice-edit-message-{inv['id']}"
+                        hx-swap="innerHTML"
+                    >
+                        <label>Insurance Provider ID
+                            <input type="number" name="insurance_provider_id" value="{provider_id}">
+                        </label>
+                        <label>Appointment Cost
+                            <input type="number" step="0.01" name="appointment_cost" value="{inv['appointment_cost']}">
+                        </label>
+                        <label>Medication Cost
+                            <input type="number" step="0.01" name="medication_cost" value="{inv['medication_cost']}">
+                        </label>
+                        <label>Bed Charges
+                            <input type="number" step="0.01" name="bed_charges" value="{inv['bed_charges']}">
+                        </label>
+                        <label>Status
+                            <select name="status">
+                                <option value="pending" {"selected" if inv['status'] == "pending" else ""}>Pending</option>
+                                <option value="paid" {"selected" if inv['status'] == "paid" else ""}>Paid</option>
+                                <option value="partially_paid" {"selected" if inv['status'] == "partially_paid" else ""}>Partially paid</option>
+                            </select>
+                        </label>
+                        <button type="submit">Save</button>
+                        <button type="button" onclick="toggleEditInvoice({inv['id']})">Cancel</button>
+                    </form>
+                    <div id="invoice-edit-message-{inv['id']}"></div>
+                </td>
+            </tr>""")
+
     return "".join(rows)
 
 
@@ -375,7 +391,7 @@ def get_invoices_html():
         sort_dir=sort_dir,
     )
 
-    return render_invoice_rows(body, token)
+    return render_invoice_rows(body, token, session["role"])
 
 
 # ---------------------------------------------------------------------------
@@ -617,6 +633,53 @@ def print_invoice(invoice_id):
     <script>window.print();</script>
 </body>
 </html>""", 200
+
+
+# ---------------------------------------------------------------------------
+# POST /invoices/<invoice_id>/pay/html - patient-facing action to mark their
+# own invoice as paid. Admins can also pay any invoice, using the same
+# ownership rule as the other invoice routes.
+# ---------------------------------------------------------------------------
+
+@app.post("/invoices/<int:invoice_id>/pay/html")
+def pay_invoice_html(invoice_id):
+    token = request.args.get("token")
+    session, error = verify_session(token)
+
+    if session is None:
+        status = 503 if error == "unreachable" else 401
+        return f"<div class='form-message form-error'>{escape('Invalid or missing session token.')}</div>", status
+
+    body, status = proxy_get(f"{DATABASE_SERVICE_URL}/invoices/{invoice_id}")
+
+    if status != 200:
+        error_message = body.get("error", "Unable to retrieve invoice.")
+        return f"<div class='form-message form-error'>{escape(error_message)}</div>", status
+
+    if session["role"] != "admin" and body.get("patient_id") != session["patient_id"]:
+        return "<div class='form-message form-error'>You can only pay your own invoices.</div>", 403
+
+    try:
+        response = requests.put(
+            f"{DATABASE_SERVICE_URL}/invoices/{invoice_id}",
+            json={"status": "paid"},
+            timeout=REQUEST_TIMEOUT,
+        )
+    except requests.exceptions.RequestException:
+        return "<div class='form-message form-error'>billing-database is unreachable.</div>", 503
+
+    if response.status_code != 200:
+        error_message = response.json().get("error", "Unable to update invoice.")
+        return f"<div class='form-message form-error'>{escape(error_message)}</div>", response.status_code
+
+    result = response.json()
+    return (
+        f"<div class='form-message form-success'>"
+        f"Invoice #{result['invoice_id']} marked as paid."
+        f"</div>",
+        200,
+        {"HX-Trigger": "invoicesChanged"},
+    )
 
 
 # ---------------------------------------------------------------------------

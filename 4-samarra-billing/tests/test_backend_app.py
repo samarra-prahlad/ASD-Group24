@@ -711,3 +711,137 @@ class TestInvoicesHtmlFiltering:
 
         assert response.status_code == 200
         assert response.data.count(b"invoice-row-") == 1
+
+
+# ---------------------------------------------------------------------------
+# POST /invoices/<invoice_id>/pay/html - patient-facing action to mark their
+# own invoice as paid. Admins can also pay any invoice (same ownership rule
+# used across the rest of the invoice routes).
+# ---------------------------------------------------------------------------
+
+class TestPayInvoiceHtml:
+
+    def test_pay_invoice_requires_token(self, client):
+        response = client.post("/invoices/1/pay/html")
+
+        assert response.status_code == 401
+
+    @patch.object(billing_backend_app, "verify_session")
+    @patch("requests.put")
+    @patch("requests.get")
+    def test_patient_can_pay_own_invoice(self, mock_get, mock_put, mock_verify_session, client):
+        mock_verify_session.return_value = ({"role": "patient", "patient_id": 3}, None)
+        mock_get.return_value = fake_response({"id": 14, "patient_id": 3, "status": "pending"}, 200)
+        mock_put.return_value = fake_response({
+            "message": "Invoice updated",
+            "invoice_id": 14,
+            "total_amount": 100.0,
+            "insurance_covered_amount": 0.0,
+            "patient_owed_amount": 100.0,
+        }, 200)
+
+        response = client.post("/invoices/14/pay/html?token=fake-token")
+
+        assert response.status_code == 200
+        assert b"paid" in response.data.lower()
+
+    @patch.object(billing_backend_app, "verify_session")
+    @patch("requests.get")
+    def test_patient_cannot_pay_others_invoice(self, mock_get, mock_verify_session, client):
+        mock_verify_session.return_value = ({"role": "patient", "patient_id": 3}, None)
+        mock_get.return_value = fake_response({"id": 5, "patient_id": 101, "status": "pending"}, 200)
+
+        response = client.post("/invoices/5/pay/html?token=fake-token")
+
+        assert response.status_code == 403
+
+    @patch.object(billing_backend_app, "verify_session")
+    @patch("requests.put")
+    @patch("requests.get")
+    def test_admin_can_pay_any_invoice(self, mock_get, mock_put, mock_verify_session, client):
+        mock_verify_session.return_value = ({"role": "admin", "first_name": "Admin"}, None)
+        mock_get.return_value = fake_response({"id": 5, "patient_id": 101, "status": "pending"}, 200)
+        mock_put.return_value = fake_response({
+            "message": "Invoice updated",
+            "invoice_id": 5,
+            "total_amount": 550.0,
+            "insurance_covered_amount": 385.0,
+            "patient_owed_amount": 165.0,
+        }, 200)
+
+        response = client.post("/invoices/5/pay/html?token=fake-token")
+
+        assert response.status_code == 200
+
+    @patch.object(billing_backend_app, "verify_session")
+    @patch("requests.get")
+    def test_pay_invoice_not_found(self, mock_get, mock_verify_session, client):
+        mock_verify_session.return_value = ({"role": "patient", "patient_id": 3}, None)
+        mock_get.return_value = fake_response({"error": "Invoice not found"}, 404)
+
+        response = client.post("/invoices/999999/pay/html?token=fake-token")
+
+        assert response.status_code == 404
+
+    @patch.object(billing_backend_app, "verify_session")
+    @patch("requests.get")
+    def test_pay_invoice_database_unreachable_on_lookup(self, mock_get, mock_verify_session, client):
+        mock_verify_session.return_value = ({"role": "patient", "patient_id": 3}, None)
+        mock_get.side_effect = requests.exceptions.ConnectionError()
+
+        response = client.post("/invoices/14/pay/html?token=fake-token")
+
+        assert response.status_code == 503
+
+    @patch.object(billing_backend_app, "verify_session")
+    @patch("requests.put")
+    @patch("requests.get")
+    def test_pay_invoice_database_unreachable_on_update(self, mock_get, mock_put, mock_verify_session, client):
+        mock_verify_session.return_value = ({"role": "patient", "patient_id": 3}, None)
+        mock_get.return_value = fake_response({"id": 14, "patient_id": 3, "status": "pending"}, 200)
+        mock_put.side_effect = requests.exceptions.ConnectionError()
+
+        response = client.post("/invoices/14/pay/html?token=fake-token")
+
+        assert response.status_code == 503
+
+
+# ---------------------------------------------------------------------------
+# render_invoice_rows role-based rendering, exercised via GET /invoices/html -
+# admins see the Edit form, patients see a Pay button (or "Paid" if settled).
+# ---------------------------------------------------------------------------
+
+class TestInvoiceRowsRoleRendering:
+
+    @patch.object(billing_backend_app, "verify_session")
+    @patch("requests.get")
+    def test_admin_sees_edit_not_pay(self, mock_get, mock_verify_session, client):
+        mock_verify_session.return_value = ({"role": "admin", "first_name": "Admin"}, None)
+        mock_get.return_value = fake_response([SAMPLE_INVOICES[0]], 200)
+
+        response = client.get("/invoices/html?token=fake-token")
+
+        assert b"toggleEditInvoice" in response.data
+        assert b">Pay<" not in response.data
+
+    @patch.object(billing_backend_app, "verify_session")
+    @patch("requests.get")
+    def test_patient_sees_pay_for_unpaid_invoice(self, mock_get, mock_verify_session, client):
+        mock_verify_session.return_value = ({"role": "patient", "patient_id": 101}, None)
+        mock_get.return_value = fake_response([SAMPLE_INVOICES[0]], 200)  # status "pending"
+
+        response = client.get("/invoices/html?token=fake-token")
+
+        assert b">Pay<" in response.data
+        assert b"toggleEditInvoice" not in response.data
+
+    @patch.object(billing_backend_app, "verify_session")
+    @patch("requests.get")
+    def test_patient_sees_paid_label_for_paid_invoice(self, mock_get, mock_verify_session, client):
+        mock_verify_session.return_value = ({"role": "patient", "patient_id": 102}, None)
+        mock_get.return_value = fake_response([SAMPLE_INVOICES[1]], 200)  # status "paid"
+
+        response = client.get("/invoices/html?token=fake-token")
+
+        assert b">Paid<" in response.data
+        assert b">Pay<" not in response.data

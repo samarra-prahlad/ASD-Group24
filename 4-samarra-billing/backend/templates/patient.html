@@ -8,6 +8,12 @@
     <script src="https://unpkg.com/htmx.org@1.9.12"></script>
 </head>
 <body>
+<nav class="top-nav">
+    <div class="top-nav-left">
+        <a href="http://localhost:5000/home" class="top-nav-home">&larr; Home</a>
+    </div>
+</nav>
+
 <div class="app-shell">
     <header class="app-header">
         <h1>Billing &amp; Insurance</h1>
@@ -25,15 +31,16 @@
                     <th>Covered</th>
                     <th>Owed</th>
                     <th>Status</th>
+                    <th>Actions</th>
                 </tr>
             </thead>
             <tbody
                 id="invoice-table-body"
                 hx-get="http://localhost:5004/invoices/html?token={{ token }}"
-                hx-trigger="load"
+                hx-trigger="load, invoicesChanged from:body"
                 hx-swap="innerHTML"
             >
-                <tr><td colspan="7">Loading your invoices...</td></tr>
+                <tr><td colspan="8">Loading your invoices...</td></tr>
             </tbody>
         </table>
     </div>
@@ -53,8 +60,6 @@
             <button type="submit">Send</button>
         </form>
     </div>
-
-    <p class="auth-switch"><a href="http://localhost:5000/home">&larr; Back to Home</a></p>
 </div>
 </body>
 </html>

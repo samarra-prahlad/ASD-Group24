@@ -392,3 +392,44 @@ body {
     margin-top: 0.5rem;
     width: 100%;
 }
+
+/* ---------------------------------------------------------------------
+   Top nav (matches Appointments' shared nav bar exactly)
+--------------------------------------------------------------------- */
+
+.top-nav {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    max-width: 1200px;
+    margin: 0 auto 16px;
+    padding: 12px 20px;
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+}
+
+.top-nav-left {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+}
+
+.top-nav a {
+    color: #222;
+    text-decoration: none;
+    font-size: 14px;
+    font-weight: 600;
+    padding: 6px 4px;
+    border-bottom: 2px solid transparent;
+    transition: color 0.15s ease, border-color 0.15s ease;
+}
+
+.top-nav a:hover {
+    color: var(--color-dark);
+    border-bottom-color: var(--color-mid);
+}
+
+.top-nav-home {
+    color: var(--color-dark) !important;
+}
