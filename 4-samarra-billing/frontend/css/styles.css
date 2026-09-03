@@ -96,6 +96,7 @@ body {
     border: 1px solid var(--color-mid);
     border-radius: 6px;
     padding: 1.5rem;
+    margin-bottom: 1.5rem;
 }
 
 .card h2 {
@@ -126,7 +127,8 @@ body {
 
 .patient-form {
     display: flex;
-    gap: 0.5rem;
+    flex-wrap: wrap;
+    gap: 1rem;
     align-items: end;
     margin-bottom: 1rem;
 }
@@ -218,4 +220,175 @@ body {
 
 .chat-form button:hover {
     background: var(--color-accent);
+}
+
+/* ---------------------------------------------------------------------
+   Utility
+--------------------------------------------------------------------- */
+
+.is-hidden {
+    display: none;
+}
+
+/* ---------------------------------------------------------------------
+   Create Invoice form
+--------------------------------------------------------------------- */
+
+.invoice-form {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 1rem;
+    align-items: end;
+    margin-bottom: 0.75rem;
+}
+
+.invoice-form > div {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+}
+
+.invoice-form label {
+    font-size: 0.85rem;
+    color: var(--color-muted);
+    font-weight: 600;
+}
+
+.invoice-form input,
+.invoice-form select {
+    padding: 0.55rem 0.6rem;
+    background: #ffffff;
+    color: var(--color-text);
+    border: 1px solid var(--color-mid);
+    border-radius: 6px;
+    font-size: 0.95rem;
+    font-family: inherit;
+}
+
+.invoice-form input:focus,
+.invoice-form select:focus {
+    outline: none;
+    border-color: var(--color-dark);
+}
+
+.invoice-form button {
+    grid-column: 1 / -1;
+    justify-self: start;
+    padding: 0.6rem 1.5rem;
+    background: var(--color-dark);
+    color: #ffffff;
+    border: none;
+    border-radius: 6px;
+    font-weight: 600;
+    font-size: 0.95rem;
+    cursor: pointer;
+}
+
+.invoice-form button:hover {
+    background: var(--color-accent);
+}
+
+.form-message {
+    margin-top: 0.5rem;
+    padding: 0.6rem 0.85rem;
+    border-radius: 6px;
+    font-size: 0.9rem;
+}
+
+.form-message.form-success {
+    background: #f0fdf4;
+    color: var(--color-dark);
+    border: 1px solid var(--color-mid);
+}
+
+.form-message.form-error {
+    background: #fdecea;
+    color: #b3261e;
+    border: 1px solid #f5c6c3;
+}
+
+/* ---------------------------------------------------------------------
+   Invoice table: Actions column + inline edit rows
+--------------------------------------------------------------------- */
+
+.invoice-table td:last-child {
+    white-space: nowrap;
+}
+
+.invoice-table button {
+    padding: 0.4rem 0.9rem;
+    border: 1px solid var(--color-mid);
+    background: #ffffff;
+    color: var(--color-dark);
+    border-radius: 6px;
+    font-size: 0.85rem;
+    font-family: inherit;
+    cursor: pointer;
+}
+
+.invoice-table button:hover {
+    background: var(--color-panel);
+}
+
+.edit-row td {
+    background: var(--color-bg);
+    padding: 1rem 0.75rem;
+}
+
+.edit-row form {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem;
+    align-items: end;
+}
+
+.edit-row label {
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+    font-size: 0.8rem;
+    color: var(--color-muted);
+    font-weight: 600;
+}
+
+.edit-row input,
+.edit-row select {
+    padding: 0.45rem 0.55rem;
+    background: #ffffff;
+    color: var(--color-text);
+    border: 1px solid var(--color-mid);
+    border-radius: 6px;
+    font-size: 0.9rem;
+    font-family: inherit;
+}
+
+.edit-row input:focus,
+.edit-row select:focus {
+    outline: none;
+    border-color: var(--color-dark);
+}
+
+.edit-row button[type="submit"] {
+    background: var(--color-dark);
+    color: #ffffff;
+    border: none;
+}
+
+.edit-row button[type="submit"]:hover {
+    background: var(--color-accent);
+}
+
+.edit-row button[type="button"] {
+    background: #ffffff;
+    color: var(--color-muted);
+    border: 1px solid var(--color-mid);
+}
+
+.edit-row button[type="button"]:hover {
+    background: var(--color-panel);
+}
+
+.edit-row div[id^="invoice-edit-message-"] {
+    margin-top: 0.5rem;
+    width: 100%;
 }
