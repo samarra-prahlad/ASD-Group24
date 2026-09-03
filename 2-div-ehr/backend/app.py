@@ -3,7 +3,6 @@ import os
 from flask import Flask, jsonify, request
 from flask_cors import CORS
 from openai import OpenAI
-from pathlib import Path
 import requests
 
 app = Flask(__name__)
@@ -14,18 +13,11 @@ SHARED_ACCESS_API_URL = os.environ.get("SHARED_ACCESS_API_URL", "http://shared-b
 SHARED_DB_URL = os.environ.get("SHARED_DB_URL", "http://shared-database:6000")
 OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434/v1")
 OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "qwen2.5:0.5b")
-PROMPT_DIR = Path(__file__).with_name("prompts")
 
 client = OpenAI(
     base_url=OLLAMA_BASE_URL,
     api_key="ollama"
 )
-
-
-def load_prompt(filename):
-    path = PROMPT_DIR / filename
-    return path.read_text(encoding="utf-8").strip()
-
 
 def check_session(token):
     if not token:
@@ -253,87 +245,6 @@ def update_change_request(request_id):
         return jsonify({"error": "EHR Database unavailable", "details": str(exc)}), 503
 
     return jsonify(resp.json())
-
-
-#---AI chatbot endpoints---
-
-@app.route("/ask", methods=["POST"])
-def ask_local_agent():
-    question = request.form.get("question", "").strip()
-
-    if not question:
-        return "<p>Question is required.</p>", 400
-
-    try:
-        resp = client.chat.completions.create(
-            model=OLLAMA_MODEL,
-            messages=[
-                {
-                    "role": "system",
-                    "content": (
-                        "You are a concise software engineering assistant. "
-                        "Answer in one short paragraph unless asked otherwise."
-                    )
-                },
-                {
-                    "role": "user",
-                    "content": question
-                }
-            ],
-            max_tokens=200,
-            temperature=0.2,
-        )
-
-        answer = resp.choices[0].message.content
-        return f"<p>{answer}</p>"
-
-    except Exception as exc:
-        return (
-            "<p>Local AI agent request failed. "
-            "Check that Ollama is running and that qwen2.5:0.5b is installed.</p>"
-            f"<pre>{exc}</pre>",
-            503,
-        )
-
-@app.route("/ask-with-context", methods=["POST"])
-def ask_with_context():
-    question = request.form.get("question", "").strip()
-
-    if not question:
-        return "<p>Question is required.</p>", 400
-
-    system_prompt = load_prompt("implementation_system_prompt.txt")
-    task_prompt = load_prompt("context_qa_task_prompt.txt")
-
-    full_prompt = task_prompt + "\n\n" + question
-
-    try:
-        resp = client.chat.completions.create(
-            model=OLLAMA_MODEL,
-            messages=[
-                {
-                    "role": "system",
-                    "content": system_prompt
-                },
-                {
-                    "role": "user",
-                    "content": full_prompt
-                }
-            ],
-            max_tokens=300,
-            temperature=0.0,
-        )
-
-        answer = resp.choices[0].message.content
-        return f"<p>{answer}</p>"
-
-    except Exception as exc:
-        return (
-            "<p>Context-aware request failed. "
-            "Check that Ollama is running and that qwen2.5:0.5b is installed.</p>"
-            f"<pre>{exc}</pre>",
-            503,
-        )
 
 #---Patient history summarization---
 

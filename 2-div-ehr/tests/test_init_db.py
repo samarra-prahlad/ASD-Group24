@@ -122,7 +122,6 @@ class TestIdempotency:
         assert result.returncode == 0, f"init_db.py failed on rerun: {result.stderr}"
         assert "already exist" in result.stdout.lower()
 
-        # reconnect since the script opened/closed its own connection to the same file
         conn2 = sqlite3.connect(DATABASE_NAME)
         after_count = conn2.execute("SELECT COUNT(*) FROM medical_records").fetchone()[0]
         conn2.close()

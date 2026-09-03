@@ -291,49 +291,6 @@ class TestChangeRequestsRoutes:
         response = client.put("/change_requests/1", json={"token": "admin-token", "status": "approved"})
         assert response.status_code == 200
 
-class TestLegacyAskEndpoints:
-
-    def test_ask_without_question_returns_400(self, client):
-        response = client.post("/ask", data={})
-        assert response.status_code == 400
-
-    def test_ask_with_question_returns_reply(self, client, monkeypatch):
-        fake_completion = MagicMock()
-        fake_completion.choices[0].message.content = "This is a test reply."
-        monkeypatch.setattr(
-            ehr_backend_app.client.chat.completions, "create",
-            lambda **kwargs: fake_completion,
-        )
-
-        response = client.post("/ask", data={"question": "What is the EHR feature?"})
-        assert response.status_code == 200
-        assert b"test reply" in response.data
-
-    def test_ask_when_ollama_unavailable_returns_503(self, client, monkeypatch):
-        def raise_error(**kwargs):
-            raise RuntimeError("Ollama not reachable")
-        monkeypatch.setattr(ehr_backend_app.client.chat.completions, "create", raise_error)
-
-        response = client.post("/ask", data={"question": "Anything"})
-        assert response.status_code == 503
-
-    def test_ask_with_context_without_question_returns_400(self, client):
-        response = client.post("/ask-with-context", data={})
-        assert response.status_code == 400
-
-    def test_ask_with_context_returns_reply(self, client, monkeypatch):
-        fake_completion = MagicMock()
-        fake_completion.choices[0].message.content = "Context-grounded reply."
-        monkeypatch.setattr(
-            ehr_backend_app.client.chat.completions, "create",
-            lambda **kwargs: fake_completion,
-        )
-
-        response = client.post("/ask-with-context", data={"question": "What does EHR do?"})
-        assert response.status_code == 200
-        assert b"Context-grounded reply" in response.data
-
-
 class TestSummarizeRoute:
 
     @patch("requests.post")
