@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pharmacy</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+
+<body>
+
+    <a href="http://localhost:5000/home" class="home-button">
+            ← Home
+    </a>
+    <h1>Pharmacy</h1>
+
+
+    <!-- MEDICATIONS -->
+
+    <section>
+        <h2>Medications</h2>
+
+        <button onclick="loadMedications()">Refresh Medications</button>
+
+        <p id="medications-error" class="error"></p>
+
+        <table>
+            <thead>
+                <tr id="medications-header"></tr>
+            </thead>
+
+            <tbody id="medications">
+                <tr>
+                    <td>Loading...</td>
+                </tr>
+            </tbody>
+        </table>
+    </section>
+
+
+    <!-- PRESCRIPTIONS -->
+
+    <section>
+        <h2>Patient Prescriptions</h2>
+
+        <input
+            type="text"
+            id="patient-id"
+            placeholder="Enter patient ID"
+        >
+
+        <button onclick="loadPrescriptions()">
+            Find Prescriptions
+        </button>
+
+        <p id="prescriptions-error" class="error"></p>
+
+        <table>
+            <thead>
+                <tr id="prescriptions-header"></tr>
+            </thead>
+
+            <tbody id="prescriptions">
+            </tbody>
+        </table>
+    </section>
+
+
+    <!-- AI ASSISTANT -->
+
+    <section>
+        <h2>AI Assistant</h2>
+
+        <textarea
+            id="question"
+            placeholder="Ask a question..."
+        ></textarea>
+
+        <br>
+
+        <button onclick="askAgent()">
+            Ask Agent
+        </button>
+
+        <button onclick="askWithContext()">
+            Ask With Context
+        </button>
+
+        <div id="ai-error" class="error"></div>
+
+        <div id="ai-result" class="result">
+            No question asked yet.
+        </div>
+    </section>
+
+
+    <script>
+        const API_URL = "http://localhost:5003";
+
+        const params = new URLSearchParams(window.location.search);
+        const token = params.get("token");
+
+        if (!token) {
+            window.location.href = "http://localhost:5000/login";
+        } else {
+            fetch(`http://localhost:5003/session/role?token=${encodeURIComponent(token)}`)
+                .then(res => res.json())
+                .then(data => {
+                    if (!data.valid) {
+                        window.location.href = "http://localhost:5000/login";
+                        return;
+                    }
+                    if (data.role === "admin") {
+                        window.location.href = `admin.html?token=${encodeURIComponent(token)}`;
+                    }
+                    // else: patient — do nothing, stay on this page
+                })
+                .catch(() => {
+                    window.location.href = "http://localhost:5000/login";
+                });
+        }
+
+        // -------------------------
+        // MEDICATIONS
+        // -------------------------
+
+        async function loadMedications() {
+
+            const table = document.getElementById("medications");
+            const header = document.getElementById("medications-header");
+            const error = document.getElementById("medications-error");
+
+            table.innerHTML = "<tr><td>Loading...</td></tr>";
+            header.innerHTML = "";
+            error.textContent = "";
+
+            try {
+
+                const response = await fetch(`${API_URL}/medications`);
+
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+
+                const medications = await response.json();
+
+                if (medications.length === 0) {
+                    table.innerHTML =
+                        "<tr><td>No medications found.</td></tr>";
+                    return;
+                }
+
+                const headers = Object.keys(medications[0]);
+
+                header.innerHTML = headers
+                    .map(header => `<th>${header}</th>`)
+                    .join("");
+
+                table.innerHTML = medications
+                    .map(medication => `
+                        <tr>
+                            ${headers
+                                .map(header =>
+                                    `<td>${medication[header]}</td>`
+                                )
+                                .join("")}
+                        </tr>
+                    `)
+                    .join("");
+
+            } catch (error) {
+
+                errorMessage =
+                    "Failed to load medications.";
+
+                error.textContent = errorMessage;
+
+                table.innerHTML = "";
+
+                console.error(error);
+            }
+        }
+
+
+        // -------------------------
+        // PRESCRIPTIONS
+        // -------------------------
+
+        async function loadPrescriptions() {
+
+            const patientId =
+                document.getElementById("patient-id").value.trim();
+
+            const table =
+                document.getElementById("prescriptions");
+
+            const header =
+                document.getElementById("prescriptions-header");
+
+            const error =
+                document.getElementById("prescriptions-error");
+
+            error.textContent = "";
+            header.innerHTML = "";
+            table.innerHTML = "";
+
+            if (!patientId) {
+                error.textContent =
+                    "Please enter a patient ID.";
+                return;
+            }
+
+            table.innerHTML =
+                "<tr><td>Loading...</td></tr>";
+
+            try {
+
+                const response =
+                    await fetch(
+                        `${API_URL}/prescriptions/${encodeURIComponent(patientId)}`
+                    );
+
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+
+                const prescriptions =
+                    await response.json();
+
+                if (prescriptions.length === 0) {
+                    table.innerHTML =
+                        "<tr><td>No prescriptions found.</td></tr>";
+                    return;
+                }
+
+                const headers =
+                    Object.keys(prescriptions[0]);
+
+                header.innerHTML =
+                    headers
+                        .map(header => `<th>${header}</th>`)
+                        .join("");
+
+                table.innerHTML =
+                    prescriptions
+                        .map(prescription => `
+                            <tr>
+                                ${headers
+                                    .map(header =>
+                                        `<td>${prescription[header]}</td>`
+                                    )
+                                    .join("")}
+                            </tr>
+                        `)
+                        .join("");
+
+            } catch (error) {
+
+                error.textContent =
+                    "Failed to load prescriptions.";
+
+                table.innerHTML = "";
+
+                console.error(error);
+            }
+        }
+
+
+        // -------------------------
+        // BASIC AI AGENT
+        // -------------------------
+
+        async function askAgent() {
+
+            const question =
+                document.getElementById("question").value.trim();
+
+            const result =
+                document.getElementById("ai-result");
+
+            const error =
+                document.getElementById("ai-error");
+
+            error.textContent = "";
+
+            if (!question) {
+                error.textContent =
+                    "Please enter a question.";
+                return;
+            }
+
+            result.textContent = "Thinking...";
+
+            try {
+
+                const formData = new FormData();
+
+                formData.append("question", question);
+
+                const response =
+                    await fetch(`${API_URL}/ask`, {
+                        method: "POST",
+                        body: formData
+                    });
+
+                const text = await response.text();
+
+                if (!response.ok) {
+                    throw new Error(text);
+                }
+
+                result.innerHTML = text;
+
+            } catch (error) {
+
+                result.textContent = "";
+
+                document.getElementById("ai-error").textContent =
+                    "Failed to contact the AI agent.";
+
+                console.error(error);
+            }
+        }
+
+
+        // -------------------------
+        // CONTEXT AI AGENT
+        // -------------------------
+
+        async function askWithContext() {
+
+            const question =
+                document.getElementById("question").value.trim();
+
+            const result =
+                document.getElementById("ai-result");
+
+            const error =
+                document.getElementById("ai-error");
+
+            error.textContent = "";
+
+            if (!question) {
+                error.textContent =
+                    "Please enter a question.";
+                return;
+            }
+
+            result.textContent =
+                "Thinking with context...";
+
+            try {
+
+                const formData = new FormData();
+
+                formData.append("question", question);
+
+                const response =
+                    await fetch(`${API_URL}/ask-with-context`, {
+                        method: "POST",
+                        body: formData
+                    });
+
+                const text = await response.text();
+
+                if (!response.ok) {
+                    throw new Error(text);
+                }
+
+                result.innerHTML = text;
+
+            } catch (error) {
+
+                result.textContent = "";
+
+                document.getElementById("ai-error").textContent =
+                    "Failed to contact the context-aware AI agent.";
+
+                console.error(error);
+            }
+        }
+
+
+        // Load medications when page opens
+
+        loadMedications();
+
+    </script>
+
+</body>
+</html>

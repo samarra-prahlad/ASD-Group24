@@ -1,0 +1,732 @@
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    font-family: Arial, sans-serif;
+    background: #f5f5f5;
+    color: #222;
+}
+
+.booking-page {
+    min-height: 100vh;
+    padding: 40px 24px;
+}
+
+.booking-container {
+    max-width: 1200px;
+    margin: 0 auto;
+    background: white;
+    border-radius: 16px;
+    padding: 32px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+}
+
+.booking-header {
+    margin-bottom: 32px;
+}
+
+.booking-header h1 {
+    font-size: 32px;
+    margin-bottom: 8px;
+}
+
+.booking-header p {
+    color: #666;
+    font-size: 16px;
+}
+
+
+.booking-layout {
+    display: grid;
+    grid-template-columns: 300px 1fr;
+    gap: 40px;
+    align-items: start;
+}
+
+
+.calendar-panel {
+    position: sticky;
+    top: 24px;
+    border: 1px solid #ddd;
+    border-radius: 14px;
+    padding: 20px;
+    background: #fff;
+}
+
+.calendar-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 20px;
+}
+
+.calendar-header h2 {
+    font-size: 18px;
+}
+
+.calendar-arrow {
+    width: 36px;
+    height: 36px;
+    border: 1px solid #ddd;
+    background: white;
+    border-radius: 8px;
+    font-size: 24px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.calendar-arrow:hover {
+    background: #dcedc8;
+}
+
+.calendar-weekdays {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 4px;
+    margin-bottom: 8px;
+}
+
+.calendar-weekdays span {
+    text-align: center;
+    font-size: 12px;
+    font-weight: 600;
+    color: #777;
+}
+
+.calendar-grid {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 5px;
+}
+
+.calendar-empty {
+    aspect-ratio: 1;
+}
+
+.calendar-day {
+    aspect-ratio: 1;
+    border: none;
+    background: white;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 14px;
+}
+
+.calendar-day:hover {
+    background: #dcedc8;
+}
+
+.calendar-day.today {
+    border: 1px solid #558b2f;
+    font-weight: bold;
+}
+
+.calendar-day.selected {
+    background: #aed581;
+    color: white;
+    font-weight: bold;
+}
+
+.calendar-selected {
+    margin-top: 20px;
+    padding-top: 16px;
+    border-top: 1px solid #eee;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+
+.calendar-selected strong {
+    font-size: 13px;
+}
+
+.calendar-selected span {
+    font-size: 14px;
+    color: #666;
+}
+
+.booking-content {
+    min-width: 0;
+}
+
+.booking-step {
+    margin-bottom: 32px;
+}
+
+.booking-step h2 {
+    font-size: 20px;
+    margin-bottom: 16px;
+}
+.option-group {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+}
+
+.option-card {
+    text-align: left;
+    padding: 18px;
+    border: 1px solid #ddd;
+    background: white;
+    border-radius: 10px;
+    cursor: pointer;
+    transition: 0.2s;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.option-card:hover {
+    border-color: #558b2f;
+    background: #dcedc8;
+}
+
+.option-card strong {
+    font-size: 15px;
+}
+
+.option-card span {
+    font-size: 13px;
+    color: #666;
+    line-height: 1.4;
+}
+
+.option-card.selected {
+    background: #aed581;
+    color: white;
+    border-color: #558b2f;
+}
+
+.option-card.selected span {
+    color: white;
+}
+.booking-actions {
+    margin: 24px 0;
+}
+
+.primary-button {
+    width: 100%;
+    padding: 15px;
+    border: none;
+    border-radius: 10px;
+    background: #81c784;
+    color: white;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.primary-button:hover {
+    background: #71af74;
+}
+.availability-panel {
+    border: 1px solid #ddd;
+    border-radius: 12px;
+    padding: 20px;
+    background: #fafafa;
+}
+
+.availability-panel h3 {
+    margin-bottom: 8px;
+}
+
+.availability-panel p {
+    color: #666;
+    margin-bottom: 8px;
+}
+
+.is-hidden {
+    display: none;
+}
+.nav-link {
+    display: inline-block;
+    margin-top: 12px;
+    font-size: 14px;
+    color: #222;
+    text-decoration: none;
+    font-weight: 600;
+}
+
+.nav-link:hover {
+    text-decoration: underline;
+}
+
+.review-card {
+    border: 1px solid #ddd;
+    border-radius: 12px;
+    padding: 20px;
+    background: #fafafa;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-bottom: 20px;
+}
+
+.review-card p {
+    font-size: 14px;
+    color: black;
+}
+
+.slot-button.selected {
+    background: #aed581;
+    color: white;
+    border-color: #558b2f;
+}
+
+.patient-lookup {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.patient-lookup .patient-id-input {
+    margin-top: 0;
+}
+
+.patient-lookup .primary-button {
+    width: auto;
+    padding: 12px 20px;
+}
+
+.appointment-card {
+    border: 1px solid #ddd;
+    border-radius: 12px;
+    padding: 18px 20px;
+    background: white;
+}
+
+.appointment-view {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 16px;
+    flex-wrap: wrap;
+}
+
+.appointment-info {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.appointment-info strong {
+    font-size: 16px;
+}
+
+.appointment-info span {
+    font-size: 13px;
+    color: #666;
+}
+
+.appointment-info p {
+    font-size: 14px;
+    color: #222;
+    margin-top: 4px;
+}
+
+.appointment-info small {
+    font-size: 12px;
+    color: #999;
+}
+
+.appointment-actions {
+    display: flex;
+    gap: 8px;
+    flex-shrink: 0;
+}
+
+.secondary-button {
+    padding: 8px 16px;
+    border: 1px solid #ddd;
+    background: white;
+    border-radius: 8px;
+    font-size: 13px;
+    font-family: inherit;
+    cursor: pointer;
+}
+
+.secondary-button:hover {
+    background: #f2f2f2;
+}
+
+.delete-button {
+    padding: 8px 16px;
+    border: 1px solid #f3c2c2;
+    background: white;
+    color: #b91c1c;
+    border-radius: 8px;
+    font-size: 13px;
+    font-family: inherit;
+    cursor: pointer;
+}
+
+.delete-button:hover {
+    background: #fee2e2;
+}
+
+.appointment-edit {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+    align-items: flex-end;
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px solid #eee;
+}
+
+.appointment-edit label {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    font-size: 12px;
+    color: #666;
+}
+
+.appointment-edit input {
+    padding: 8px 10px;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    font-family: inherit;
+    font-size: 14px;
+}
+
+.patient-id-input {
+    width: 100%;
+    max-width: 280px;
+    padding: 12px 14px;
+    border: 1px solid #ddd;
+    border-radius: 10px;
+    font-size: 15px;
+    font-family: inherit;
+    margin-top: 8px;
+}
+
+.patient-id-input:focus {
+    outline: none;
+    border-color: #222;
+}
+
+#availability-result {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.doctor-card {
+    border: 1px solid #ddd;
+    border-radius: 12px;
+    padding: 18px 20px;
+    background: white;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.doctor-card strong {
+    font-size: 16px;
+}
+
+.doctor-card span {
+    font-size: 13px;
+    color: #666;
+}
+
+.doctor-card small {
+    font-size: 12px;
+    color: #999;
+    margin-bottom: 8px;
+}
+
+.slot-group {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 8px;
+}
+
+.slot-group p {
+    color: #666;
+    font-size: 13px;
+}
+
+.slot-button {
+    padding: 8px 14px;
+    border: 1px solid #ddd;
+    background: white;
+    border-radius: 8px;
+    font-size: 13px;
+    font-family: inherit;
+    cursor: pointer;
+    transition: 0.15s;
+}
+
+.slot-button:hover {
+    background: #aed581;
+    color: white;
+    border-color: #558b2f;
+}
+
+
+.availability-panel.confirmation {
+    background: #f0fdf4;
+    border-color: #86efac;
+}
+
+.availability-panel.confirmation h3 {
+    color: #15803d;
+}
+
+.htmx-indicator {
+    opacity: 0;
+    color: #666;
+    font-size: 14px;
+    margin-bottom: 12px;
+    transition: opacity 150ms ease-in;
+}
+
+.htmx-request.htmx-indicator,
+.htmx-request .htmx-indicator {
+    opacity: 1;
+}
+
+@media (max-width: 800px) {
+
+    .booking-layout {
+        grid-template-columns: 1fr;
+    }
+
+    .calendar-panel {
+        position: static;
+    }
+
+    .option-group {
+        grid-template-columns: 1fr;
+    }
+
+}
+
+.ai-widget {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    width: 360px;
+    max-width: calc(100vw - 32px);
+    z-index: 1000;
+    transform: translateY(16px) scale(0.98);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.15s ease, transform 0.15s ease;
+}
+
+.ai-widget.open{
+    transform: translateY(0) scale(1);
+    opacity: 1;
+    pointer-events: auto;
+}
+
+.ai-panel{
+    border: 1px solid #ddd;
+    border-radius: 12px;
+    background: white;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    height: 500px;
+}
+.ai-panel-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: #81c784;
+    color: white;
+    padding: 12px 16px;
+    border-top-left-radius: 12px;
+    border-top-right-radius: 12px;
+}
+
+.ai-close{
+    margin-left: auto;
+    background: #81c784;
+    border: none;
+    color: white;
+    font-size: 20px;
+    cursor: pointer;
+    padding: 4px;
+}
+
+.ai-messages {
+    flex: 1;
+    overflow-y: auto;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+ 
+.msg {
+    max-width: 85%;
+    padding: 10px 14px;
+    border-radius: 14px;
+    border: 1px solid #ddd;
+    font-size: 13px;
+    line-height: 1.45;
+}
+ 
+.msg.assistant {
+    align-self: flex-start;
+    border-bottom-left-radius: 4px;
+    background: #fafafa;
+}
+ 
+.msg.user {
+    align-self: flex-end;
+    border-bottom-right-radius: 4px;
+    border-color: #aed581;
+}
+ 
+.ai-suggestions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    padding: 0 16px 12px;
+}
+ 
+.chip {
+    border: 1px solid #aed581;
+    border-radius: 999px;
+    padding: 6px 12px;
+    font-size: 12px;
+    background: #f4faee;
+    cursor: pointer;
+    color: #33691e;
+    font-family: Arial, sans-serif;
+}
+ 
+.chip:hover {
+    background: #dcedc8;
+    border-color: #81c784;
+}
+ 
+.ai-input-row {
+    display: flex;
+    gap: 8px;
+    padding: 12px 16px;
+    border-top: 1px solid #eee;
+}
+ 
+.ai-input-row input[type="text"] {
+    flex: 1;
+    padding: 10px 14px;
+    border: 1px solid #aed581;
+    border-radius: 999px;
+    font-size: 13px;
+    font-family: Arial, sans-serif;
+}
+ 
+.ai-input-row input[type="text"]:focus {
+    outline: none;
+    border-color: #558b2f;
+}
+ 
+.ai-input-row button {
+    border: none;
+    background: #81c784;
+    color: white;
+    border-radius: 999px;
+    padding: 0 18px;
+    font-size: 13px;
+    font-family: Arial, sans-serif;
+    cursor: pointer;
+}
+ 
+.ai-input-row button:hover {
+    background: #71af74;
+}
+ 
+.ai-action {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    z-index: 999;
+    padding: 14px 20px;
+    border: none;
+    border-radius: 999px;
+    background: #81c784;
+    color: white;
+    font-size: 14px;
+    font-weight: 600;
+    font-family: Arial, sans-serif;
+    cursor: pointer;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.22);
+    transition: opacity 0.15s ease, transform 0.15s ease;
+}
+ 
+.ai-action:hover {
+    background: #71af74;
+}
+ 
+.ai-action.hidden {
+    opacity: 0;
+    transform: translateY(8px) scale(0.98);
+    pointer-events: none;
+}
+ 
+@media (max-width: 480px) {
+ 
+    .ai-widget {
+        right: 16px;
+        bottom: 16px;
+        width: calc(100vw - 32px);
+    }
+ 
+    .ai-action {
+        right: 16px;
+        bottom: 16px;
+    }
+ 
+}
+
+.top-nav {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    max-width: 1200px;
+    margin: 0 auto 16px;
+    padding: 12px 20px;
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+}
+
+.top-nav-left {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+}
+
+.top-nav a {
+    color: #222;
+    text-decoration: none;
+    font-size: 14px;
+    font-weight: 600;
+    padding: 6px 4px;
+    border-bottom: 2px solid transparent;
+    transition: color 0.15s ease, border-color 0.15s ease;
+}
+
+.top-nav a:hover {
+    color: #558b2f;
+    border-bottom-color: #aed581;
+}
+
+.top-nav-home {
+    color: #558b2f !important;
+}
+
