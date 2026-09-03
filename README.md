@@ -1,153 +1,102 @@
-# ASD Group 24 — Healthcare Microservices App
+# EHR System
 
-ASD T2 2026 · Release 0 — Agentic AI Foundation and DevOps (ASD 41026)
+Student 2 (Divyansh) module of the ASD-Group24 healthcare platform. Provides
+electronic health record data with a patient view, a staff (admin) view, and
+an AI-assisted patient history summary backed by a local Ollama model.
 
-## Status
+This module is one service group inside the wider `docker-compose.yml`,
+alongside the shared services and other students' modules. It is made up of
+three containers:
 
-**Working right now:**
-- `docker-compose.yml` — all 21 service containers wired and validated
-- `shared/database` — built, tested, returns real patient data
-- `shared/backend` — built, tested, confirmed calling `shared/database` over HTTP
-- `shared/frontend` — Dockerfile ready; HTML/CSS content in progress
-- `ai-services/ai-mode` — plain Python script (no Dockerfile, not part of docker-compose), tested standalone: full Plan → Act → Observe → Adapt cycle runs and exits cleanly
-- `.github/workflows/4-samarra-billing-ci.yml` — correctly scoped with `paths:` filter, triggers on push, fails as expected (billing service code not yet written)
-
-**Not started yet:**
-- All six student feature folders — Dockerfiles exist, `app.py`/`requirements.txt` still empty/non-existent
-- Other five `*-ci.yml` files need the `paths:` filter added (currently trigger on every push, not just their own folder)
-
-## Team & feature allocation
-
-| # | Name | Feature | Frontend | Backend/API | Database |
-|---|------|---------|----------|--------------|----------|
-| 1 | Kathrynna | Appointments | 3001 | 5001 | 6001 |
-| 2 | Divyansh | EHR | 3002 | 5002 | 6002 |
-| 3 | William | Pharmacy | 3003 | 5003 | 6003 |
-| 4 | Samarra | Billing & Insurance | 3004 | 5004 | 6004 |
-| 5 | Maximilian | Lab Tests | 3005 | 5005 | 6005 |
-| 6 | Brian | Ward & Bed Management | 3006 | 5006 | 6006 |
-| — | Shared (team-owned) | Access API & identity | 3000 | 5000 | 6000 |
-
-`ai-mode` (agentic loop) runs as a standalone Python script — no port, no container, not part of the docker-compose stack. See Container count section below.
-
-## Prerequisites
-
-- Docker Desktop
-- Python 3.x
-- Ollama, with `qwen2.5:0.5b` and `llama3.1:8b` pulled
-- Git
-
-## Getting started
-
-```bash
-git clone <repo-url>
-cd ASD-Group24
-git checkout -b <yourname>/<feature>   # never work directly on main
+```
+ehr-frontend   →  ehr-backend  →  ehr-database
+  (nginx, :3002)   (Flask, :5002)   (Flask + SQLite, :6002)
 ```
 
-Each feature folder follows this structure:
+- **ehr-frontend** — static HTML/JS. `index.html` shows the patient view
+  (view own records, submit a change request, get an AI summary of their
+  own history) or the staff view (search patients, view/add/edit/delete
+  records, approve change requests, get an AI summary for any patient),
+  depending on the logged-in user's role. Includes a nav bar linking to
+  every other team member's feature.
+- **ehr-backend** — validates every request against the shared session
+  system before doing anything, then talks to `ehr-database` over HTTP.
+  Also exposes `/diagnosis/<patient_id>` for Pharmacy's cross-service call,
+  and `/summarize`, which pulls a patient's real record history from the
+  database and grounds an Ollama-generated summary in it.
+- **ehr-database** — a Flask + SQLite service owning the `medical_records`
+  and `change_requests` tables. Nothing else in the system talks to the
+  SQLite file directly.
+
+## Folder structure
+
 ```
-<n>-<name>-<feature>/
+2-div-ehr/
 ├── frontend/
+│   ├── index.html          # patient view + staff view + AI summary
+│   ├── app.js               # all API calls, view logic, nav bar
 │   └── Dockerfile
 ├── backend/
+│   ├── app.py                # session checks, record/request CRUD, /diagnosis, /summarize
+│   ├── requirements.txt
 │   └── Dockerfile
 ├── database/
+│   ├── app.py                 # CRUD endpoints, owns the SQLite file
+│   ├── init_db.py             # creates tables + seeds sample data
+│   ├── requirements.txt
 │   └── Dockerfile
-├── tests/
-└── README.md
+└── tests/
+    ├── test_backend_app.py     # Route behaviour on the Flask API
+    ├── test_database_app.py    # CRUD behaviour on the database service
+    └── test_init_db.py         # schema, seed data, idempotency
 ```
 
-## The pattern to follow
+CI runs against this feature via `.github/workflows/2-div-ehr-ci.yml`.
 
-`shared/database` and `shared/backend` are fully built, tested, and working — use them as your copy-paste reference. Each of your three services needs exactly these files:
-
-**`database/`**: `requirements.txt`, `init_db.py`, `app.py`, `Dockerfile`
-**`backend/`**: `requirements.txt`, `app.py`, `Dockerfile`
-**`frontend/`**: `index.html`, `css/`, `Dockerfile`
-
-Your `backend/app.py` should:
-1. Read `DATABASE_SERVICE_URL` and `SHARED_ACCESS_API_URL` from environment variables (already set in `docker-compose.yml` for your service)
-2. Call `GET {SHARED_ACCESS_API_URL}/validate?patient_id=X` before creating/returning patient-tied data
-3. Talk to your own database only through its exposed API — never touch another service's SQLite file directly
-
-## Confirmed cross-service dependencies
-
-| Calling service | Calls | Purpose |
-|---|---|---|
-| Pharmacy backend | EHR database API | Pull diagnosis context when issuing a prescription |
-| Billing backend | Appointments database API | Pull appointment cost/duration |
-| Billing backend | Pharmacy database API | Pull medication costs |
-| Billing backend | Ward & Bed database API | Pull room/bed charges |
-
-If your service needs one of these, the URL is already wired into your `docker-compose.yml` environment block (e.g. `APPOINTMENTS_DATABASE_API_URL`).
-
-## Running your own service in isolation
-
-You don't need the whole stack running to develop. Example for Appointments:
+## Running it
 
 ```bash
-docker-compose up appointments-frontend appointments-backend appointments-database shared-backend shared-database --build
+docker compose up --build
 ```
 
-## Running everything
+Once running, log in at `http://localhost:5000/login` — the shared portal
+issues a session token and links out to EHR (and every other feature) with
+that token attached (`http://localhost:3002?token=...`). 
+
+Sample accounts:
+- Patient: `john.smith@example.com` / `PatientPass1!`
+- Admin (staff): `grace.hopper@admin.com` / `AdminPass123!`
+
+## Features
+
+- **Database** — `medical_records` (visit date, diagnosis, doctor, treatment,
+  notes, allergies) and `change_requests` (patient-submitted, staff-reviewed)
+  tables. Full CRUD on both.
+- **Backend** — every route checks the caller's session token against the
+  shared backend (`/session/verify`) before doing anything. Patients can only
+  see/request changes to their own records; only `admin`-role users can
+  add, edit, or delete records, or approve change requests.
+- **Cross-service endpoint** — `/diagnosis/<patient_id>` returns the most
+  recent diagnosis + allergies for a patient, for Pharmacy to pull when
+  issuing a prescription. This route intentionally has no session check,
+  since it's meant for direct service-to-service calls.
+- **AI-assisted summary** — `/summarize` pulls a patient's actual record
+  history from the database and asks a local Ollama model
+  (`qwen2.5:0.5b`, via the OpenAI-compatible client) to summarise it in
+  plain language, grounded in the real data rather than invented.
+  Available to patients for their own history and to staff for any
+  patient they're viewing.
+- **Frontend** — patient view (own records, submit change request, view own
+  requests, AI summary of own history), staff view (searchable patient
+  table, click through to a detail panel showing that patient's records +
+  change requests together, add/edit/delete records, approve pending
+  requests, AI summary for the selected patient), dates shown as
+  dd/mm/yyyy, Enter-key submission on the main inputs, and a nav bar
+  linking to every other feature with the session token carried over.
+
+## Testing
 
 ```bash
-docker-compose up --build
+pip install -r backend/requirements.txt -r database/requirements.txt pytest
+pytest tests/ -v
 ```
-
-Note: this will only fully succeed once all six feature folders have their files filled in. Until then, build errors on folders you haven't touched are expected, build and test your own service in isolation instead (see above).
-
-## Branching & PRs
-
-- Never commit directly to `main`
-- One branch per feature/task: `<yourname>/<short-description>`
-- Open a PR into `main` when your service builds and its endpoints return real data via `curl`. This means that main will consistently be updated as features are built and working
-- Resolve conflicts before merging
-
-## CI workflows (GitHub Actions)
-
-Each feature has its own workflow in `.github/workflows/`, named `<n>-<name>-<feature>-ci.yml`. Every workflow must scope itself to its own folder using a `paths:` filter — otherwise a push to any file in the repo triggers every workflow, wasting CI minutes.
-
-Reference pattern (from `4-samarra-billing-ci.yml`, already working correctly):
-
-```yaml
-on:
-  push:
-    branches: [main]
-    paths:
-      - '<your-folder>/**'
-  pull_request:
-    branches: [main]
-    paths:
-      - '<your-folder>/**'
-```
-
-Each workflow runs two jobs:
-1. **Pre-commit pytest validation** — installs your backend/database `requirements.txt`, runs `pytest <your-folder>/tests/`
-2. **Post-commit AI-assisted unit testing** — currently a placeholder step; team to confirm what "AI-assisted" testing means for our services before filling in
-
-**Action needed from everyone**: add the `paths:` filter above to your own `*-ci.yml` if it's missing — check by pushing a small change and confirming only your workflow triggers, not all six.
-
-`cloud-deployment.yml` is a Release 2 requirement (not needed yet) and `integration-ci.yml` is currently unscoped — confirm with the team whether it's intentional before Release 0 submission.
-
-## Container count
-
-Following the sample architecture's formula (Group of 5 → 18-container application):
-`students × 3 (frontend/backend/database) + shared microservice × 3`
-
-Scaled for our 6-person team: **6 × 3 + 3 = 21 Dockerfiles / 21 containers**, run via `docker-compose up --build`. No other Dockerfiles exist in the repository.
-
-`ai-services/ai-mode` (the shared Plan → Act → Observe → Adapt agentic loop) has no Dockerfile and is not containerised. It runs as a plain Python script — same pattern as Lab 04's `agentic_loop.py`:
-```bash
-cd ai-services/ai-mode
-pip install -r requirements.txt
-python app.py
-```
-
-## Questions / blockers
-
-- Make sure to write comprehensive test cases (using pytest) before implementing
-- Run the verification script before pushing: `bash scripts/test/verify-setup.sh`
-
-Ping Samarra (team lead) or raise it in the group chat, please don't sit on a blocker!

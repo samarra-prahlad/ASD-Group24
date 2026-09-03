@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>EHR</title>
+<link rel="stylesheet" href="http://localhost:3000/css/theme.css">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<div class="ehr-shell">
+
+  <header class="ehr-header">
+    <h1>Electronic Health Records</h1>
+    <nav class="ehr-nav">
+      <a href="http://localhost:5000/home">Home</a>
+      <a id="nav-appointments" href="#">Appointments</a>
+      <a id="nav-ehr" href="#">EHR</a>
+      <a id="nav-pharmacy" href="#">Pharmacy</a>
+      <a id="nav-billing" href="#">Billing</a>
+      <a id="nav-labtests" href="#">Lab Tests</a>
+      <a id="nav-wardbed" href="#">Ward &amp; Bed</a>
+    </nav>
+  </header>
+
+  <!-- PATIENT VIEW -->
+  <div id="patient-section" class="ehr-card" style="display:none;">
+    <h2>My Records</h2>
+    <button onclick="loadMyRecords()">Refresh Records</button>
+    <div id="patient-records" class="record-list"></div>
+
+    <h2>Request a Change</h2>
+    <select id="req-type">
+      <option>Update Allergies</option>
+      <option>Update Diagnosis</option>
+      <option>Update Treatment</option>
+      <option>Update Notes</option>
+      <option>Other</option>
+    </select>
+    <textarea id="req-details" placeholder="Describe the change"></textarea>
+    <button onclick="sendChangeRequest()">Submit Request</button>
+    <p id="req-status" class="status-msg"></p>
+
+    <h2>My Change Requests</h2>
+    <button onclick="loadMyRequests()">Refresh My Requests</button>
+    <div id="patient-requests" class="record-list"></div>
+  </div>
+
+  <!-- STAFF VIEW -->
+  <div id="staff-section" class="ehr-card" style="display:none;">
+    <h2>Staff View</h2>
+
+    <h3>Patients</h3>
+    <div class="search-row">
+      <input id="patient-search" type="text" placeholder="Search by ID or name">
+      <button onclick="filterPatients()">Search</button>
+      <button onclick="loadPatients()">Clear</button>
+    </div>
+    <table id="patient-table">
+      <thead><tr><th>ID</th><th>Name</th><th></th></tr></thead>
+      <tbody id="patient-table-body"></tbody>
+    </table>
+
+    <div id="patient-detail" class="ehr-subcard" style="display:none;">
+      <h3>Patient: <span id="detail-patient-name"></span></h3>
+      <button onclick="closePatientView()">Close</button>
+
+      <h4>Records</h4>
+      <div id="detail-records" class="record-list"></div>
+
+      <h4>Change Requests</h4>
+      <div id="detail-requests" class="record-list"></div>
+    </div>
+
+    <h3>Add Record</h3>
+    <div class="form-grid">
+      <input id="add-patient-id" type="number" placeholder="Patient ID">
+      <input id="add-visit-date" type="date">
+      <input id="add-diagnosis" placeholder="Diagnosis">
+      <input id="add-doctor" placeholder="Doctor Name">
+      <input id="add-treatment" placeholder="Treatment">
+      <input id="add-notes" placeholder="Notes">
+      <input id="add-allergies" placeholder="Allergies">
+    </div>
+    <button onclick="addRecord()">Add Record</button>
+    <p id="add-status" class="status-msg"></p>
+  </div>
+
+  <!-- AI SUMMARY -->
+  <div id="assistant-section" class="ehr-card">
+    <h2>Patient History Summary</h2>
+    <p id="assistant-target" class="status-msg"></p>
+    <div id="chat-result" class="chat-result"></div>
+    <div class="search-row">
+      <input id="chat-question" type="text" placeholder="e.g. What was my last diagnosis?">
+      <button onclick="summarizeHistory()">Send</button>
+    </div>
+  </div>
+
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>

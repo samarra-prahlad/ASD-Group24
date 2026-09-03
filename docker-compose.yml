@@ -83,49 +83,49 @@ services:
     restart: unless-stopped
 
   # # ---------- Student 2: EHR (Divyansh) ----------
-  # ehr-frontend:
-  #   build:
-  #     context: ./2-div-ehr/frontend
-  #   container_name: ehr-frontend
-  #   ports:
-  #     - "3002:80"
-  #   depends_on:
-  #     - ehr-backend
-  #   networks:
-  #     - healthcare-network
-  #   restart: unless-stopped
+  ehr-frontend:
+    build:
+      context: ./2-div-ehr/frontend
+    container_name: ehr-frontend
+    ports:
+      - "3002:80"
+    depends_on:
+      - ehr-backend
+    networks:
+      - healthcare-network
+    restart: unless-stopped
 
-  # ehr-backend:
-  #   build:
-  #     context: ./2-div-ehr/backend
-  #   container_name: ehr-backend
-  #   ports:
-  #     - "5002:5002"
-  #   environment:
-  #     DATABASE_SERVICE_URL: http://ehr-database:6002
-  #     SHARED_ACCESS_API_URL: http://shared-backend:5000
-  #     OLLAMA_BASE_URL: http://host.docker.internal:11434/v1
-  #     OLLAMA_MODEL: qwen2.5:0.5b
-  #   extra_hosts:
-  #     - "host.docker.internal:host-gateway"
-  #   depends_on:
-  #     - ehr-database
-  #     - shared-backend
-  #   networks:
-  #     - healthcare-network
-  #   restart: unless-stopped
+  ehr-backend:
+    build:
+      context: ./2-div-ehr/backend
+    container_name: ehr-backend
+    ports:
+      - "5002:5002"
+    environment:
+      DATABASE_SERVICE_URL: http://ehr-database:6002
+      SHARED_ACCESS_API_URL: http://shared-backend:5000
+      OLLAMA_BASE_URL: http://host.docker.internal:11434/v1
+      OLLAMA_MODEL: qwen2.5:0.5b
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      - ehr-database
+      - shared-backend
+    networks:
+      - healthcare-network
+    restart: unless-stopped
 
-  # ehr-database:
-  #   build:
-  #     context: ./2-div-ehr/database
-  #   container_name: ehr-database
-  #   ports:
-  #     - "6002:6002"
-  #   volumes:
-  #     - ehr_data:/app/data
-  #   networks:
-  #     - healthcare-network
-  #   restart: unless-stopped
+  ehr-database:
+    build:
+      context: ./2-div-ehr/database
+    container_name: ehr-database
+    ports:
+      - "6002:6002"
+    volumes:
+      - ehr_data:/app/data
+    networks:
+      - healthcare-network
+    restart: unless-stopped
 
   # ---------- Student 3: Pharmacy (William) ----------
   pharmacy-frontend:
