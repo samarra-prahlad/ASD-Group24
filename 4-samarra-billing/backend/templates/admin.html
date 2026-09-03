@@ -28,8 +28,10 @@
             </div>
 
             <div>
-                <label for="create-insurance-provider-id">Insurance Provider ID</label>
-                <input type="number" id="create-insurance-provider-id" name="insurance_provider_id" placeholder="Leave blank for self-pay">
+                <label for="create-insurance-provider-id">Insurance Provider</label>
+                <select id="create-insurance-provider-id" name="insurance_provider_id">
+                    <option value="">Self-pay</option>
+                </select>
             </div>
 
             <div>
@@ -168,6 +170,21 @@ document.body.addEventListener("invoiceCreated", function(event) {
     const invoiceId = event.detail.id;
     window.open("http://localhost:5004/invoices/" + invoiceId + "/print?token={{ token }}", "_blank");
 });
+
+fetch("http://localhost:5004/insurance-providers")
+    .then(function(res) { return res.json(); })
+    .then(function(providers) {
+        const select = document.getElementById("create-insurance-provider-id");
+        providers.forEach(function(provider) {
+            const option = document.createElement("option");
+            option.value = provider.id;
+            option.textContent = provider.name + " - " + provider.plan_type + " (" + provider.coverage_percentage + "%)";
+            select.appendChild(option);
+        });
+    })
+    .catch(function() {
+        console.error("Could not load insurance providers list.");
+    });
 </script>
 </body>
 </html>
