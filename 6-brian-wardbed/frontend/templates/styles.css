@@ -1,0 +1,83 @@
+/*Shared css*/
+body {
+    margin: 0;
+}
+
+header {
+    width: 100%;
+    text-align: center;
+
+    background-color: #558b2f;
+
+    padding: 25px 0;
+
+    border-bottom: 3px solid black;
+}
+
+header h1 {
+    margin: 0;
+
+    color: #1b1b1b;
+}
+
+/*The Ward selection page*/
+.MainMenu {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    grid-template-rows: repeat(2, 1fr);
+
+    gap: 30px;
+
+    width: 95%;
+    height: 70vh;
+
+    margin: 30px auto;
+}
+
+.selectionBox {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    border: 2px solid black;
+    border-radius: 20px;
+
+    text-align: center;
+    font-size: 1.4rem;
+    font-weight: bold;
+
+    cursor: pointer;
+}
+
+/*Below is the ward details page*/
+.beds-section {
+    width: 95%;
+    margin: 30px auto;
+}
+
+.beds-section h2 {
+    text-align: center;
+    margin-bottom: 20px;
+}
+
+.beds-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.beds-table th,
+.beds-table td {
+    border: 1px solid #ccc;
+    padding: 15px;
+    text-align: center;
+}
+
+.beds-table th {
+    font-weight: bold;
+}
+
+.beds-table-body {
+    padding: 10px 15px;
+    border-radius: 8px;
+    cursor: pointer;
+}

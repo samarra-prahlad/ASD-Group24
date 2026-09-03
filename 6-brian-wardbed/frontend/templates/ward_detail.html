@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset="UTF-8">
+        <title>Bed Management</title>
+        <link rel="stylesheet" href="./styles.css">
+    </head>
+    <body>
+        <header>
+            <h1 id="wardDisplay">No ward selected</h1>
+        </header>
+        <main>
+            <div class="beds-selection">
+                <h4>Please select an available bed from one of the beds below.</h4>
+            </div>
+
+            <table class="beds-table">
+                <thead>
+                    <tr>
+                        <th>Bed Number</th>
+                        <th>Patient ID</th>
+                        <th>Patient Name</th>
+                        <th>status</th>
+                    </tr>
+                </thead>
+                <tbody id="beds-table-body">
+                    <tr>
+                        <td colspan="4">No beds assigned to this ward</td>
+                    </tr>
+                </tbody>
+            </table>
+        </main>
+    </body>
+</html>
