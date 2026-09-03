@@ -43,10 +43,13 @@ async function start() {
     document.getElementById("patient-section").style.display = "block";
     loadMyRecords();
     loadMyRequests();
-  } else {
+
+    summaryPatientId = myId;
+    document.getElementById("assistant-target").textContent = "Summarizing: your own records";
+} else {
     document.getElementById("staff-section").style.display = "block";
     loadPatients();
-  }
+}
 }
 
 function formatDate(dateStr) {
