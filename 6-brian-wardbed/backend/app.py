@@ -8,7 +8,7 @@ from openai import OpenAI
 load_dotenv()
 
 app = Flask(__name__)
-CORS(app)
+CORS(app, supports_credentials=True)
 
 DATABASE_SERVICE_URL = os.getenv("DATABASE_SERVICE_URL", "http://localhost:6006")
 OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434/v1")
@@ -31,12 +31,15 @@ def load_prompt(filename):
     with open(prompt_path, "r", encoding="utf-8") as file:
         return file.read()   
 
-@app.route("/ward/<int:ward_id>")
-def ward_page(ward_id):
+@app.route("/auth/check")
+def check_auth():
     token = request.cookies.get("session_token")
 
     if not token:
-        return redirect("http://localhost:5000/login")
+        return jsonify({
+            "authenticated": False,
+            "error": "Not logged in"
+        }), 401
 
     try:
         response = requests.post(
@@ -44,21 +47,31 @@ def ward_page(ward_id):
             json={"token": token},
             timeout=10
         )
+
     except requests.RequestException:
-        return jsonify({"error": "Shared access service unavailable"}), 502
+        return jsonify({
+            "error": "Shared access service unavailable"
+        }), 502
 
     if response.status_code != 200:
-        return redirect("http://localhost:5000/login")
+        return jsonify({
+            "authenticated": False,
+            "error": "Invalid session"
+        }), 401
 
-    session = response.json()
+    session = response.json() or {}
 
     if session.get("role") != "admin":
-        return jsonify({"error": "Admin access required"}), 403
+        return jsonify({
+            "authenticated": True,
+            "authorised": False,
+            "error": "Admin access required"
+        }), 403
 
-    return render_template(
-        "ward_detail.html",
-        ward_id=ward_id
-    )
+    return jsonify({
+        "authenticated": True,
+        "authorised": True
+    }), 200
 
 @app.route("/wards/<int:ward_id>")
 def get_ward(ward_id):
