@@ -359,6 +359,124 @@ def generate_invoice():
 
 
 # ---------------------------------------------------------------------------
+# POST /invoices/create/html - admin-only HTMX form endpoint for manually
+# creating an invoice with directly-entered cost values (not derived via
+# appointment_id like /invoices/generate). Returns an HTML fragment for the
+# admin template rather than JSON. On success, fires an HX-Trigger header so
+# the invoice table can listen and auto-refresh itself.
+# ---------------------------------------------------------------------------
+
+@app.post("/invoices/create/html")
+def create_invoice_html():
+    token = request.args.get("token")
+    session, error = verify_session(token)
+
+    if session is None:
+        status = 503 if error == "unreachable" else 401
+        return f"<div class='form-message form-error'>{escape('Invalid or missing session token.')}</div>", status
+
+    if session["role"] != "admin":
+        return "<div class='form-message form-error'>Patients cannot create invoices.</div>", 403
+
+    patient_id = request.form.get("patient_id")
+
+    if not patient_id:
+        return "<div class='form-message form-error'>Patient ID is required.</div>", 400
+
+    insurance_provider_id = request.form.get("insurance_provider_id") or None
+    appointment_cost = request.form.get("appointment_cost", 0) or 0
+    medication_cost = request.form.get("medication_cost", 0) or 0
+    bed_charges = request.form.get("bed_charges", 0) or 0
+    status_value = request.form.get("status", "pending")
+
+    invoice_payload = {
+        "patient_id": int(patient_id),
+        "insurance_provider_id": int(insurance_provider_id) if insurance_provider_id else None,
+        "appointment_cost": float(appointment_cost),
+        "medication_cost": float(medication_cost),
+        "bed_charges": float(bed_charges),
+        "status": status_value,
+    }
+
+    try:
+        response = requests.post(
+            f"{DATABASE_SERVICE_URL}/invoices", json=invoice_payload, timeout=REQUEST_TIMEOUT
+        )
+    except requests.exceptions.RequestException:
+        return "<div class='form-message form-error'>billing-database is unreachable.</div>", 503
+
+    if response.status_code != 201:
+        error_message = response.json().get("error", "Unable to create invoice.")
+        return f"<div class='form-message form-error'>{escape(error_message)}</div>", response.status_code
+
+    result = response.json()
+    return (
+        f"<div class='form-message form-success'>"
+        f"Invoice #{result['invoice_id']} created successfully. "
+        f"Total: ${result['total_amount']:.2f}"
+        f"</div>",
+        201,
+        {"HX-Trigger": "invoicesChanged"},
+    )
+
+
+# ---------------------------------------------------------------------------
+# PUT /invoices/<invoice_id>/html - admin-only HTMX form endpoint for editing
+# an existing invoice's fields. Proxies to the database tier's existing
+# PUT /invoices/<id>. Returns an HTML fragment rather than JSON. On success,
+# fires an HX-Trigger header so the invoice table can listen and auto-refresh.
+# ---------------------------------------------------------------------------
+
+@app.put("/invoices/<int:invoice_id>/html")
+def update_invoice_html(invoice_id):
+    token = request.args.get("token")
+    session, error = verify_session(token)
+
+    if session is None:
+        status = 503 if error == "unreachable" else 401
+        return f"<div class='form-message form-error'>{escape('Invalid or missing session token.')}</div>", status
+
+    if session["role"] != "admin":
+        return "<div class='form-message form-error'>Patients cannot edit invoices.</div>", 403
+
+    update_payload = {}
+
+    if request.form.get("insurance_provider_id") is not None and request.form.get("insurance_provider_id") != "":
+        update_payload["insurance_provider_id"] = int(request.form.get("insurance_provider_id"))
+    if request.form.get("appointment_cost"):
+        update_payload["appointment_cost"] = float(request.form.get("appointment_cost"))
+    if request.form.get("medication_cost"):
+        update_payload["medication_cost"] = float(request.form.get("medication_cost"))
+    if request.form.get("bed_charges"):
+        update_payload["bed_charges"] = float(request.form.get("bed_charges"))
+    if request.form.get("status"):
+        update_payload["status"] = request.form.get("status")
+    if request.form.get("date"):
+        update_payload["date"] = request.form.get("date")
+
+    try:
+        response = requests.put(
+            f"{DATABASE_SERVICE_URL}/invoices/{invoice_id}", json=update_payload, timeout=REQUEST_TIMEOUT
+        )
+    except requests.exceptions.RequestException:
+        return "<div class='form-message form-error'>billing-database is unreachable.</div>", 503
+
+    if response.status_code != 200:
+        error_message = response.json().get("error", "Unable to update invoice.")
+        return f"<div class='form-message form-error'>{escape(error_message)}</div>", response.status_code
+
+    result = response.json()
+    return (
+        f"<div class='form-message form-success'>"
+        f"Invoice #{result['invoice_id']} updated successfully. "
+        f"Total: ${result['total_amount']:.2f}"
+        f"</div>",
+        200,
+        {"HX-Trigger": "invoicesChanged"},
+    )
+
+
+# ---------------------------------------------------------------------------
 # AI-Mode: Frontend -> Backend/API -> Ollama -> LLM
 # ---------------------------------------------------------------------------
 
