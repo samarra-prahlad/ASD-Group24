@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My Appointments</title>
+    <link rel="stylesheet" href="/css/styles.css">
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/htmx/1.9.12/htmx.min.js"></script>
+</head>
+
+<body>
+
+    <nav class="top-nav">
+
+        <div class="top-nav-left">
+    
+            <a href="http://localhost:5000/home" class="top-nav-home">
+                ← Home
+            </a>
+    
+            <a href="appointment.html">
+                Book Appointment
+            </a>
+    
+            <a href="appointments.html">
+                My Appointments
+            </a>
+    
+        </div>
+    
+    </nav>
+    
+    
+    <main class="booking-page">
+    
+        <section class="booking-container">
+    
+            <header class="booking-header">
+    
+                <h1>My Appointments</h1>
+    
+                <p>
+                    View, edit, or cancel your booked appointments.
+                </p>
+    
+            </header>
+
+        <section class="booking-step">
+            <h2>Enter your patient ID</h2>
+
+            <div class="patient-lookup">
+                <input
+                    type="text"
+                    inputmode="numeric"
+                    pattern="[0-9]*"
+                    id="lookup_patient_id"
+                    placeholder="e.g. 101"
+                    class="patient-id-input"
+                >
+                <button type="button" class="primary-button" onclick="loadAppointments()">
+                    View Appointments
+                </button>
+            </div>
+        </section>
+
+        <section class="booking-step">
+            <p id="appointments-indicator" class="htmx-indicator">
+                Loading your appointments...
+            </p>
+
+            <div id="appointments-list" class="availability-panel">
+                <p>Enter your patient ID above to see your appointments.</p>
+            </div>
+        </section>
+
+    </section>
+
+</main>
+
+
+<script>
+const API_BASE = "/api";
+
+document.body.addEventListener("htmx:configRequest", function(evt) {
+
+    if (evt.detail.path.startsWith("/appointments/htmx")) {
+        evt.detail.path = API_BASE + evt.detail.path;
+    }
+
+});
+document.body.addEventListener("htmx:responseError", function(evt) {
+ 
+ const path = evt.detail.requestConfig.path;
+
+ if (path.includes("/appointments/htmx/patient/")) {
+     document.getElementById("appointments-list").innerHTML = `
+         <div class="availability-panel">
+             <h3>Unable to load appointments</h3>
+             <p>The server responded with an error (status ${evt.detail.xhr.status}).</p>
+         </div>
+     `;
+ }
+
+ 
+});
+
+document.body.addEventListener("htmx:sendError", function(evt) {
+
+    const path = evt.detail.requestConfig.path;
+
+    if (path.includes("/appointments/htmx/patient/")) {
+        document.getElementById("appointments-list").innerHTML = `
+            <div class="availability-panel">
+                <h3>Unable to load appointments</h3>
+                <p>Could not reach the appointments service. Check that it is running.</p>
+            </div>
+        `;
+    }
+
+});
+
+
+function loadAppointments() {
+
+    const patientId = document.getElementById("lookup_patient_id").value;
+
+    if (!patientId || !/^\d+$/.test(patientId)) {
+        alert("Please enter a valid patient ID (numbers only).");
+        return;
+    }
+
+    document.getElementById("appointments-indicator").classList.add("htmx-request");
+
+    htmx.ajax("GET", `/appointments/htmx/patient/${patientId}`, {
+        target: "#appointments-list",
+        swap: "innerHTML"
+    }).then(function() {
+        document.getElementById("appointments-indicator").classList.remove("htmx-request");
+    });
+}
+
+
+function toggleEditAppointment(appointmentId) {
+
+    const viewBlock = document.getElementById(`appointment-view-${appointmentId}`);
+    const editBlock = document.getElementById(`appointment-edit-${appointmentId}`);
+
+    viewBlock.classList.toggle("is-hidden");
+    editBlock.classList.toggle("is-hidden");
+}
+
+
+function handleSaveResult(event) {
+
+    if (!event.detail.successful) {
+        alert("That time couldn't be saved — it may have just been booked by someone else. Refreshing your appointments.");
+    }
+
+    loadAppointments();
+}
+
+</script>
+
+<script src="auth.js"></script>
+<script>
+requireSession(["patient", "admin"]).then(function(session) {
+    if (!session) return;
+
+    const urlParams = new URLSearchParams(window.location.search);
+    const prefillPatientId = urlParams.get("patient_id");
+
+    if (prefillPatientId) {
+        document.getElementById("lookup_patient_id").value = prefillPatientId;
+        loadAppointments();
+    } else if (session.role === "patient") {
+        document.getElementById("lookup_patient_id").value = session.patient_id;
+        loadAppointments();
+    }
+});
+</script>
+
+<div class="ai-widget" id="ai-widget">
+    <section class="ai-panel">
+        <div class="ai-panel-header">
+            Your AI Assistant
+            <button class="ai-close" type="button" aria-label="Close chat" onclick="toggleChat(false)">✕</button>
+        </div>
+        <div class="ai-messages" id="ai-messages">
+            <div class="msg assistant">
+                Hello! I'm your AI assistant. How can I help you today?
+            </div>
+        </div>
+        <div class="ai-suggestions">
+            <button class="chip" type="button" onclick="sendChip(this)">When is my next appointment?</button>
+            <button class="chip" type="button" onclick="sendChip(this)">Help me change the time of my appointment</button>
+            <button class="chip" type="button" onclick="sendChip(this)">Can you cancel an appointment for me?</button>
+        </div>
+        <form class="ai-input-row" onsubmit="return prepChat(event)">
+            <input type="text" id="ai-input" placeholder="Type a message…" autocomplete="off" required>
+            <button type="submit">Send</button>
+        </form>
+    </section>
+</div>
+
+<button class="ai-action" id="ai-action" type="button" onclick="toggleChat(true)">
+    Your AI Assistant
+</button>
+ 
+<script>
+  function toggleChat(open) {
+ 
+ const aiWidget = document.getElementById("ai-widget");
+ const aiAction = document.getElementById("ai-action");
+
+ if (open) {
+     aiWidget.classList.add("open");
+     aiAction.classList.add("hidden");
+     document.getElementById("ai-input").focus();
+ } else {
+     aiWidget.classList.remove("open");
+     aiAction.classList.remove("hidden");
+ }
+}
+
+function sendChip(chip) {
+ document.getElementById("ai-input").value = chip.textContent;
+}
+
+let aiChatHistory = [];
+
+function addChatMessage(role, text) {
+ const messages = document.getElementById("ai-messages");
+ const el = document.createElement("div");
+ el.className = `msg ${role}`;
+ el.textContent = text;
+ messages.appendChild(el);
+ messages.scrollTop = messages.scrollHeight;
+ return el;
+}
+
+function prepChat(e) {
+
+ e.preventDefault();
+
+ const input = document.getElementById("ai-input");
+ const text = input.value.trim();
+
+ if (!text) {
+     return false;
+ }
+
+ addChatMessage("user", text);
+ input.value = "";
+
+ const typingEl = addChatMessage("assistant", "…");
+
+ const patientId = document.getElementById("patient_id")?.value || null;
+
+ fetch("/api/ai/chat", {
+     method: "POST",
+     headers: { "Content-Type": "application/json" },
+     body: JSON.stringify({
+         message: text,
+         patientId,
+         history: aiChatHistory
+     })
+ })
+     .then(function(res) {
+         return res.json().then(function(data) {
+             if (!res.ok) {
+                 throw new Error(data.error || `Request failed (${res.status})`);
+             }
+             return data;
+         });
+     })
+     .then(function(data) {
+         typingEl.textContent = data.reply;
+         aiChatHistory.push({ role: "user", content: text });
+         aiChatHistory.push({ role: "assistant", content: data.reply });
+     })
+     .catch(function(err) {
+         typingEl.textContent = "Sorry, I couldn't reach the assistant. " + (err.message || "");
+     });
+
+ return false;
+}
+
+</script>
+
+</body>
+
+</html>
