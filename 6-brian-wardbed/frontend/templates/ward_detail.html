@@ -7,28 +7,107 @@
     </head>
     <body>
         <header>
-            <h1 id="wardDisplay">No ward selected</h1>
+            <h1 id="wardDisplay">Loading ward...</h1>
         </header>
         <main>
             <div class="beds-selection">
                 <h4>Please select an available bed from one of the beds below.</h4>
             </div>
 
-            <table class="beds-table">
-                <thead>
-                    <tr>
-                        <th>Bed Number</th>
-                        <th>Patient ID</th>
-                        <th>Patient Name</th>
-                        <th>status</th>
-                    </tr>
-                </thead>
-                <tbody id="beds-table-body">
-                    <tr>
-                        <td colspan="4">No beds assigned to this ward</td>
-                    </tr>
-                </tbody>
-            </table>
+            <div class="table-container">
+                <table class="beds-table">
+                    <thead>
+                        <tr>
+                            <th>Bed Number</th>
+                            <th>Patient ID</th>
+                            <th>Patient Name</th>
+                            <th>status</th>
+                        </tr>
+                    </thead>
+                    <tbody id="beds-table-body">
+                        <tr>
+                            <td colspan="4">Loading beds...</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <button id="aiButton">AI assistant</button>
+
+            <div id="aiChat" class="ai-chat">
+                <h3>Ward Assistant</h3>
+
+                <div id="chatMessages"></div>
+
+                <div class="chat-input">
+                    <input
+                        type="text"
+                        id="aiInput"
+                        placeholder="Ask about this ward..."
+                    >
+
+                    <button id="aiSend">Send</button>
+                </div>
+            </div>
         </main>
+        <script>
+            const params = new URLSearchParams(window.location.search);
+            const wardId = params.get("ward_id");
+            const aiButton = document.getElementById("aiButton");
+            const aiChat = document.getElementById("aiChat"); 
+
+            async function loadWard() {
+                const response = await fetch(`http://localhost:5006/wards/${wardId}`);
+                const ward = await response.json();
+
+                document.getElementById("wardDisplay").textContent = ward.ward_name + " Ward";
+            }
+
+            async function loadBeds() {
+                const response = await fetch(`http://localhost:5006/wards/${wardId}/beds`);
+                const beds = await response.json();
+
+                const tableBody = document.getElementById("beds-table-body");
+                tableBody.innerHTML = "";
+
+                if (beds.length === 0) {
+                    tableBody.innerHTML = `
+                        <tr>
+                            <td colspan="4">No beds assigned to this ward</td>
+                        </tr>
+                    `;
+                    return;
+                }
+
+                beds.forEach(bed => {
+                    const row = document.createElement("tr");
+
+                    row.innerHTML = `
+                        <td>${bed.bed_number}</td>
+                        <td>${bed.patient_id ?? ""}</td>
+                        <td></td>
+                        <td>${bed.status}</td>
+                    `;
+
+                    tableBody.appendChild(row);
+                });
+            }
+            if(!wardId){
+               document.getElementById("wardDisplay").textContent = "No ward selected"; 
+            } else {
+                loadWard();
+            }
+            loadBeds();
+
+            aiButton.addEventListener("click", () => {
+
+                if (aiChat.style.display === "block") {
+                    aiChat.style.display = "none";
+                } else {
+                    aiChat.style.display = "block";
+                }
+
+            });
+        </script>
     </body>
 </html>

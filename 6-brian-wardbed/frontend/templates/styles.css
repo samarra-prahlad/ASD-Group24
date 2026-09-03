@@ -60,6 +60,16 @@ header h1 {
     margin-bottom: 20px;
 }
 
+.table-container {
+    width: 80%;
+    max-width: 1000px;
+    margin: 40px auto;
+    background-color: white;
+    padding: 20px;
+    border-radius: 12px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
 .beds-table {
     width: 100%;
     border-collapse: collapse;
@@ -80,4 +90,49 @@ header h1 {
     padding: 10px 15px;
     border-radius: 8px;
     cursor: pointer;
+}
+
+#aiButton {
+    position: fixed;
+    right: 25px;
+    bottom: 25px;
+
+    width: 100px;
+    height: 100px;
+
+    border: none;
+    border-radius: 20%;
+
+    cursor: pointer;
+    font-weight: bold;
+
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+}
+
+.ai-chat {
+    display: none;
+
+    position: fixed;
+    right: 25px;
+    bottom: 100px;
+
+    width: 320px;
+    height: 400px;
+
+    background-color: white;
+    border-radius: 12px;
+
+    padding: 15px;
+
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+}
+
+#aiSend {
+    padding: 10px 16px;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    font-weight: bold;
+
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
 }
