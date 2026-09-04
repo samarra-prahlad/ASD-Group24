@@ -11,7 +11,7 @@
             <nav class="page-nav">
                 <a href="/index.html">Return to Ward Selection</a>
 
-                <a href="http://localhost:3000">Return to Home Page</a>
+                <a href="http://localhost:5000/home">Return to Home Page</a>
             </nav>
         </header>
         <main>
@@ -25,13 +25,12 @@
                         <tr>
                             <th>Bed Number</th>
                             <th>Patient ID</th>
-                            <th>Patient Name</th>
                             <th>status</th>
                         </tr>
                     </thead>
                     <tbody id="beds-table-body">
                         <tr>
-                            <td colspan="4">Loading beds...</td>
+                            <td colspan="3">Loading beds...</td>
                         </tr>
                     </tbody>
                 </table>
@@ -130,11 +129,11 @@
                     row.innerHTML = `
                         <td>${bed.bed_number}</td>
                         <td>${bed.patient_id ?? ""}</td>
-                        <td></td>
                         <td>${bed.status}</td>
                     `;
 
                     if (bed.status === "available") {
+                        row.classList.add("available-row");
                         row.style.cursor = "pointer";
 
                         row.addEventListener("click", () => {
@@ -142,6 +141,7 @@
                         });
 
                     } else if (bed.status === "occupied") {
+                        row.classList.add("occupied-row");
                         row.style.cursor = "pointer";
 
                         row.addEventListener("click", () => {

@@ -136,6 +136,20 @@ def assign_patient_to_bed(bed_id):
 
     return jsonify(bed_response.json()), bed_response.status_code
 
+@app.route("/beds/<int:bed_id>/release", methods=["PUT"])
+def release_patient_from_bed(bed_id):
+    try:
+        bed_response = requests.put(
+            f"{DATABASE_SERVICE_URL}/beds/{bed_id}/release",
+            timeout=10
+        )
+    except requests.RequestException:
+        return jsonify({
+            "error": "Ward database service unavailable"
+        }), 502
+
+    return jsonify(bed_response.json()), bed_response.status_code
+
 @app.route("/ai/chat", methods=["POST"])
 def ai_chat():
     data = request.get_json() or {}

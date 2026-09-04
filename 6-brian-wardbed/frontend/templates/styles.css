@@ -1,52 +1,92 @@
 /*Shared css*/
 body {
     margin: 0;
+    background-color: #f1f8e9;
+    font-family: Arial, sans-serif;
+    color: #111;
 }
 
 header {
-    width: 100%;
+    background-color: #dcedc8;
+    padding: 28px 40px 24px;
     text-align: center;
-
-    background-color: #558b2f;
-
-    padding: 25px 0;
-
-    border-bottom: 3px solid black;
 }
 
 header h1 {
-    margin: 0;
+    margin: 0 0 12px;
+    font-size: 42px;
+    font-weight: 700;
+}
 
-    color: #1b1b1b;
+header p {
+    margin: 8px 0;
+    font-size: 18px;
+}
+
+header a {
+    color: #558b2f;
+    text-decoration: none;
+    font-weight: 600;
+}
+
+header a:hover {
+    text-decoration: underline;
+}
+
+main {
+    padding: 40px;
 }
 
 /*The Ward selection page*/
 .MainMenu {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
-    grid-template-rows: repeat(2, 1fr);
+    gap: 36px;
 
-    gap: 30px;
-
-    width: 95%;
-    height: 70vh;
-
-    margin: 30px auto;
+    max-width: 1100px;
+    margin: 0 auto;
 }
 
 .selectionBox {
-    display: flex;
-    align-items: center;
-    justify-content: center;
+    min-height: 220px;
 
-    border: 2px solid black;
-    border-radius: 20px;
+    background-color: white;
+
+    border: none;
+    border-radius: 18px;
+
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.10);
+
+    display: flex;
+    justify-content: center;
+    align-items: center;
 
     text-align: center;
-    font-size: 1.4rem;
-    font-weight: bold;
+
+    padding: 24px;
 
     cursor: pointer;
+
+    transition:
+        transform 0.2s ease,
+        box-shadow 0.2s ease,
+        background-color 0.2s ease;
+}
+
+.selectionBox:hover {
+    transform: translateY(-4px);
+
+    box-shadow: 0 10px 24px rgba(0, 0, 0, 0.16);
+
+    background-color: #f7fbf2;
+}
+
+.selectionBox h2,
+.selectionBox h3,
+.selectionBox p {
+    margin: 0;
+    font-size: 25px;
+    font-weight: 700;
 }
 
 /*Below is the ward details page*/
@@ -68,6 +108,7 @@ header h1 {
     padding: 20px;
     border-radius: 12px;
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    background-color: white;
 }
 
 .beds-table {
@@ -86,10 +127,18 @@ header h1 {
     font-weight: bold;
 }
 
-.beds-table-body {
+#beds-table-body {
     padding: 10px 15px;
     border-radius: 8px;
     cursor: pointer;
+}
+
+.beds-table tbody tr.available-row:hover {
+    background-color: #dcedc8;
+}
+
+.beds-table tbody tr.occupied-row:hover {
+    background-color: #f3e5e5;
 }
 
 .modal {
@@ -136,6 +185,8 @@ header h1 {
 }
 
 #aiButton {
+    background-color: #81c784;
+    color: white;
     position: fixed;
     right: 25px;
     bottom: 25px;
@@ -187,10 +238,23 @@ header h1 {
     box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
 }
 
+#aiButton:hover{
+    background-color: #558b2f;
+}
+
+#assignConfirm:hover {
+    background-color: #558b2f;
+}
+
 .page-nav {
+    color: #558b2f;
     display: flex;
     justify-content: space-between;
     align-items: center;
 
     width: 100%;
+}
+
+.page-nav a:hover {
+    color: #81c784;
 }
