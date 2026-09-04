@@ -268,50 +268,50 @@ services:
       - healthcare-network
     restart: unless-stopped
 
-  # # ---------- Student 6: Ward & Bed Management (Brian) ----------
-  # wardbed-frontend:
-  #   build:
-  #     context: ./6-brian-wardbed/frontend
-  #   container_name: wardbed-frontend
-  #   ports:
-  #     - "3006:80"
-  #   depends_on:
-  #     - wardbed-backend
-  #   networks:
-  #     - healthcare-network
-  #   restart: unless-stopped
+#---------- Student 6: Ward & Bed Management (Brian) ----------
+  wardbed-frontend:
+    build:
+      context: ./6-brian-wardbed/frontend
+    container_name: wardbed-frontend
+    ports:
+      - "3006:80"
+    depends_on:
+      - wardbed-backend
+    networks:
+      - healthcare-network
+    restart: unless-stopped
 
-  # wardbed-backend:
-  #   build:
-  #     context: ./6-brian-wardbed/backend
-  #   container_name: wardbed-backend
-  #   ports:
-  #     - "5006:5006"
-  #   environment:
-  #     DATABASE_SERVICE_URL: http://wardbed-database:6006
-  #     SHARED_ACCESS_API_URL: http://shared-backend:5000
-  #     OLLAMA_BASE_URL: http://host.docker.internal:11434/v1
-  #     OLLAMA_MODEL: qwen2.5:0.5b
-  #   extra_hosts:
-  #     - "host.docker.internal:host-gateway"
-  #   depends_on:
-  #     - wardbed-database
-  #     - shared-backend
-  #   networks:
-  #     - healthcare-network
-  #   restart: unless-stopped
+  wardbed-backend:
+     build:
+       context: ./6-brian-wardbed/backend
+     container_name: wardbed-backend
+     ports:
+       - "5006:5006"
+     environment:
+       DATABASE_SERVICE_URL: http://wardbed-database:6006
+       SHARED_ACCESS_API_URL: http://shared-backend:5000
+       OLLAMA_BASE_URL: http://host.docker.internal:11434/v1
+       OLLAMA_MODEL: qwen2.5:0.5b
+     extra_hosts:
+       - "host.docker.internal:host-gateway"
+     depends_on:
+       - wardbed-database
+       - shared-backend
+     networks:
+       - healthcare-network
+     restart: unless-stopped
 
-  # wardbed-database:
-  #   build:
-  #     context: ./6-brian-wardbed/database
-  #   container_name: wardbed-database
-  #   ports:
-  #     - "6006:6006"
-  #   volumes:
-  #     - wardbed_data:/app/data
-  #   networks:
-  #     - healthcare-network
-  #   restart: unless-stopped
+  wardbed-database:
+    build:
+      context: ./6-brian-wardbed/database
+    container_name: wardbed-database
+    ports:
+      - "6006:6006"
+    volumes:
+      - wardbed_data:/app/data
+    networks:
+      - healthcare-network
+    restart: unless-stopped
 
 volumes:
   shared_data:
@@ -320,7 +320,7 @@ volumes:
   pharmacy_data:
   billing_data:
   labtests_data:
-  # wardbed_data:
+  wardbed_data:
 
 networks:
   healthcare-network:
