@@ -21,6 +21,7 @@ client = OpenAI(
     api_key="ollama"
 )
 
+
 def load_prompt(filename):
     prompt_path = os.path.join(
         os.path.dirname(__file__),
