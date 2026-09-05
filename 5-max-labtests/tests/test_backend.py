@@ -75,3 +75,31 @@ def test_delete_result():
 
     r = requests.delete(f"{BASE_URL}/results/{created['result_id']}")
     assert r.status_code == 200
+
+def test_chat_returns_reply():
+    r = requests.post(f"{BASE_URL}/chat", json={"message": "What is a CBC test?"})
+    assert r.status_code == 200
+    assert "reply" in r.json()
+
+def test_get_results_for_specific_order():
+    r = requests.get(f"{BASE_URL}/results/1")
+    assert r.status_code == 200
+    assert isinstance(r.json(), list)
+
+def test_my_results_no_token_rejected():
+    r = requests.get(f"{BASE_URL}/my-results")
+    assert r.status_code == 400
+
+def test_my_results_invalid_token_rejected():
+    r = requests.get(f"{BASE_URL}/my-results?token=not-a-real-token")
+    assert r.status_code == 401
+
+def test_delete_nonexistent_order_does_not_crash():
+    r = requests.delete(f"{BASE_URL}/orders/999999")
+    assert r.status_code in (200, 404)
+
+def test_update_nonexistent_result_does_not_crash():
+    r = requests.put(f"{BASE_URL}/results/999999", json={
+        "result_value": "x", "reference_range": "x", "flagged": 0, "ai_notes": ""
+    })
+    assert r.status_code in (200, 404)
