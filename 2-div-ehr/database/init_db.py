@@ -66,16 +66,16 @@ else:
 cursor.execute("SELECT COUNT(*) FROM change_requests")
 if cursor.fetchone()[0] == 0:
     change_requests = [
-        (3,  'update_allergy', 'Add newly diagnosed shellfish allergy',        'pending'),
-        (4,  'correction',     'Fix misspelled medication name Lisinopril',   'approved'),
-        (5,  'update_contact', 'Update emergency contact on file',            'pending'),
-        (6,  'correction',     'Diagnosis date recorded incorrectly',         'rejected'),
-        (7,  'update_allergy', 'Remove outdated allergy note',                'pending'),
-        (8,  'correction',     'Dosage typo in treatment notes',              'approved'),
-        (9,  'update_contact', 'Patient moved, update address',               'pending'),
-        (10, 'correction',     'Duplicate record flagged for review',         'pending'),
-        (3,  'update_allergy', 'Confirm penicillin severity level',           'pending'),
-        (4,  'correction',     'Follow-up date needs adjusting',              'approved'),
+        (3,  'Update Allergies', 'Add newly diagnosed shellfish allergy',            'pending'),
+        (4,  'Update Treatment', 'Fix misspelled medication name Lisinopril',        'approved'),
+        (5,  'Other',            'Update emergency contact on file',                 'pending'),
+        (6,  'Update Diagnosis', 'Diagnosis date recorded incorrectly',              'rejected'),
+        (7,  'Update Allergies', 'Remove outdated allergy note',                     'pending'),
+        (8,  'Update Treatment', 'Dosage typo in treatment notes',                   'approved'),
+        (9,  'Other',            'Patient moved, update address',                    'pending'),
+        (10, 'Update Notes',     'Duplicate record flagged for review',              'pending'),
+        (3,  'Update Allergies', 'Confirm penicillin severity level',                'pending'),
+        (4,  'Update Diagnosis', 'Follow-up date needs adjusting',                   'approved'),
     ]
     cursor.executemany("""
     INSERT INTO change_requests (patient_id, request_type, request_details, status)
