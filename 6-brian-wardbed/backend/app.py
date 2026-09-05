@@ -61,16 +61,10 @@ def check_auth():
 
     session = response.json() or {}
 
-    if session.get("role") != "admin":
-        return jsonify({
-            "authenticated": True,
-            "authorised": False,
-            "error": "Admin access required"
-        }), 403
-
     return jsonify({
         "authenticated": True,
-        "authorised": True
+        "role": session.get("role"),
+        "patient_id": session.get("patient_id")
     }), 200
 
 @app.route("/wards/<int:ward_id>")

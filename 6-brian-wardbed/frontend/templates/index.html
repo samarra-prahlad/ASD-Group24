@@ -35,31 +35,30 @@
     </main>
 
     <script>
-            async function checkAuth() {
-                try {
-                    const response = await fetch(
-                        "http://localhost:5006/auth/check", {credentials: "include"} 
-                    );
+        async function checkAuth() {
+            const response = await fetch("http://localhost:5006/auth/check", {
+                credentials: "include"
+            });
 
-                    if (response.status === 401) {
-                        window.location.href = "http://localhost:5000/login";
-                        return false;
-                    }
+            if (!response.ok) {
+                window.location.href = "login.html";
+                return false;
+            }
 
-                    if (response.status === 403) {
-                        window.location.href = "http://localhost:5000/home";
-                        return false;
-                    }
+            const data = await response.json();
 
-                    return response.ok;
+            if (data.role === "admin") {
+                return true;
+            }
 
-                } catch (error) {
-                    document.body.innerHTML =
-                        "<h2>Unable to verify access.</h2>";
+            if (data.role === "patient") {
+                window.location.href = "patient_dashboard.html";
+                return false;
+            }
 
-                    return false;
-                }
-    }
+            window.location.href = "login.html";
+            return false;
+        }
 
     async function startPage() {
         const authorised = await checkAuth();
@@ -70,6 +69,7 @@
     }
 
     startPage();
+
         function selectWard(wardId) {
             window.location.href = `ward_detail.html?ward_id=${wardId}`;
         }
