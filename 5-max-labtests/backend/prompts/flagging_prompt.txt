@@ -1,0 +1,7 @@
+Lab result: {result_value}
+Reference range: {reference_range}
+
+Task: decide if this result is abnormal given the reference range.
+Respond in exactly this format, two lines, no extra text:
+VERDICT: YES or NO
+REASON: one short sentence explaining why

@@ -13,6 +13,10 @@ SHARED_DATABASE_URL = os.getenv("SHARED_DATABASE_URL", "http://shared-database:6
 OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://host.docker.internal:11434/v1")
 OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "qwen2.5:0.5b")
 
+def load_prompt(filename):
+    path = os.path.join(os.path.dirname(__file__), "prompts", filename)
+    with open(path, "r") as f:
+        return f.read()
 
 @app.get("/")
 def health():
@@ -70,14 +74,10 @@ def delete_result(result_id):
     return jsonify(r.json()), r.status_code
 
 def flag_result_with_ai(result_value, reference_range):
-    prompt = (
-        f"Lab result: {result_value}\n"
-        f"Reference range: {reference_range}\n\n"
-        "Task: decide if this result is abnormal given the reference range.\n"
-        "Respond in exactly this format, two lines, no extra text:\n"
-        "VERDICT: YES or NO\n"
-        "REASON: one short sentence explaining why"
+    prompt = load_prompt("flagging_prompt.txt").format(
+        result_value=result_value, reference_range=reference_range
     )
+
     try:
         r = requests.post(
             f"{OLLAMA_BASE_URL}/chat/completions",
@@ -111,12 +111,7 @@ def chat():
     data = request.get_json()
     user_message = data.get("message", "")
 
-    prompt = (
-        "You are a helpful assistant for a hospital lab tests system. "
-        "Answer questions about lab tests, results, and general lab process. "
-        "Keep answers short and clear.\n\n"
-        f"User: {user_message}"
-    )
+    prompt = load_prompt("chat_prompt.txt").format(user_message=user_message)
 
     try:
         r = requests.post(
