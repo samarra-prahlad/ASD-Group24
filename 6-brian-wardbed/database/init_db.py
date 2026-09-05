@@ -29,11 +29,11 @@ def init_db():
 
     conn.execute("""
         CREATE TABLE bed_assignments (
-            assignment_id INTEGER PRIMARY KEY,
+            assignment_id INTEGER PRIMARY KEY AUTOINCRIMENT,
             bed_id INTEGER NOT NULL,
             patient_id INTEGER NOT NULL,
-            date_assigned DATETIME NOT NULL,
-            date_released DATETIME,
+            date_assigned DATETIME DEFAULT CURRENT_TIMESTAMP,
+            date_released DATETIME DEFAULT NULL,
 
             FOREIGN KEY (bed_id) REFERENCES beds
         )
