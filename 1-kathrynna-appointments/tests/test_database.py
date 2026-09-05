@@ -218,3 +218,42 @@ def test_create_appointment_missing_field():
     data = response.json()
 
     assert "error" in data
+
+def test_create_appointment_double_booking():
+
+    appointment = {
+        "patient_id": 103,
+        "doctor_id": 202,
+        "date": "2026-11-06",
+        "time": "10:00",
+        "status": "scheduled"
+    }
+
+    first_response = requests.post(
+        f"{BASE_URL}/appointments",
+        json=appointment
+    )
+
+    assert first_response.status_code == 201
+    appointment_id = first_response.json()["appointment_id"]
+
+    duplicate_appointment = {
+        "patient_id": 104,
+        "doctor_id": 202,
+        "date": "2026-11-06",
+        "time": "10:00",
+        "status": "scheduled"
+    }
+
+    second_response = requests.post(
+        f"{BASE_URL}/appointments",
+        json=duplicate_appointment
+    )
+
+    assert second_response.status_code == 409
+
+    data = second_response.json()
+    assert data["error"] == "That slot has already been booked"
+
+    # Clean up
+    requests.delete(f"{BASE_URL}/appointments/{appointment_id}")
