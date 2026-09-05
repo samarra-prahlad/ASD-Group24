@@ -48,13 +48,18 @@ if c.fetchone()[0] == 0:
     )
 
     sample_results = [
-        (1, 'WBC 11.2 x10^9/L', '4.0-11.0 x10^9/L', 1),
-        (2, 'LDL 145 mg/dL', '<100 mg/dL', 1),
-        (4, 'Glucose 92 mg/dL', '70-100 mg/dL', 0),
-        (6, 'Protein: negative', 'negative', 0),
-        (7, 'No acute findings', 'N/A', 0),
-        (9, 'HbA1c 5.4%', '4.0-5.6%', 0),
+    (1, 'WBC 11.2 x10^9/L', '4.0-11.0 x10^9/L', 1),
+    (2, 'LDL 145 mg/dL', '<100 mg/dL', 1),
+    (3, 'TSH 3.1 mIU/L', '0.4-4.0 mIU/L', 0),
+    (4, 'Glucose 92 mg/dL', '70-100 mg/dL', 0),
+    (5, 'ALT 65 U/L', '7-56 U/L', 1),
+    (6, 'Protein: negative', 'negative', 0),
+    (7, 'No acute findings', 'N/A', 0),
+    (8, 'WBC 9.8 x10^9/L', '4.0-11.0 x10^9/L', 0),
+    (9, 'HbA1c 5.4%', '4.0-5.6%', 0),
+    (10, 'Sodium 148 mmol/L', '135-145 mmol/L', 1),
     ]
+
     c.executemany(
         "INSERT INTO lab_results (order_id, result_value, reference_range, flagged) VALUES (?, ?, ?, ?)",
         sample_results
