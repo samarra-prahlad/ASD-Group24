@@ -149,5 +149,14 @@ def update_change_request(request_id):
     return jsonify({"message": "Change request updated successfully"})
 
 
+@app.delete("/change_requests/<int:request_id>")
+def delete_change_request(request_id):
+    db = get_db()
+    db.execute("DELETE FROM change_requests WHERE id = ?", (request_id,))
+    db.commit()
+    db.close()
+    return jsonify({"message": "Change request deleted successfully"})
+
+
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=6002, debug=True)

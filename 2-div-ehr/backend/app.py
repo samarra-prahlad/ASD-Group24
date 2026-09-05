@@ -1,4 +1,5 @@
 import os
+from pathlib import Path
 
 from flask import Flask, jsonify, request
 from flask_cors import CORS
@@ -13,11 +14,17 @@ SHARED_ACCESS_API_URL = os.environ.get("SHARED_ACCESS_API_URL", "http://shared-b
 SHARED_DB_URL = os.environ.get("SHARED_DB_URL", "http://shared-database:6000")
 OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434/v1")
 OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "qwen2.5:0.5b")
+PROMPT_DIR = Path(__file__).with_name("prompts")
 
 client = OpenAI(
     base_url=OLLAMA_BASE_URL,
     api_key="ollama"
 )
+
+
+def load_prompt(filename):
+    prompt_path = PROMPT_DIR / filename
+    return prompt_path.read_text(encoding="utf-8").strip()
 
 def check_session(token):
     if not token:
@@ -246,6 +253,24 @@ def update_change_request(request_id):
 
     return jsonify(resp.json())
 
+
+@app.delete("/change_requests/<int:request_id>")
+def delete_change_request(request_id):
+    token = request.args.get("token")
+    caller_id, role, err = check_session(token)
+    if err:
+        return err
+    if role != "admin":
+        return jsonify({"error": "Only staff can delete change requests"}), 403
+
+    try:
+        resp = requests.delete(f"{DATABASE_SERVICE_URL}/change_requests/{request_id}", timeout=5)
+        resp.raise_for_status()
+    except requests.RequestException as exc:
+        return jsonify({"error": "EHR Database unavailable", "details": str(exc)}), 503
+
+    return jsonify(resp.json())
+
 #---Patient history summarization---
 
 @app.post("/summarize")
@@ -290,11 +315,7 @@ def summarize_history():
             messages=[
                 {
                     "role": "system",
-                    "content": (
-                        "You are a clinical assistant summarising a patient's medical history "
-                        "for a healthcare worker or the patient themselves. Be concise and factual. "
-                        "Only use the history provided — do not invent details."
-                    )
+                    "content": load_prompt("summarize_system_prompt.txt")
                 },
                 {"role": "user", "content": user_prompt}
             ],

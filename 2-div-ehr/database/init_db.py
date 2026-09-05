@@ -51,6 +51,7 @@ if cursor.fetchone()[0] == 0:
         (8,  '2026-08-05', 'Anxiety',            'Dr. Emily Rossi',  'Sertraline 50mg once daily',                                                        'Reports improved sleep and mood',                   'None reported'),
         (9,  '2026-04-30', 'Lower Back Pain',    'Dr. James Patel',  'Physiotherapy twice weekly, Ibuprofen 400mg as needed',                             'Mobility improving, continue physio',               'None reported'),
         (10, '2026-07-27', 'Eczema',             'Dr. Sarah Chen',   'Hydrocortisone cream 1% twice daily',                                               'Flare-up subsiding',                                'Latex (contact dermatitis)'),
+        (4,  '2026-08-20', 'Hypertension follow-up', 'Dr. James Patel', 'Continue Lisinopril 10mg once daily',                                          'Blood pressure improved, recheck in 6 months',      'Peanuts (anaphylaxis, severe)'),
     ]
     cursor.executemany("""
     INSERT INTO medical_records (patient_id, visit_date, diagnosis, doctor_name, treatment, notes, allergies)
@@ -61,5 +62,29 @@ if cursor.fetchone()[0] == 0:
     print (f"Inserted {len(medical_records)} medical records.")
 else:
     print("Medical records already exist.")
+
+cursor.execute("SELECT COUNT(*) FROM change_requests")
+if cursor.fetchone()[0] == 0:
+    change_requests = [
+        (3,  'Update Allergies', 'Add newly diagnosed shellfish allergy',            'pending'),
+        (4,  'Update Treatment', 'Fix misspelled medication name Lisinopril',        'approved'),
+        (5,  'Other',            'Update emergency contact on file',                 'pending'),
+        (6,  'Update Diagnosis', 'Diagnosis date recorded incorrectly',              'rejected'),
+        (7,  'Update Allergies', 'Remove outdated allergy note',                     'pending'),
+        (8,  'Update Treatment', 'Dosage typo in treatment notes',                   'approved'),
+        (9,  'Other',            'Patient moved, update address',                    'pending'),
+        (10, 'Update Notes',     'Duplicate record flagged for review',              'pending'),
+        (3,  'Update Allergies', 'Confirm penicillin severity level',                'pending'),
+        (4,  'Update Diagnosis', 'Follow-up date needs adjusting',                   'approved'),
+    ]
+    cursor.executemany("""
+    INSERT INTO change_requests (patient_id, request_type, request_details, status)
+    VALUES (?, ?, ?, ?)
+    """, change_requests)
+
+    conn.commit()
+    print(f"Inserted {len(change_requests)} change requests.")
+else:
+    print("Change requests already exist.")
 
 conn.close()
