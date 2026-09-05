@@ -111,20 +111,20 @@ class TestProxyRoutes:
     @patch("requests.get")
     def test_get_single_invoice_proxies_correctly(self, mock_get, mock_verify_session, client):
         mock_verify_session.return_value = ({"role": "admin", "first_name": "Admin"}, None)
-        mock_get.return_value = fake_response({"id": 3, "patient_id": 101}, 200)
+        mock_get.return_value = fake_response({"id": 3, "patient_id": 3}, 200)
 
         response = client.get("/invoices/3?token=fake-token")
 
         assert response.status_code == 200
-        assert response.get_json()["patient_id"] == 101
+        assert response.get_json()["patient_id"] == 3
 
     @patch.object(billing_backend_app, "verify_session")
     @patch("requests.get")
     def test_get_invoices_by_patient_proxies_correctly(self, mock_get, mock_verify_session, client):
         mock_verify_session.return_value = ({"role": "admin", "first_name": "Admin"}, None)
-        mock_get.return_value = fake_response([{"id": 1, "patient_id": 101}], 200)
+        mock_get.return_value = fake_response([{"id": 1, "patient_id": 3}], 200)
 
-        response = client.get("/invoices/patient/101?token=fake-token")
+        response = client.get("/invoices/patient/3?token=fake-token")
 
         assert response.status_code == 200
         assert len(response.get_json()) == 1
@@ -170,7 +170,7 @@ class TestGetAppointmentCost:
     @patch("requests.get")
     def test_falls_back_to_mock_when_no_cost_field_present(self, mock_get):
         # Simulates the real current state: Appointments' schema has no cost field
-        mock_get.return_value = fake_response({"id": 1, "patient_id": 101}, 200)
+        mock_get.return_value = fake_response({"id": 1, "patient_id": 3}, 200)
 
         cost, source = billing_backend_app.get_appointment_cost(1)
 
@@ -215,7 +215,7 @@ class TestGetMedicationCost:
             [{"cost": 20.0}, {"cost": 15.5}], 200
         )
 
-        cost, source = billing_backend_app.get_medication_cost(101)
+        cost, source = billing_backend_app.get_medication_cost(3)
 
         assert cost == 35.5
         assert source == "live"
@@ -224,7 +224,7 @@ class TestGetMedicationCost:
     def test_falls_back_to_mock_when_service_unreachable(self, mock_get):
         mock_get.side_effect = requests.exceptions.ConnectionError()
 
-        cost, source = billing_backend_app.get_medication_cost(101)
+        cost, source = billing_backend_app.get_medication_cost(3)
 
         assert source == "mock"
 
@@ -242,7 +242,7 @@ class TestGetBedCharges:
             [{"charges": 400.0}, {"charges": 200.0}], 200
         )
 
-        charges, source = billing_backend_app.get_bed_charges(101)
+        charges, source = billing_backend_app.get_bed_charges(3)
 
         assert charges == 600.0
         assert source == "live"
@@ -251,7 +251,7 @@ class TestGetBedCharges:
     def test_falls_back_to_mock_when_service_unreachable(self, mock_get):
         mock_get.side_effect = requests.exceptions.ConnectionError()
 
-        charges, source = billing_backend_app.get_bed_charges(101)
+        charges, source = billing_backend_app.get_bed_charges(3)
 
         assert source == "mock"
 
@@ -544,7 +544,7 @@ class TestPrintInvoice:
         mock_verify_session.return_value = ({"role": "admin", "first_name": "Admin"}, None)
         mock_get.return_value = fake_response({
             "id": 5,
-            "patient_id": 101,
+            "patient_id": 5,
             "insurance_provider_name": "HCF",
             "appointment_cost": 150.0,
             "medication_cost": 0.0,
@@ -566,7 +566,7 @@ class TestPrintInvoice:
     @patch("requests.get")
     def test_print_invoice_patient_cannot_view_others(self, mock_get, mock_verify_session, client):
         mock_verify_session.return_value = ({"role": "patient", "patient_id": 3}, None)
-        mock_get.return_value = fake_response({"id": 5, "patient_id": 101}, 200)
+        mock_get.return_value = fake_response({"id": 5, "patient_id": 4}, 200)
 
         response = client.get("/invoices/5/print?token=fake-token")
 
@@ -601,19 +601,19 @@ class TestPrintInvoice:
 
 SAMPLE_INVOICES = [
     {
-        "id": 1, "patient_id": 101, "insurance_provider_id": 301, "insurance_provider_name": "Medibank",
+        "id": 1, "patient_id": 3, "insurance_provider_id": 301, "insurance_provider_name": "Medibank",
         "appointment_cost": 150.0, "medication_cost": 45.0, "bed_charges": 0.0,
         "total_amount": 195.0, "insurance_covered_amount": 117.0, "patient_owed_amount": 78.0,
         "status": "pending",
     },
     {
-        "id": 2, "patient_id": 102, "insurance_provider_id": 303, "insurance_provider_name": "Bupa",
+        "id": 2, "patient_id": 4, "insurance_provider_id": 303, "insurance_provider_name": "Bupa",
         "appointment_cost": 120.0, "medication_cost": 0.0, "bed_charges": 0.0,
         "total_amount": 120.0, "insurance_covered_amount": 78.0, "patient_owed_amount": 42.0,
         "status": "paid",
     },
     {
-        "id": 4, "patient_id": 102, "insurance_provider_id": None, "insurance_provider_name": None,
+        "id": 4, "patient_id": 4, "insurance_provider_id": None, "insurance_provider_name": None,
         "appointment_cost": 180.0, "medication_cost": 30.0, "bed_charges": 0.0,
         "total_amount": 210.0, "insurance_covered_amount": 0.0, "patient_owed_amount": 210.0,
         "status": "pending",
@@ -749,7 +749,7 @@ class TestPayInvoiceHtml:
     @patch("requests.get")
     def test_patient_cannot_pay_others_invoice(self, mock_get, mock_verify_session, client):
         mock_verify_session.return_value = ({"role": "patient", "patient_id": 3}, None)
-        mock_get.return_value = fake_response({"id": 5, "patient_id": 101, "status": "pending"}, 200)
+        mock_get.return_value = fake_response({"id": 5, "patient_id": 4, "status": "pending"}, 200)
 
         response = client.post("/invoices/5/pay/html?token=fake-token")
 
@@ -760,7 +760,7 @@ class TestPayInvoiceHtml:
     @patch("requests.get")
     def test_admin_can_pay_any_invoice(self, mock_get, mock_put, mock_verify_session, client):
         mock_verify_session.return_value = ({"role": "admin", "first_name": "Admin"}, None)
-        mock_get.return_value = fake_response({"id": 5, "patient_id": 101, "status": "pending"}, 200)
+        mock_get.return_value = fake_response({"id": 5, "patient_id": 5, "status": "pending"}, 200)
         mock_put.return_value = fake_response({
             "message": "Invoice updated",
             "invoice_id": 5,
@@ -827,7 +827,7 @@ class TestInvoiceRowsRoleRendering:
     @patch.object(billing_backend_app, "verify_session")
     @patch("requests.get")
     def test_patient_sees_pay_for_unpaid_invoice(self, mock_get, mock_verify_session, client):
-        mock_verify_session.return_value = ({"role": "patient", "patient_id": 101}, None)
+        mock_verify_session.return_value = ({"role": "patient", "patient_id": 3}, None)
         mock_get.return_value = fake_response([SAMPLE_INVOICES[0]], 200)  # status "pending"
 
         response = client.get("/invoices/html?token=fake-token")
@@ -838,7 +838,7 @@ class TestInvoiceRowsRoleRendering:
     @patch.object(billing_backend_app, "verify_session")
     @patch("requests.get")
     def test_patient_sees_paid_label_for_paid_invoice(self, mock_get, mock_verify_session, client):
-        mock_verify_session.return_value = ({"role": "patient", "patient_id": 102}, None)
+        mock_verify_session.return_value = ({"role": "patient", "patient_id": 4}, None)
         mock_get.return_value = fake_response([SAMPLE_INVOICES[1]], 200)  # status "paid"
 
         response = client.get("/invoices/html?token=fake-token")

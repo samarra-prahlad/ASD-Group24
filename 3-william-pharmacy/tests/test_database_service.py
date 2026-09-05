@@ -105,21 +105,21 @@ def test_get_prescriptions_filters_by_patient(client, db_path, seeded_medication
     conn.execute(
         """INSERT INTO prescriptions (patient_id, medication_id, dosage, prescribing_doctor, status)
            VALUES (?, ?, ?, ?, ?)""",
-        (101, seeded_medication, "500mg twice daily", "Dr. Sarah Chen", "active"),
+        (3, seeded_medication, "500mg twice daily", "Dr. Sarah Chen", "active"),
     )
     conn.execute(
         """INSERT INTO prescriptions (patient_id, medication_id, dosage, prescribing_doctor, status)
            VALUES (?, ?, ?, ?, ?)""",
-        (102, seeded_medication, "200mg once daily", "Dr. James Patel", "active"),
+        (4, seeded_medication, "200mg once daily", "Dr. James Patel", "active"),
     )
     conn.commit()
     conn.close()
 
-    resp = client.get("/prescriptions/101")
+    resp = client.get("/prescriptions/3")
     assert resp.status_code == 200
     body = resp.get_json()
     assert len(body) == 1
-    assert body[0]["patient_id"] == 101
+    assert body[0]["patient_id"] == 3
 
 
 def test_get_prescriptions_no_match_returns_empty_list(client):
@@ -225,7 +225,7 @@ def test_create_prescription_success(client, seeded_medication):
     resp = client.post(
         "/admin/prescriptions",
         json={
-            "patient_id": 101,
+            "patient_id": 3,
             "medication_id": seeded_medication,
             "dosage": "500mg twice daily",
             "prescribing_doctor": "Dr. Sarah Chen",
@@ -234,11 +234,11 @@ def test_create_prescription_success(client, seeded_medication):
     assert resp.status_code == 201
     body = resp.get_json()
     assert body["id"] is not None
-    assert body["patient_id"] == 101
+    assert body["patient_id"] == 3
     assert body["dosage"] == "500mg twice daily"
     assert body["status"] == "active" 
 
-    listed = client.get("/prescriptions/101").get_json()
+    listed = client.get("/prescriptions/3").get_json()
     assert len(listed) == 1
 
 
@@ -251,7 +251,7 @@ def test_create_prescription_defaults_status_to_active_in_db(client, seeded_medi
     resp = client.post(
         "/admin/prescriptions",
         json={
-            "patient_id": 101,
+            "patient_id": 3,
             "medication_id": seeded_medication,
             "dosage": "500mg twice daily",
             "prescribing_doctor": "Dr. Sarah Chen",
@@ -260,7 +260,7 @@ def test_create_prescription_defaults_status_to_active_in_db(client, seeded_medi
     assert resp.status_code == 201
     assert resp.get_json()["status"] == "active"  # now correctly present in the response
 
-    listed = client.get("/prescriptions/101").get_json()
+    listed = client.get("/prescriptions/3").get_json()
     assert listed[0]["status"] == "active"  # and the DB row matches
 
 
@@ -268,7 +268,7 @@ def test_create_prescription_missing_field_returns_400(client, seeded_medication
     resp = client.post(
         "/admin/prescriptions",
         json={
-            "patient_id": 101,
+            "patient_id": 3,
             "medication_id": seeded_medication,
             "dosage": "500mg twice daily",
             # prescribing_doctor missing
@@ -281,7 +281,7 @@ def test_create_prescription_nonexistent_medication_returns_400(client):
     resp = client.post(
         "/admin/prescriptions",
         json={
-            "patient_id": 101,
+            "patient_id": 3,
             "medication_id": 9999,
             "dosage": "500mg twice daily",
             "prescribing_doctor": "Dr. Sarah Chen",
@@ -299,7 +299,7 @@ def test_update_prescription_status(client, db_path, seeded_medication):
     cur = conn.execute(
         """INSERT INTO prescriptions (patient_id, medication_id, dosage, prescribing_doctor, status)
            VALUES (?, ?, ?, ?, ?)""",
-        (101, seeded_medication, "500mg twice daily", "Dr. Sarah Chen", "active"),
+        (3, seeded_medication, "500mg twice daily", "Dr. Sarah Chen", "active"),
     )
     conn.commit()
     rx_id = cur.lastrowid
@@ -308,7 +308,7 @@ def test_update_prescription_status(client, db_path, seeded_medication):
     resp = client.put(f"/admin/prescriptions/{rx_id}", json={"status": "completed"})
     assert resp.status_code == 200
 
-    listed = client.get("/prescriptions/101").get_json()
+    listed = client.get("/prescriptions/3").get_json()
     assert listed[0]["status"] == "completed"
 
 
@@ -326,7 +326,7 @@ def test_delete_prescription_success(client, db_path, seeded_medication):
     cur = conn.execute(
         """INSERT INTO prescriptions (patient_id, medication_id, dosage, prescribing_doctor, status)
            VALUES (?, ?, ?, ?, ?)""",
-        (101, seeded_medication, "500mg twice daily", "Dr. Sarah Chen", "active"),
+        (3, seeded_medication, "500mg twice daily", "Dr. Sarah Chen", "active"),
     )
     conn.commit()
     rx_id = cur.lastrowid
@@ -335,7 +335,7 @@ def test_delete_prescription_success(client, db_path, seeded_medication):
     resp = client.delete(f"/admin/prescriptions/{rx_id}")
     assert resp.status_code == 200
     assert resp.get_json()["deleted"] == 1
-    assert client.get("/prescriptions/101").get_json() == []
+    assert client.get("/prescriptions/3").get_json() == []
 
 
 def test_delete_prescription_not_found_returns_404(client):

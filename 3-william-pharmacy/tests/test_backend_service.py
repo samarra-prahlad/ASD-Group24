@@ -85,9 +85,9 @@ def test_get_medications_forwards_to_database_service(client, fake_upstream):
 def test_get_prescriptions_forwards_patient_id_in_path(client, fake_upstream):
     fake_upstream.set_response([], 200)
 
-    client.get("/prescriptions/101")
+    client.get("/prescriptions/3")
 
-    assert fake_upstream.calls[0]["url"] == f"{backend_service.DATABASE_URL}/prescriptions/101"
+    assert fake_upstream.calls[0]["url"] == f"{backend_service.DATABASE_URL}/prescriptions/3"
 
 
 def test_proxy_forwards_non_200_status_code_from_upstream(client, fake_upstream):
@@ -190,7 +190,7 @@ def test_delete_medication_forwards_delete(client, fake_upstream):
 
 def test_create_prescription_forwards_post(client, fake_upstream):
     payload = {
-        "patient_id": 101,
+        "patient_id": 3,
         "medication_id": 1,
         "dosage": "500mg twice daily",
         "prescribing_doctor": "Dr. Sarah Chen",

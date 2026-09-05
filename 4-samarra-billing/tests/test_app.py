@@ -113,7 +113,7 @@ class TestGetInvoices:
         response = client.get("/invoices/3")
         data = response.get_json()
         assert data["id"] == 3
-        assert data["patient_id"] == 101
+        assert data["patient_id"] == 1
         assert data["insurance_provider_id"] == 302
 
     def test_get_nonexistent_invoice_returns_404(self, client):
@@ -122,11 +122,11 @@ class TestGetInvoices:
         assert "error" in response.get_json()
 
     def test_get_invoices_by_patient(self, client):
-        response = client.get("/invoices/patient/101")
+        response = client.get("/invoices/patient/1")
         data = response.get_json()
         assert response.status_code == 200
         assert len(data) >= 1
-        assert all(inv["patient_id"] == 101 for inv in data)
+        assert all(inv["patient_id"] == 1 for inv in data)
 
     def test_get_invoices_by_patient_with_no_invoices_returns_empty_list(self, client):
         response = client.get("/invoices/patient/999999")

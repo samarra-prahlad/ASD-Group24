@@ -127,7 +127,7 @@ class TestInvoiceReadPermissions:
         test_client, module = client
         with patch("requests.post") as mock_post:
             mock_post.return_value = fake_response(
-                {"valid": True, "patient_id": 101, "role": "patient", "first_name": "John"}, status=200
+                {"valid": True, "patient_id": 3, "role": "patient", "first_name": "John"}, status=200
             )
             response = test_client.get("/invoices?token=patient-token")
         assert response.status_code == 403
@@ -139,7 +139,7 @@ class TestInvoiceReadPermissions:
                 {"valid": True, "patient_id": 2, "role": "admin", "first_name": "Grace"}, status=200
             )
             with patch("requests.get") as mock_get:
-                mock_get.return_value = fake_response([{"id": 1, "patient_id": 101}], status=200)
+                mock_get.return_value = fake_response([{"id": 1, "patient_id": 3}], status=200)
                 response = test_client.get("/invoices?token=admin-token")
         assert response.status_code == 200
 
@@ -147,10 +147,10 @@ class TestInvoiceReadPermissions:
         test_client, module = client
         with patch("requests.post") as mock_post:
             mock_post.return_value = fake_response(
-                {"valid": True, "patient_id": 101, "role": "patient", "first_name": "John"}, status=200
+                {"valid": True, "patient_id": 3, "role": "patient", "first_name": "John"}, status=200
             )
             with patch("requests.get") as mock_get:
-                mock_get.return_value = fake_response({"id": 5, "patient_id": 101}, status=200)
+                mock_get.return_value = fake_response({"id": 5, "patient_id": 3}, status=200)
                 response = test_client.get("/invoices/5?token=patient-token")
         assert response.status_code == 200
 
@@ -158,7 +158,7 @@ class TestInvoiceReadPermissions:
         test_client, module = client
         with patch("requests.post") as mock_post:
             mock_post.return_value = fake_response(
-                {"valid": True, "patient_id": 101, "role": "patient", "first_name": "John"}, status=200
+                {"valid": True, "patient_id": 3, "role": "patient", "first_name": "John"}, status=200
             )
             with patch("requests.get") as mock_get:
                 mock_get.return_value = fake_response({"id": 5, "patient_id": 999}, status=200)
@@ -185,18 +185,18 @@ class TestInvoiceReadPermissions:
         test_client, module = client
         with patch("requests.post") as mock_post:
             mock_post.return_value = fake_response(
-                {"valid": True, "patient_id": 101, "role": "patient", "first_name": "John"}, status=200
+                {"valid": True, "patient_id": 3, "role": "patient", "first_name": "John"}, status=200
             )
             with patch("requests.get") as mock_get:
-                mock_get.return_value = fake_response([{"id": 1, "patient_id": 101}], status=200)
-                response = test_client.get("/invoices/patient/101?token=patient-token")
+                mock_get.return_value = fake_response([{"id": 1, "patient_id": 3}], status=200)
+                response = test_client.get("/invoices/patient/3?token=patient-token")
         assert response.status_code == 200
 
     def test_get_invoices_by_patient_different_id_returns_403(self, client):
         test_client, module = client
         with patch("requests.post") as mock_post:
             mock_post.return_value = fake_response(
-                {"valid": True, "patient_id": 101, "role": "patient", "first_name": "John"}, status=200
+                {"valid": True, "patient_id": 3, "role": "patient", "first_name": "John"}, status=200
             )
             response = test_client.get("/invoices/patient/999?token=patient-token")
         assert response.status_code == 403
@@ -216,15 +216,15 @@ class TestInvoiceReadPermissions:
         test_client, module = client
         with patch("requests.post") as mock_post:
             mock_post.return_value = fake_response(
-                {"valid": True, "patient_id": 101, "role": "patient", "first_name": "John"}, status=200
+                {"valid": True, "patient_id": 3, "role": "patient", "first_name": "John"}, status=200
             )
             with patch("requests.get") as mock_get:
-                mock_get.return_value = fake_response([{"id": 1, "patient_id": 101, "insurance_provider_name": "Bupa",
+                mock_get.return_value = fake_response([{"id": 1, "patient_id": 3, "insurance_provider_name": "Bupa",
                                                           "total_amount": 100.0, "insurance_covered_amount": 50.0,
                                                           "patient_owed_amount": 50.0, "status": "pending"}], status=200)
                 response = test_client.get("/invoices/html?token=patient-token&patient_id=999")
         mock_get.assert_called_with(
-            "http://billing-database:6004/invoices/patient/101", timeout=module.REQUEST_TIMEOUT
+            "http://billing-database:6004/invoices/patient/3", timeout=module.REQUEST_TIMEOUT
         )
         assert response.status_code == 200
 
@@ -259,9 +259,9 @@ class TestInvoiceHtmlFilteringAndSorting:
             self._admin_session(mock_post)
             with patch("requests.get") as mock_get:
                 mock_get.return_value = fake_response([
-                    {"id": 1, "patient_id": 101, "insurance_provider_name": "Bupa", "total_amount": 100.0,
+                    {"id": 1, "patient_id": 3, "insurance_provider_name": "Bupa", "total_amount": 100.0,
                      "insurance_covered_amount": 50.0, "patient_owed_amount": 50.0, "status": "paid"},
-                    {"id": 2, "patient_id": 102, "insurance_provider_name": "NIB", "total_amount": 200.0,
+                    {"id": 2, "patient_id": 4, "insurance_provider_name": "NIB", "total_amount": 200.0,
                      "insurance_covered_amount": 0.0, "patient_owed_amount": 200.0, "status": "pending"},
                 ], status=200)
                 response = test_client.get("/invoices/html?token=admin-token&status=pending")
@@ -274,9 +274,9 @@ class TestInvoiceHtmlFilteringAndSorting:
             self._admin_session(mock_post)
             with patch("requests.get") as mock_get:
                 mock_get.return_value = fake_response([
-                    {"id": 1, "patient_id": 101, "insurance_provider_name": "Bupa", "total_amount": 100.0,
+                    {"id": 1, "patient_id": 3, "insurance_provider_name": "Bupa", "total_amount": 100.0,
                      "insurance_covered_amount": 50.0, "patient_owed_amount": 50.0, "status": "paid"},
-                    {"id": 2, "patient_id": 102, "insurance_provider_name": "NIB", "total_amount": 200.0,
+                    {"id": 2, "patient_id": 4, "insurance_provider_name": "NIB", "total_amount": 200.0,
                      "insurance_covered_amount": 0.0, "patient_owed_amount": 200.0, "status": "pending"},
                 ], status=200)
                 response = test_client.get("/invoices/html?token=admin-token&insurance=NIB")
@@ -289,9 +289,9 @@ class TestInvoiceHtmlFilteringAndSorting:
             self._admin_session(mock_post)
             with patch("requests.get") as mock_get:
                 mock_get.return_value = fake_response([
-                    {"id": 1, "patient_id": 101, "insurance_provider_name": "Bupa", "total_amount": 300.0,
+                    {"id": 1, "patient_id": 3, "insurance_provider_name": "Bupa", "total_amount": 300.0,
                      "insurance_covered_amount": 0.0, "patient_owed_amount": 300.0, "status": "pending"},
-                    {"id": 2, "patient_id": 102, "insurance_provider_name": "NIB", "total_amount": 100.0,
+                    {"id": 2, "patient_id": 4, "insurance_provider_name": "NIB", "total_amount": 100.0,
                      "insurance_covered_amount": 0.0, "patient_owed_amount": 100.0, "status": "pending"},
                 ], status=200)
                 response = test_client.get("/invoices/html?token=admin-token&sort_by=total_amount&sort_dir=asc")
@@ -304,9 +304,9 @@ class TestInvoiceHtmlFilteringAndSorting:
             self._admin_session(mock_post)
             with patch("requests.get") as mock_get:
                 mock_get.return_value = fake_response([
-                    {"id": 1, "patient_id": 101, "insurance_provider_name": "Bupa", "total_amount": 100.0,
+                    {"id": 1, "patient_id": 3, "insurance_provider_name": "Bupa", "total_amount": 100.0,
                      "insurance_covered_amount": 0.0, "patient_owed_amount": 100.0, "status": "pending"},
-                    {"id": 2, "patient_id": 102, "insurance_provider_name": "NIB", "total_amount": 300.0,
+                    {"id": 2, "patient_id": 4, "insurance_provider_name": "NIB", "total_amount": 300.0,
                      "insurance_covered_amount": 0.0, "patient_owed_amount": 300.0, "status": "pending"},
                 ], status=200)
                 response = test_client.get("/invoices/html?token=admin-token&sort_by=total_amount&sort_dir=desc")
@@ -319,9 +319,9 @@ class TestInvoiceHtmlFilteringAndSorting:
             self._admin_session(mock_post)
             with patch("requests.get") as mock_get:
                 mock_get.return_value = fake_response([
-                    {"id": 1, "patient_id": 101, "insurance_provider_name": "Bupa", "total_amount": 100.0,
+                    {"id": 1, "patient_id": 3, "insurance_provider_name": "Bupa", "total_amount": 100.0,
                      "insurance_covered_amount": 0.0, "patient_owed_amount": 100.0, "status": "pending"},
-                    {"id": 2, "patient_id": 102, "insurance_provider_name": "NIB", "total_amount": 200.0,
+                    {"id": 2, "patient_id": 4, "insurance_provider_name": "NIB", "total_amount": 200.0,
                      "insurance_covered_amount": 0.0, "patient_owed_amount": 200.0, "status": "paid"},
                 ], status=200)
                 response = test_client.get("/invoices/html?token=admin-token&sort_by=status&sort_dir=asc")
@@ -333,14 +333,14 @@ class TestInvoiceHtmlFilteringAndSorting:
         test_client, module = client
         with patch("requests.post") as mock_post:
             mock_post.return_value = fake_response(
-                {"valid": True, "patient_id": 101, "role": "patient", "first_name": "John"}, status=200
+                {"valid": True, "patient_id": 3, "role": "patient", "first_name": "John"}, status=200
             )
             with patch("requests.get") as mock_get:
                 mock_get.return_value = fake_response([
-                    {"id": 1, "patient_id": 101, "insurance_provider_name": "Bupa", "total_amount": 100.0,
+                    {"id": 1, "patient_id": 3, "insurance_provider_name": "Bupa", "total_amount": 100.0,
                      "insurance_covered_amount": 0.0, "patient_owed_amount": 100.0, "status": "pending"}
                 ], status=200)
                 response = test_client.get("/invoices/html?token=patient-token&status=paid")
         mock_get.assert_called_with(
-            "http://billing-database:6004/invoices/patient/101", timeout=module.REQUEST_TIMEOUT
+            "http://billing-database:6004/invoices/patient/3", timeout=module.REQUEST_TIMEOUT
         )

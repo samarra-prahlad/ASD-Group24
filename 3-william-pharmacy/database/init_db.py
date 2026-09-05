@@ -66,16 +66,16 @@ med_ids = [row[0] for row in cursor.fetchall()]
 cursor.execute('SELECT COUNT(*) FROM prescriptions')
 if cursor.fetchone()[0] == 0:
     prescriptions = [
-        (101, med_ids[0], '500mg twice daily',        'Dr. Sarah Chen',      'active'),
-        (102, med_ids[1], '200mg every 6 hours',       'Dr. James Patel',     'active'),
-        (103, med_ids[2], '10mg once daily',           'Dr. Sarah Chen',      'active'),
-        (104, med_ids[3], '500mg twice daily',         'Dr. Maria Gonzalez',  'completed'),
-        (105, med_ids[4], '20mg once daily at night',  'Dr. James Patel',     'active'),
-        (106, med_ids[5], '5mg once daily',            'Dr. Ahmed Hassan',    'active'),
-        (107, med_ids[6], '20mg once daily',           'Dr. Maria Gonzalez',  'cancelled'),
-        (108, med_ids[7], '50mcg once daily',          'Dr. Sarah Chen',      'active'),
-        (109, med_ids[8], '2 puffs as needed',         'Dr. Ahmed Hassan',    'active'),
-        (110, med_ids[9], '10mg once daily',           'Dr. James Patel',     'completed'),
+        (1,  med_ids[0], '500mg twice daily',        'Dr. Sarah Chen',      'active'),
+        (2,  med_ids[1], '200mg every 6 hours',       'Dr. James Patel',     'active'),
+        (3,  med_ids[2], '10mg once daily',           'Dr. Sarah Chen',      'active'),
+        (4,  med_ids[3], '500mg twice daily',         'Dr. Maria Gonzalez',  'completed'),
+        (5,  med_ids[4], '20mg once daily at night',  'Dr. James Patel',     'active'),
+        (6,  med_ids[5], '5mg once daily',            'Dr. Ahmed Hassan',    'active'),
+        (7,  med_ids[6], '20mg once daily',           'Dr. Maria Gonzalez',  'cancelled'),
+        (8,  med_ids[7], '50mcg once daily',          'Dr. Sarah Chen',      'active'),
+        (9,  med_ids[8], '2 puffs as needed',         'Dr. Ahmed Hassan',    'active'),
+        (10, med_ids[9], '10mg once daily',           'Dr. James Patel',     'completed'),
     ]
     cursor.executemany(
         '''INSERT INTO prescriptions (patient_id, medication_id, dosage, prescribing_doctor, status)
