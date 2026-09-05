@@ -54,3 +54,24 @@ def test_delete_order():
     }).json()
     r = requests.delete(f"{BASE_URL}/orders/{created['order_id']}")
     assert r.status_code == 200
+
+def test_update_result():
+    created = requests.post(f"{BASE_URL}/results", json={
+        "order_id": 4, "result_value": "Placeholder", "reference_range": "N/A"
+    }).json()
+
+    r = requests.put(f"{BASE_URL}/results/{created['result_id']}", json={
+        "result_value": "Updated value",
+        "reference_range": "N/A",
+        "flagged": 0,
+        "ai_notes": "updated"
+    })
+    assert r.status_code == 200
+
+def test_delete_result():
+    created = requests.post(f"{BASE_URL}/results", json={
+        "order_id": 4, "result_value": "temp", "reference_range": "temp"
+    }).json()
+
+    r = requests.delete(f"{BASE_URL}/results/{created['result_id']}")
+    assert r.status_code == 200

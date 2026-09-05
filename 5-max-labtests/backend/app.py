@@ -58,6 +58,16 @@ def create_result():
     r = requests.post(f"{DATABASE_SERVICE_URL}/results", json=data, timeout=5)
     return jsonify(r.json()), r.status_code
 
+@app.put("/results/<int:result_id>")
+def update_result(result_id):
+    data = request.get_json()
+    r = requests.put(f"{DATABASE_SERVICE_URL}/results/{result_id}", json=data, timeout=5)
+    return jsonify(r.json()), r.status_code
+
+@app.delete("/results/<int:result_id>")
+def delete_result(result_id):
+    r = requests.delete(f"{DATABASE_SERVICE_URL}/results/{result_id}", timeout=5)
+    return jsonify(r.json()), r.status_code
 
 def flag_result_with_ai(result_value, reference_range):
     prompt = (

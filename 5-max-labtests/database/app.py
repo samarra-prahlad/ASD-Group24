@@ -37,13 +37,34 @@ def get_results(order_id):
 def create_result():
     data = request.get_json()
     conn = sqlite3.connect("/app/data/labtests.db")
-    conn.execute(
+    cur = conn.execute(
         "INSERT INTO lab_results (order_id, result_value, reference_range, flagged, ai_notes) VALUES (?, ?, ?, ?, ?)",
         (data["order_id"], data["result_value"], data["reference_range"], data.get("flagged", 0), data.get("ai_notes", ""))
     )
     conn.commit()
+    new_id = cur.lastrowid
     conn.close()
-    return jsonify({"status": "created"}), 201
+    return jsonify({"result_id": new_id}), 201
+
+@app.route("/results/<int:result_id>", methods=["PUT"])
+def update_result(result_id):
+    data = request.get_json()
+    conn = sqlite3.connect("/app/data/labtests.db")
+    conn.execute(
+        "UPDATE lab_results SET result_value=?, reference_range=?, flagged=?, ai_notes=? WHERE result_id=?",
+        (data.get("result_value"), data.get("reference_range"), data.get("flagged", 0), data.get("ai_notes", ""), result_id)
+    )
+    conn.commit()
+    conn.close()
+    return jsonify({"status": "updated"})
+
+@app.route("/results/<int:result_id>", methods=["DELETE"])
+def delete_result(result_id):
+    conn = sqlite3.connect("/app/data/labtests.db")
+    conn.execute("DELETE FROM lab_results WHERE result_id=?", (result_id,))
+    conn.commit()
+    conn.close()
+    return jsonify({"status": "deleted"})
 
 @app.route("/orders/<int:order_id>", methods=["PUT"])
 def update_order(order_id):
