@@ -1,4 +1,5 @@
 import os
+from pathlib import Path
 
 from flask import Flask, jsonify, request
 from flask_cors import CORS
@@ -13,11 +14,17 @@ SHARED_ACCESS_API_URL = os.environ.get("SHARED_ACCESS_API_URL", "http://shared-b
 SHARED_DB_URL = os.environ.get("SHARED_DB_URL", "http://shared-database:6000")
 OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434/v1")
 OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "qwen2.5:0.5b")
+PROMPT_DIR = Path(__file__).with_name("prompts")
 
 client = OpenAI(
     base_url=OLLAMA_BASE_URL,
     api_key="ollama"
 )
+
+
+def load_prompt(filename):
+    prompt_path = PROMPT_DIR / filename
+    return prompt_path.read_text(encoding="utf-8").strip()
 
 def check_session(token):
     if not token:
@@ -308,11 +315,7 @@ def summarize_history():
             messages=[
                 {
                     "role": "system",
-                    "content": (
-                        "You are a clinical assistant summarising a patient's medical history "
-                        "for a healthcare worker or the patient themselves. Be concise and factual. "
-                        "Only use the history provided — do not invent details."
-                    )
+                    "content": load_prompt("summarize_system_prompt.txt")
                 },
                 {"role": "user", "content": user_prompt}
             ],
