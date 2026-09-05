@@ -1,11 +1,10 @@
 import os
 import requests
-from flask import Flask, jsonify, request, render_template, redirect
+from flask import Flask, jsonify, request
 from flask_cors import CORS
 from markupsafe import escape
 
-BACKEND_DIR = os.path.dirname(os.path.abspath(__file__))
-app = Flask(__name__, template_folder=os.path.join(BACKEND_DIR, "templates"))
+app = Flask(__name__)
 CORS(app)
 
 DATABASE_SERVICE_URL = os.environ.get("DATABASE_SERVICE_URL", "http://billing-database:6004")
@@ -18,8 +17,6 @@ OLLAMA_MODEL = os.environ.get("OLLAMA_MODEL", "qwen2.5:0.5b")
 
 AI_TIMEOUT = 30  # seconds - LLM responses are slower than normal service calls
 REQUEST_TIMEOUT = 3  # seconds - fail fast to mock rather than hang if a teammate's service is down
-
-SHARED_LOGIN_URL = "http://localhost:5000/login"
 
 AI_SYSTEM_PROMPT = (
     "You are a helpful billing assistant for a healthcare application. "
@@ -161,28 +158,6 @@ def health():
 
 
 # ---------------------------------------------------------------------------
-# Role-gated view - decides which template to render based on the caller's
-# session, same pattern as shared-backend's /home route.
-# ---------------------------------------------------------------------------
-
-@app.get("/view")
-def view():
-    token = request.args.get("token")
-    session, error = verify_session(token)
-
-    if session is None:
-        return redirect(SHARED_LOGIN_URL)
-
-    template = "admin.html" if session["role"] == "admin" else "patient.html"
-    return render_template(
-        template,
-        token=token,
-        first_name=session.get("first_name"),
-        patient_id=session.get("patient_id"),
-    )
-
-
-# ---------------------------------------------------------------------------
 # Proxy plain CRUD reads to the database tier
 #
 # All read endpoints now require a valid session token. Admins can read
@@ -298,7 +273,7 @@ def render_invoice_rows(invoices, token, role="admin"):
         elif inv["status"] != "paid":
             action_cell = f"""<button
                     type="button"
-                    hx-post="http://localhost:5004/invoices/{inv['id']}/pay/html?token={token}"
+                    hx-post="/invoices/{inv['id']}/pay/html?token={token}"
                     hx-target="#invoice-pay-message-{inv['id']}"
                     hx-swap="innerHTML"
                     hx-confirm="Mark this invoice as paid?"
@@ -322,7 +297,7 @@ def render_invoice_rows(invoices, token, role="admin"):
             rows.append(f"""<tr id="invoice-edit-{inv['id']}" class="edit-row is-hidden">
                 <td colspan="8">
                     <form
-                        hx-put="http://localhost:5004/invoices/{inv['id']}/html?token={token}"
+                        hx-put="/invoices/{inv['id']}/html?token={token}"
                         hx-target="#invoice-edit-message-{inv['id']}"
                         hx-swap="innerHTML"
                     >
