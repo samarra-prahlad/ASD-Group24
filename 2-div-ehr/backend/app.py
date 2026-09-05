@@ -246,6 +246,24 @@ def update_change_request(request_id):
 
     return jsonify(resp.json())
 
+
+@app.delete("/change_requests/<int:request_id>")
+def delete_change_request(request_id):
+    token = request.args.get("token")
+    caller_id, role, err = check_session(token)
+    if err:
+        return err
+    if role != "admin":
+        return jsonify({"error": "Only staff can delete change requests"}), 403
+
+    try:
+        resp = requests.delete(f"{DATABASE_SERVICE_URL}/change_requests/{request_id}", timeout=5)
+        resp.raise_for_status()
+    except requests.RequestException as exc:
+        return jsonify({"error": "EHR Database unavailable", "details": str(exc)}), 503
+
+    return jsonify(resp.json())
+
 #---Patient history summarization---
 
 @app.post("/summarize")

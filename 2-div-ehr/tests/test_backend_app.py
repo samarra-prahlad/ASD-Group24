@@ -291,6 +291,22 @@ class TestChangeRequestsRoutes:
         response = client.put("/change_requests/1", json={"token": "admin-token", "status": "approved"})
         assert response.status_code == 200
 
+    @patch("requests.delete")
+    @patch("requests.post")
+    def test_delete_change_request_as_admin_succeeds(self, mock_post, mock_delete, client):
+        mock_post.return_value = fake_response(fake_session(role="admin"), 200)
+        mock_delete.return_value = fake_response({"message": "Change request deleted successfully"}, 200)
+
+        response = client.delete("/change_requests/1?token=admin-token")
+        assert response.status_code == 200
+
+    @patch("requests.post")
+    def test_delete_change_request_as_patient_returns_403(self, mock_post, client):
+        mock_post.return_value = fake_response(fake_session(role="patient"), 200)
+
+        response = client.delete("/change_requests/1?token=patient-token")
+        assert response.status_code == 403
+
 class TestSummarizeRoute:
 
     @patch("requests.post")

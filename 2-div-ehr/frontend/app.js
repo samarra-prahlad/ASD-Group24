@@ -222,6 +222,7 @@ async function viewPatient(patientId, patientName) {
     <div>
       ${r.request_type} - ${r.request_details} - <strong>${r.status}</strong>
       ${r.status === "pending" ? `<button onclick="approveRequest(${r.id}, ${patientId}, '${escAttr(patientName)}')">Approve</button>` : ""}
+      <button onclick="deleteChangeRequest(${r.id}, ${patientId}, '${escAttr(patientName)}')">Delete</button>
     </div>
   `).join("") || "<p>No requests found.</p>";
 }
@@ -237,6 +238,21 @@ async function approveRequest(id, patientId, patientName) {
     body: JSON.stringify({ token: token, status: "approved" })
   });
   viewPatient(patientId, patientName);
+}
+
+async function deleteChangeRequest(id, patientId, patientName) {
+  const confirmed = confirm("Delete this change request? This cannot be undone.");
+  if (!confirmed) return;
+
+  const resp = await fetch(`${API_URL}/change_requests/${id}?token=${token}`, {
+    method: "DELETE"
+  });
+
+  if (resp.ok) {
+    viewPatient(patientId, patientName);
+  } else {
+    alert("Failed to delete change request.");
+  }
 }
 
 async function addRecord() {
