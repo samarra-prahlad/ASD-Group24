@@ -108,6 +108,21 @@ def assign_patient(bed_id):
         conn.close()
         return jsonify({"error": "Bed is already occupied"}), 409
 
+    # A patient can only occupy one bed at a time - check before inserting,
+    # rather than relying solely on the DB's UNIQUE constraint, so this
+    # always returns a clean error instead of an unhandled crash.
+    existing_assignment = conn.execute("""
+        SELECT bed_id
+        FROM beds
+        WHERE patient_id = ?
+    """, (patient_id,)).fetchone()
+
+    if existing_assignment is not None:
+        conn.close()
+        return jsonify({
+            "error": f"Patient {patient_id} is already assigned to bed {existing_assignment['bed_id']}"
+        }), 409
+
     conn.execute("""
         UPDATE beds
         SET patient_id = ?, status = 'occupied'
@@ -229,4 +244,4 @@ def get_patient_bed(patient_id):
     return jsonify(dict(bed))
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=6006, debug=True)    
+    app.run(host="0.0.0.0", port=6006, debug=True)
