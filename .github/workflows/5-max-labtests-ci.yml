@@ -22,14 +22,59 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Install backend dependencies
+      - name: Install shared service dependencies
+        run: |
+          pip install -r shared/database/requirements.txt
+          pip install -r shared/backend/requirements.txt
+
+      - name: Install lab tests dependencies
         run: |
           pip install -r 5-max-labtests/backend/requirements.txt
-          pip install pytest
-
-      - name: Install database dependencies
-        run: |
           pip install -r 5-max-labtests/database/requirements.txt
+          pip install pytest requests
+
+      - name: Initialise shared database
+        run: python shared/database/init_db.py
+
+      - name: Initialise lab tests database
+        run: python 5-max-labtests/database/init_db.py
+
+      - name: Start shared database service
+        run: python shared/database/app.py &
+        env:
+          PORT: 6000
+
+      - name: Start shared backend service
+        run: python shared/backend/app.py &
+        env:
+          PORT: 5000
+
+      - name: Start lab tests database service
+        run: python 5-max-labtests/database/app.py &
+        env:
+          PORT: 6005
+
+      - name: Start lab tests backend service
+        run: python 5-max-labtests/backend/app.py &
+        env:
+          PORT: 5005
+
+      - name: Wait for all services to be ready
+        run: |
+          for port in 6000 5000 6005 5005; do
+            echo "Waiting for service on port $port..."
+            for i in $(seq 1 30); do
+              if curl -sf "http://localhost:$port/" > /dev/null 2>&1; then
+                echo "Port $port is ready."
+                break
+              fi
+              if [ "$i" -eq 30 ]; then
+                echo "Service on port $port did not become ready in time."
+                exit 1
+              fi
+              sleep 1
+            done
+          done
 
       - name: Run pytest
         run: pytest 5-max-labtests/tests/ -v
@@ -40,6 +85,5 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
       - name: Placeholder for AI-assisted test step
         run: echo "AI-assisted unit testing step — to be implemented"
