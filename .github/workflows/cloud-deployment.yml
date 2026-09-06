@@ -1,0 +1,17 @@
+name: Cloud Deployment
+
+# Manual trigger only - AWS deployment is planned for a later release,
+# not required for this one. Change back to push/pull_request triggers
+# once deployment is actually implemented and tested.
+on:
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Placeholder - deployment not yet implemented
+        run: echo "Cloud deployment pipeline is scaffolded but not yet active. See scripts/lab11/deploy-aws.sh for the planned approach."
