@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset="UTF-8">
+        <title>Bed assidngment and history</title>
+        <link rel="stylesheet" href="./styles.css">
+    </head>
+    <body>
+        <h1 id="welcome-message">Welcome</h1>
+
+        <section>
+            <h2>Current Bed</h2>
+            <div id="current-bed">
+                Loading...
+            </div>
+        </section>
+
+        <section>
+            <h2>Bed Assignment History</h2>
+
+            <table>
+                <thead>
+                    <tr>
+                        <th>Bed ID</th>
+                        <th>Date Assigned</th>
+                        <th>Date Released</th>
+                    </tr>
+                </thead>
+
+                <tbody id="history-table-body">
+                    <tr>
+                        <td colspan="3">Loading bed history...</td>
+                    </tr>
+                </tbody>
+            </table>
+        </section>
+        <script>
+            async function startPage() {
+                const authResponse = await fetch(
+                    "http://localhost:5006/auth/check",
+                    {
+                        credentials: "include"
+                    }
+                );
+
+                if (!authResponse.ok) {
+                    window.location.href = "http://localhost:5000/login";
+                    return;
+                }
+
+                const user = await authResponse.json();
+
+                if (user.role !== "patient") {
+                    window.location.href = "index.html";
+                    return;
+                }
+
+                document.getElementById("welcome-message").textContent =
+                    `Assignment history for ${user.first_name}`;
+
+                await loadCurrentBed(user.patient_id);
+                await loadBedHistory(user.patient_id);
+            }
+
+            startPage();
+
+            async function loadCurrentBed(patientId) {
+                const response = await fetch(
+                    `http://localhost:5006/patients/${patientId}/bed`,
+                    { credentials: "include" }
+                );
+
+                const currentBed = document.getElementById("current-bed");
+
+                if (response.status === 404) {
+                    currentBed.textContent = "Currently not assigned to any bed";
+                    return;
+                }
+
+                if (!response.ok) {
+                    currentBed.textContent = "Unable to load current bed";
+                    return;
+                }
+
+                const bed = await response.json();
+
+                currentBed.textContent =
+                    `Ward: ${bed.ward_name} | Bed: ${bed.bed_number}`;
+            }
+
+            async function loadBedHistory(patientId) {
+                const response = await fetch(
+                    `http://localhost:5006/patients/${patientId}/assignments`, {credentials: "include"});
+
+                const tableBody = document.getElementById("history-table-body");
+
+                if (!response.ok) {
+                    tableBody.innerHTML = `
+                        <tr>
+                            <td colspan="3">
+                                Unable to load bed assignment history
+                            </td>
+                        </tr>
+                    `;
+                    return;
+                }
+
+                const assignments = await response.json();
+
+                if (assignments.length === 0) {
+                    tableBody.innerHTML = `
+                        <tr>
+                            <td colspan="3">
+                                No bed assignment history
+                            </td>
+                        </tr>
+                    `;
+                    return;
+                }
+
+                tableBody.innerHTML = "";
+
+                assignments.forEach(assignment => {
+                    const row = document.createElement("tr");
+
+                    row.innerHTML = `
+                        <td>${assignment.bed_id}</td>
+                        <td>${assignment.date_assigned}</td>
+                        <td>${assignment.date_released}</td>
+                    `;
+
+                    tableBody.appendChild(row);
+                });
+            }
+        </script>
+    </body>
+</html>

@@ -7,7 +7,7 @@
     </head>
     <body>
         <header>
-            <h1 id="wardDisplay">Loading ward...</h1>
+            <h1 id="wardDisplay">LOADING WARD...</h1>
             <nav class="page-nav">
                 <a href="/index.html">Return to Ward Selection</a>
 
@@ -26,6 +26,7 @@
                             <th>Bed Number</th>
                             <th>Patient ID</th>
                             <th>status</th>
+                            <th>Date assigned</th>
                         </tr>
                     </thead>
                     <tbody id="beds-table-body">
@@ -104,7 +105,7 @@
                 const response = await fetch(`http://localhost:5006/wards/${wardId}`);
                 const ward = await response.json();
 
-                document.getElementById("wardDisplay").textContent = ward.ward_name + " Ward";
+                document.getElementById("wardDisplay").textContent = ward.ward_name + " WARD";
             }
 
             async function loadBeds() {
@@ -130,6 +131,7 @@
                         <td>${bed.bed_number}</td>
                         <td>${bed.patient_id ?? ""}</td>
                         <td>${bed.status}</td>
+                        <td>${bed.date_assigned ?? ""}</td>
                     `;
 
                     if (bed.status === "available") {

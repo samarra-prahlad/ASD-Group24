@@ -64,9 +64,19 @@ def get_beds_by_ward(ward_id):
         return jsonify({"error": "Ward not found"}), 404
 
     beds = conn.execute("""
-        SELECT bed_id, ward_id, patient_id, bed_number, status
+        SELECT
+            beds.bed_id,
+            beds.ward_id,
+            beds.patient_id,
+            beds.bed_number,
+            beds.status,
+            bed_assignments.date_assigned
         FROM beds
-        WHERE ward_id = ?
+        LEFT JOIN bed_assignments
+            ON beds.bed_id = bed_assignments.bed_id
+            AND bed_assignments.date_released IS NULL
+        WHERE beds.ward_id = ?
+        ORDER BY beds.bed_number
     """, (ward_id,)).fetchall()
 
     conn.close()
@@ -116,7 +126,7 @@ def assign_patient(bed_id):
     conn.commit()
     conn.close()
 
-    raw_time = assignment["date_released"]
+    raw_time = assignment["date_assigned"]
 
     readable_time = datetime.strptime(
         raw_time,
