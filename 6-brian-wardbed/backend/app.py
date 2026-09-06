@@ -131,6 +131,18 @@ def assign_patient_to_bed(bed_id):
 
     return jsonify(bed_response.json()), bed_response.status_code
 
+@app.get("/patients/<int:patient_id>/bed")
+def get_patient_bed(patient_id):
+    try:
+        response = requests.get(
+            f"{DATABASE_SERVICE_URL}/patients/{patient_id}/bed",
+            timeout=10
+        )
+    except requests.RequestException:
+        return jsonify({"error": "Ward database service unavailable"}), 502
+
+    return jsonify(response.json()), response.status_code
+
 @app.route("/beds/<int:bed_id>/release", methods=["PUT"])
 def release_patient_from_bed(bed_id):
     try:

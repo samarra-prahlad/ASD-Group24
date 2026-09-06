@@ -208,9 +208,17 @@ def get_patient_bed(patient_id):
     conn = get_db()
 
     bed = conn.execute("""
-        SELECT bed_id, ward_id, patient_id, bed_number, status
+        SELECT
+            beds.bed_id,
+            beds.ward_id,
+            beds.patient_id,
+            beds.bed_number,
+            beds.status,
+            wards.ward_name
         FROM beds
-        WHERE patient_id = ?
+        JOIN wards
+            ON beds.ward_id = wards.ward_id
+        WHERE beds.patient_id = ?
     """, (patient_id,)).fetchone()
 
     conn.close()
