@@ -6,10 +6,15 @@
     <link rel="stylesheet" href="./styles.css">
 </head>
 <body>
-    <a href="http://localhost:5000/home" id="Homepagetext">← Return to home page</a>
+    <nav class="top-nav">
+        <div class="top-nav-left">
+            <a href="http://localhost:5000/home" class="top-nav-home">&larr; Home</a>
+        </div>
+    </nav>
+
     <header>
         <h1>WARD MANAGEMENT</h1>
-        <P id="instructionText">Please select the ward you are assigning the patient</P>
+        <p id="instructionText">Please select the ward you are assigning the patient</p>
     </header>
     <main>
         <div class="MainMenu">
@@ -35,43 +40,9 @@
     </main>
 
     <script>
-       /*  async function checkAuth() {
-            const response = await fetch("http://localhost:5006/auth/check", {
-                credentials: "include"
-            });
-
-            if (!response.ok) {
-                window.location.href = "http://localhost:5000/login";
-                return false;
-            }
-
-            const data = await response.json();
-
-            if (data.role === "admin") {
-                return true;
-            }
-
-            if (data.role === "patient") {
-                window.location.href = "patient.html";
-                return false;
-            }
-
-            window.location.href = "login.html";
-            return false;
-        }
-
-    async function startPage() {
-        const authorised = await checkAuth();
-
-        if (!authorised) {
-            return;
-        }
-    }
-
-    startPage(); */
-
         function selectWard(wardId) {
             window.location.href = `ward_detail.html?ward_id=${wardId}`;
         }
     </script>
 </body>
+</html>

@@ -2,38 +2,51 @@
 <html>
     <head>
         <meta charset="UTF-8">
-        <title>Bed assidngment and history</title>
+        <title>Bed assignment and history</title>
+        <link rel="stylesheet" href="http://localhost:3000/css/theme.css">
         <link rel="stylesheet" href="./styles.css">
     </head>
     <body>
-        <h1 id="welcome-message">Welcome</h1>
-
-        <section>
-            <h2>Current Bed</h2>
-            <div id="current-bed">
-                Loading...
+        <nav class="top-nav">
+            <div class="top-nav-left">
+                <a href="http://localhost:5000/home" class="top-nav-home">&larr; Home</a>
             </div>
-        </section>
+        </nav>
 
-        <section>
-            <h2>Bed Assignment History</h2>
+        <header>
+            <h1 id="welcome-message">Welcome</h1>
+        </header>
 
-            <table>
-                <thead>
-                    <tr>
-                        <th>Bed ID</th>
-                        <th>Date Assigned</th>
-                        <th>Date Released</th>
-                    </tr>
-                </thead>
+        <div id="main-ward-details">
+            <section>
+                <h2>Current Bed</h2>
+                <div id="current-bed">
+                    Loading...
+                </div>
+            </section>
 
-                <tbody id="history-table-body">
-                    <tr>
-                        <td colspan="3">Loading bed history...</td>
-                    </tr>
-                </tbody>
-            </table>
-        </section>
+            <section>
+                <h2>Bed Assignment History</h2>
+
+                <div class="table-container">
+                    <table class="beds-table">
+                        <thead>
+                            <tr>
+                                <th>Bed ID</th>
+                                <th>Date Assigned</th>
+                                <th>Date Released</th>
+                            </tr>
+                        </thead>
+
+                        <tbody id="history-table-body">
+                            <tr>
+                                <td colspan="3">Loading bed history...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+        </div>
         <script>
             async function startPage() {
                 const authResponse = await fetch(
