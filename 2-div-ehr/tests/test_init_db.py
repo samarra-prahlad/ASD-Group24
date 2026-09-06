@@ -79,9 +79,9 @@ class TestSeedData:
         count = conn.execute("SELECT COUNT(*) AS c FROM medical_records").fetchone()["c"]
         assert count > 0
 
-    def test_change_requests_start_empty(self, conn):
+    def test_change_requests_are_seeded(self, conn):
         count = conn.execute("SELECT COUNT(*) AS c FROM change_requests").fetchone()["c"]
-        assert count == 0
+        assert count >= 10
 
     def test_seeded_patient_ids_match_real_shared_database_patients(self, conn):
         seeded_ids = {row["patient_id"] for row in conn.execute("SELECT DISTINCT patient_id FROM medical_records")}
