@@ -295,3 +295,41 @@ def test_delete_invalid_appointment():
     )
 
     assert response.status_code == 404
+
+def test_create_appointment_double_booking():
+    appointment = {
+        "patient_id": 3,
+        "doctor_id": 206,
+        "date": "2026-11-05",
+        "time": "09:00",
+        "status": "scheduled"
+    }
+
+    first_response = requests.post(
+        f"{BASE_URL}/appointments",
+        json=appointment
+    )
+
+    assert first_response.status_code in [200, 201]
+    appointment_id = first_response.json()["appointment_id"]
+
+    duplicate_appointment = {
+        "patient_id": 4,
+        "doctor_id": 206,
+        "date": "2026-11-05",
+        "time": "09:00",
+        "status": "scheduled"
+    }
+
+    second_response = requests.post(
+        f"{BASE_URL}/appointments",
+        json=duplicate_appointment
+    )
+
+    assert second_response.status_code == 409
+
+    data = second_response.json()
+    assert "error" in data
+
+    # Clean up
+    requests.delete(f"{BASE_URL}/appointments/{appointment_id}")

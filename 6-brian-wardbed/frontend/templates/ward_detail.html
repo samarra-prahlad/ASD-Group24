@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset="UTF-8">
+        <title>Bed Management</title>
+        <link rel="stylesheet" href="http://localhost:3000/css/theme.css">
+        <link rel="stylesheet" href="./styles.css">
+    </head>
+    <body>
+        <nav class="top-nav">
+            <div class="top-nav-left">
+                <a href="/admin.html">&larr; Return to Ward Selection</a>
+                <a href="http://localhost:5000/home" class="top-nav-home">&larr; Home</a>
+            </div>
+        </nav>
+        <header>
+            <h1 id="wardDisplay">LOADING WARD...</h1>
+        </header>
+        <div id="main-ward-details">
+            <div class="beds-selection">
+                <h4>Please select an available bed from one of the beds below.</h4>
+            </div>
+            <div class="table-container">
+                <table class="beds-table">
+                    <thead>
+                        <tr>
+                            <th>Bed Number</th>
+                            <th>Patient ID</th>
+                            <th>status</th>
+                            <th>Date assigned</th>
+                        </tr>
+                    </thead>
+                    <tbody id="beds-table-body">
+                        <tr>
+                            <td colspan="4">Loading beds...</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div id="assignModal" class="modal">
+                <div class="modal-box">
+                    <h3>Assign Patient</h3>
+                    <input
+                        type="number"
+                        id="patientIdInput"
+                        placeholder="Enter patient ID"
+                    >
+                    <div class="modal-actions">
+                        <button id="assignConfirm">Assign</button>
+                        <button id="assignCancel">Cancel</button>
+                    </div>
+                    <p id="assignMessage"></p>
+                </div>
+            </div>
+            <button id="aiButton">AI assistant</button>
+            <div id="aiChat" class="ai-chat">
+                <h3>Ward Assistant</h3>
+                <div id="chatMessages"></div>
+                <div class="chat-input">
+                    <input
+                        type="text"
+                        id="aiInput"
+                        placeholder="Ask about this ward..."
+                    >
+                    <button id="aiSend">Send</button>
+                </div>
+            </div>
+            <div id="releaseModal" class="modal">
+                <div class="modal-box">
+                    <h3>Release Patient</h3>
+                    <p id="releaseText"></p>
+                    <div class="modal-actions">
+                        <button id="releaseConfirm">Remove Patient</button>
+                        <button id="releaseCancel">Cancel</button>
+                    </div>
+                    <p id="releaseMessage"></p>
+                </div>
+            </div>
+        </div>
+        <script>
+            const params = new URLSearchParams(window.location.search);
+            const wardId = params.get("ward_id");
+            const aiButton = document.getElementById("aiButton");
+            const aiChat = document.getElementById("aiChat");
+            const aiInput = document.getElementById("aiInput");
+            const aiSend = document.getElementById("aiSend");
+            const chatMessages = document.getElementById("chatMessages");
+
+            async function loadWard() {
+                const response = await fetch(`http://localhost:5006/wards/${wardId}`);
+                const ward = await response.json();
+                document.getElementById("wardDisplay").textContent = ward.ward_name + " WARD";
+            }
+
+            async function loadBeds() {
+                const response = await fetch(`http://localhost:5006/wards/${wardId}/beds`);
+                const beds = await response.json();
+                const tableBody = document.getElementById("beds-table-body");
+                tableBody.innerHTML = "";
+                if (beds.length === 0) {
+                    tableBody.innerHTML = `
+                        <tr>
+                            <td colspan="4">No beds assigned to this ward</td>
+                        </tr>
+                    `;
+                    return;
+                }
+                beds.forEach(bed => {
+                    const row = document.createElement("tr");
+                    row.innerHTML = `
+                        <td>${bed.bed_number}</td>
+                        <td>${bed.patient_id ?? ""}</td>
+                        <td>${bed.status}</td>
+                        <td>${bed.date_assigned ?? ""}</td>
+                    `;
+                    if (bed.status === "available") {
+                        row.classList.add("available-row");
+                        row.style.cursor = "pointer";
+                        row.addEventListener("click", () => {
+                            assignPatient(bed.bed_id);
+                        });
+                    } else if (bed.status === "occupied") {
+                        row.classList.add("occupied-row");
+                        row.style.cursor = "pointer";
+                        row.addEventListener("click", () => {
+                            showReleaseModal(
+                                bed.bed_id,
+                                bed.patient_id,
+                                bed.bed_number
+                            );
+                        });
+                    }
+                    tableBody.appendChild(row);
+                });
+            }
+
+            function startPage() {
+                if (!wardId) {
+                    document.getElementById("wardDisplay").textContent =
+                        "No ward selected";
+                    return;
+                }
+                loadWard();
+                loadBeds();
+            }
+
+            startPage();
+
+            let selectedBedId = null;
+            function assignPatient(bedId) {
+                selectedBedId = bedId;
+                document.getElementById("patientIdInput").value = "";
+                document.getElementById("assignMessage").textContent = "";
+                document.getElementById("assignModal").style.display = "flex";
+            }
+            document.getElementById("assignConfirm").addEventListener("click", async () => {
+                const patientId = document.getElementById("patientIdInput").value;
+                if (!patientId) {
+                    document.getElementById("assignMessage").textContent =
+                        "Please enter a patient ID.";
+                    return;
+                }
+                try {
+                    const response = await fetch(
+                        `http://localhost:5006/beds/${selectedBedId}/assign`,
+                        {
+                            method: "PUT",
+                            headers: {
+                                "Content-Type": "application/json"
+                            },
+                            body: JSON.stringify({
+                                patient_id: Number(patientId)
+                            })
+                        }
+                    );
+                    const data = await response.json();
+                    if (!response.ok) {
+                        document.getElementById("assignMessage").textContent =
+                            data.error;
+                        return;
+                    }
+                    document.getElementById("assignMessage").textContent =
+                        "Patient assigned successfully.";
+                    loadBeds();
+                    setTimeout(() => {
+                        document.getElementById("assignModal").style.display = "none";
+                    }, 1000);
+                } catch (error) {
+                    document.getElementById("assignMessage").textContent =
+                        "Unable to connect to the backend.";
+                }
+            });
+            let selectedReleaseBedId = null;
+            function showReleaseModal(bedId, patientId, bedNumber) {
+                selectedReleaseBedId = bedId;
+                document.getElementById("releaseText").textContent =
+                    `Remove Patient ${patientId} from Bed ${bedNumber}?`;
+                document.getElementById("releaseMessage").textContent = "";
+                document.getElementById("releaseModal").style.display = "flex";
+            }
+            document.getElementById("releaseConfirm").addEventListener("click", async () => {
+                try {
+                    const response = await fetch(
+                        `http://localhost:5006/beds/${selectedReleaseBedId}/release`,
+                        {
+                            method: "PUT"
+                        }
+                    );
+                    const data = await response.json();
+                    if (!response.ok) {
+                        document.getElementById("releaseMessage").textContent =
+                            data.error;
+                        return;
+                    }
+                    document.getElementById("releaseMessage").textContent =
+                        data.message;
+                    loadBeds();
+                    setTimeout(() => {
+                        document.getElementById("releaseModal").style.display = "none";
+                    }, 1000);
+                } catch (error) {
+                    document.getElementById("releaseMessage").textContent =
+                        "Unable to connect to the backend.";
+                }
+            });
+            document.getElementById("assignCancel").addEventListener("click", () => {
+                document.getElementById("assignModal").style.display = "none";
+            });
+            document.getElementById("releaseCancel").addEventListener("click", () => {
+                document.getElementById("releaseModal").style.display = "none";
+            });
+
+            aiButton.addEventListener("click", () => {
+                if (aiChat.style.display === "block") {
+                    aiChat.style.display = "none";
+                } else {
+                    aiChat.style.display = "block";
+                }
+            });
+            aiSend.addEventListener("click", sendAIMessage);
+            async function sendAIMessage() {
+                const query = aiInput.value.trim();
+                if (!query) {
+                    return;
+                }
+                chatMessages.innerHTML += `
+                    <p><strong>You:</strong> ${query}</p>
+                `;
+                aiInput.value = "";
+                try {
+                    const response = await fetch(
+                        "http://localhost:5006/ai/chat",
+                        {
+                            method: "POST",
+                            headers: {
+                                "Content-Type": "application/json"
+                            },
+                            body: JSON.stringify({
+                                query: query,
+                                ward_id: Number(wardId)
+                            })
+                        }
+                    );
+                    const data = await response.json();
+                    if (!response.ok) {
+                        chatMessages.innerHTML += `
+                            <p><strong>AI:</strong> ${data.error}</p>
+                        `;
+                        return;
+                    }
+                    chatMessages.innerHTML += `
+                        <p><strong>AI:</strong> ${data.reply}</p>
+                    `;
+                } catch (error) {
+                    chatMessages.innerHTML += `
+                        <p><strong>AI:</strong> Unable to connect to the AI service.</p>
+                    `;
+                }
+            }
+        </script>
+    </body>
+</html>

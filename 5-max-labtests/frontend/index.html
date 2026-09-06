@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Lab Tests & Diagnostics</title>
+    <link rel="stylesheet" href="css/style.css">
+    <!-- TODO: swap to shared theme once available -->
+</head>
+<body>
+    <header>
+        <h1>Lab Tests & Diagnostics</h1>
+        <a href="http://localhost:3000/home">← Back to Home</a>
+    </header>
+
+    <main>
+        <section>
+            <h2>Request a Lab Test</h2>
+            <form id="order-form">
+                <label>Patient ID: <input type="number" id="patient_id" required></label>
+                <label>Test Type:
+                    <select id="test_type" required>
+                        <option value="">-- Select a test --</option>
+                        <option value="Complete Blood Count">Complete Blood Count</option>
+                        <option value="Lipid Panel">Lipid Panel</option>
+                        <option value="Thyroid Function Test">Thyroid Function Test</option>
+                        <option value="Blood Glucose">Blood Glucose</option>
+                        <option value="Liver Function Test">Liver Function Test</option>
+                        <option value="Urinalysis">Urinalysis</option>
+                        <option value="Chest X-Ray">Chest X-Ray</option>
+                        <option value="HbA1c">HbA1c</option>
+                        <option value="Electrolyte Panel">Electrolyte Panel</option>
+                        <option value="Vitamin D">Vitamin D</option>
+                    </select>
+                </label>
+                <label>Ordered By: <input type="text" id="ordered_by" required></label>
+                <button type="submit">Submit Order</button>
+            </form>
+            <p id="order-response"></p>
+        </section>
+
+        <section>
+            <h2>Add a Lab Result</h2>
+            <form id="result-form">
+                <label>Order ID: <input type="number" id="result_order_id" required></label>
+                <label>Result Value: <input type="text" id="result_value" placeholder="e.g. WBC 15.8 x10^9/L" required></label>
+                <label>Reference Range: <input type="text" id="reference_range" placeholder="e.g. 4.0-11.0 x10^9/L" required></label>
+                <button type="submit">Submit Result</button>
+            </form>
+            <p id="result-response"></p>
+        </section>
+
+        <section>
+            <h2>Lab Orders</h2>
+            <table id="orders-table">
+                <thead>
+                    <tr><th>ID</th><th>Patient</th><th>Test</th><th>Ordered By</th><th>Status</th><th>Actions</th></tr>
+                </thead>
+                <tbody id="orders-body">
+                    <tr><td colspan="6">Loading orders...</td></tr>
+                </tbody>
+            </table>
+        </section>
+
+        <section>
+            <h2>Lab Results</h2>
+            <table id="results-table">
+                <thead>
+                    <tr><th>Result ID</th><th>Order ID</th><th>Value</th><th>Reference Range</th><th>Flagged</th></tr>
+                </thead>
+                <tbody id="results-body">
+                    <tr><td colspan="5">Loading results...</td></tr>
+                </tbody>
+            </table>
+            <p class="hint">⚠️ Flagged results — ask the Lab Assistant below for details.</p>
+        </section>
+
+        <section>
+            <h2>Ask the Lab Assistant</h2>
+            <textarea id="chat-input" rows="3" placeholder="Ask about a result, a test, or anything lab-related..."></textarea>
+            <button id="chat-send">Send</button>
+            <div id="chat-answer" class="answer-box">Answer will appear here.</div>
+        </section>
+    </main>
+
+    <script>
+        const BACKEND = "http://localhost:5005";
+
+        async function loadOrders() {
+            const res = await fetch(`${BACKEND}/orders`);
+            const orders = await res.json();
+            const body = document.getElementById("orders-body");
+            body.innerHTML = orders.map(o => `
+                <tr>
+                    <td>${o.order_id}</td>
+                    <td>${o.patient_id}</td>
+                    <td>${o.test_type}</td>
+                    <td>${o.ordered_by}</td>
+                    <td>
+                        <select onchange="updateStatus(${o.order_id}, this.value)">
+                            <option value="pending" ${o.status === 'pending' ? 'selected' : ''}>pending</option>
+                            <option value="in_progress" ${o.status === 'in_progress' ? 'selected' : ''}>in_progress</option>
+                            <option value="completed" ${o.status === 'completed' ? 'selected' : ''}>completed</option>
+                        </select>
+                    </td>
+                    <td><button onclick="deleteOrder(${o.order_id})">Delete</button></td>
+                </tr>
+            `).join("");
+        }
+
+        async function loadResults() {
+            const res = await fetch(`${BACKEND}/results`);
+            const results = await res.json();
+            const body = document.getElementById("results-body");
+            body.innerHTML = results.map(r => `
+                <tr>
+                    <td>${r.result_id}</td>
+                    <td>${r.order_id}</td>
+                    <td>${r.result_value}</td>
+                    <td>${r.reference_range}</td>
+                    <td>${r.flagged ? "⚠️ Yes" : "No"}</td>
+                </tr>
+            `).join("");
+        }
+
+        async function updateStatus(orderId, status) {
+            await fetch(`${BACKEND}/orders/${orderId}`, {
+                method: "PUT",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ status }),
+            });
+            loadOrders();
+        }
+
+        async function deleteOrder(orderId) {
+            await fetch(`${BACKEND}/orders/${orderId}`, { method: "DELETE" });
+            loadOrders();
+        }
+
+        document.getElementById("order-form").addEventListener("submit", async (e) => {
+            e.preventDefault();
+            const payload = {
+                patient_id: parseInt(document.getElementById("patient_id").value),
+                test_type: document.getElementById("test_type").value,
+                ordered_by: document.getElementById("ordered_by").value,
+            };
+            const res = await fetch(`${BACKEND}/orders`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(payload),
+            });
+            const data = await res.json();
+            const responseEl = document.getElementById("order-response");
+            if (res.ok) {
+                responseEl.textContent = `Order created (ID: ${data.order_id})`;
+                loadOrders();
+            } else {
+                responseEl.textContent = `Error: ${data.error}`;
+            }
+        });
+
+        document.getElementById("result-form").addEventListener("submit", async (e) => {
+            e.preventDefault();
+            const payload = {
+                order_id: parseInt(document.getElementById("result_order_id").value),
+                result_value: document.getElementById("result_value").value,
+                reference_range: document.getElementById("reference_range").value,
+            };
+            const responseEl = document.getElementById("result-response");
+            responseEl.textContent = "Submitting to AI for review...";
+            const res = await fetch(`${BACKEND}/results`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(payload),
+            });
+            const data = await res.json();
+            if (res.ok) {
+                responseEl.textContent = "Result added.";
+                loadResults();
+            } else {
+                responseEl.textContent = `Error: ${data.error || "failed to add result"}`;
+            }
+        });
+
+        document.getElementById("chat-send").addEventListener("click", async () => {
+            const message = document.getElementById("chat-input").value;
+            if (!message.trim()) return;
+            const answerEl = document.getElementById("chat-answer");
+            answerEl.textContent = "Thinking...";
+            const res = await fetch(`${BACKEND}/chat`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ message }),
+            });
+            const data = await res.json();
+            answerEl.textContent = data.reply;
+        });
+
+        loadOrders();
+        loadResults();
+    </script>
+</body>
+</html>

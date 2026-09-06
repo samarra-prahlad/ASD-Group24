@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Lab Results</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <header>
+        <h1>Lab Results</h1>
+        <a href="http://localhost:3000/home">← Back to Home</a>
+    </header>
+
+    <main>
+        <section>
+            <h2>Your Lab Results</h2>
+            <table id="results-table">
+                <thead>
+                    <tr><th>Result ID</th><th>Order ID</th><th>Value</th><th>Reference Range</th><th>Flagged</th></tr>
+                </thead>
+                <tbody id="results-body">
+                    <tr><td colspan="5">Loading results...</td></tr>
+                </tbody>
+            </table>
+            <p class="hint">⚠️ Flagged results — ask the Lab Assistant below for details.</p>
+        </section>
+
+        <section>
+            <h2>Ask the Lab Assistant</h2>
+            <textarea id="chat-input" rows="3" placeholder="Ask about a result, a test, or anything lab-related..."></textarea>
+            <button id="chat-send">Send</button>
+            <div id="chat-answer" class="answer-box">Answer will appear here.</div>
+        </section>
+    </main>
+
+    <script>
+        const BACKEND = "http://localhost:5005";
+        const params = new URLSearchParams(window.location.search);
+        const token = params.get("token");
+
+        async function loadResults() {
+            if (!token) {
+                document.getElementById("results-body").innerHTML =
+                    `<tr><td colspan="5">No session token found. Please log in again.</td></tr>`;
+                return;
+            }
+
+            const res = await fetch(`${BACKEND}/my-results?token=${token}`);
+            if (!res.ok) {
+                document.getElementById("results-body").innerHTML =
+                    `<tr><td colspan="5">Could not load your results. Please log in again.</td></tr>`;
+                return;
+            }
+
+            const results = await res.json();
+            const body = document.getElementById("results-body");
+            body.innerHTML = results.length
+                ? results.map(r => `
+                    <tr>
+                        <td>${r.result_id}</td>
+                        <td>${r.order_id}</td>
+                        <td>${r.result_value}</td>
+                        <td>${r.reference_range}</td>
+                        <td>${r.flagged ? "⚠️ Yes" : "No"}</td>
+                    </tr>
+                `).join("")
+                : `<tr><td colspan="5">No results found.</td></tr>`;
+        }
+
+        document.getElementById("chat-send").addEventListener("click", async () => {
+            const message = document.getElementById("chat-input").value;
+            if (!message.trim()) return;
+            const answerEl = document.getElementById("chat-answer");
+            answerEl.textContent = "Thinking...";
+            const res = await fetch(`${BACKEND}/chat`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ message }),
+            });
+            const data = await res.json();
+            answerEl.textContent = data.reply;
+        });
+
+        loadResults();
+    </script>
+</body>
+</html>

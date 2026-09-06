@@ -1,0 +1,31 @@
+name: Integration CI
+
+on:
+  push:
+    branches: [main, intergration]
+  pull_request:
+    branches: [main, intergration]
+
+jobs:
+  integration-build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Build all services with Docker Compose
+        run: docker compose build
+
+      - name: Start all services
+        run: docker compose up -d
+
+      - name: Wait for services to be ready
+        run: sleep 15
+
+      - name: Check running containers
+        run: docker compose ps
+
+      - name: Tear down
+        if: always()
+        run: docker compose down

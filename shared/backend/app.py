@@ -102,6 +102,7 @@ def verify_session():
     }), 200
 
 
+
 @app.post("/logout")
 def logout():
     data = request.get_json() or {}

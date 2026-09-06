@@ -4,10 +4,16 @@
     <meta charset="utf-8">
     <title>Billing - Patient View</title>
     <link rel="stylesheet" href="http://localhost:3000/css/theme.css">
-    <link rel="stylesheet" href="http://localhost:3004/css/styles.css">
+    <link rel="stylesheet" href="/css/styles.css">
     <script src="https://unpkg.com/htmx.org@1.9.12"></script>
 </head>
 <body>
+<nav class="top-nav">
+    <div class="top-nav-left">
+        <a href="http://localhost:5000/home" class="top-nav-home">&larr; Home</a>
+    </div>
+</nav>
+
 <div class="app-shell">
     <header class="app-header">
         <h1>Billing &amp; Insurance</h1>
@@ -25,15 +31,15 @@
                     <th>Covered</th>
                     <th>Owed</th>
                     <th>Status</th>
+                    <th>Actions</th>
                 </tr>
             </thead>
             <tbody
                 id="invoice-table-body"
-                hx-get="http://localhost:5004/invoices/html?token={{ token }}"
-                hx-trigger="load"
+                hx-trigger="load, invoicesChanged from:body"
                 hx-swap="innerHTML"
             >
-                <tr><td colspan="7">Loading your invoices...</td></tr>
+                <tr><td colspan="8">Loading your invoices...</td></tr>
             </tbody>
         </table>
     </div>
@@ -42,19 +48,33 @@
         <h2>Ask About Your Bill</h2>
         <div id="chat-log" class="chat-log"></div>
         <form
+            id="chat-form"
             class="chat-form"
-            hx-post="http://localhost:5004/ai/chat/html"
+            hx-post="/ai/chat/html"
             hx-target="#chat-log"
             hx-swap="beforeend"
             hx-on::after-request="this.reset()"
         >
-            <input type="hidden" name="token" value="{{ token }}">
+            <input type="hidden" name="token" id="chat-token-field">
             <input type="text" name="message" placeholder="e.g. What do I owe on my latest invoice?" required>
             <button type="submit">Send</button>
         </form>
     </div>
-
-    <p class="auth-switch"><a href="http://localhost:5000/home">&larr; Back to Home</a></p>
 </div>
+
+<script>
+    const token = new URLSearchParams(window.location.search).get("token");
+
+    if (!token) {
+        window.location.href = "http://localhost:5000/login";
+    }
+
+    document.getElementById("chat-token-field").value = token;
+
+    const invoiceTableBody = document.getElementById("invoice-table-body");
+    invoiceTableBody.setAttribute("hx-get", "/invoices/html?token=" + encodeURIComponent(token));
+    htmx.process(invoiceTableBody);
+    htmx.trigger(invoiceTableBody, "load");
+</script>
 </body>
 </html>

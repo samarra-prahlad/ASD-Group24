@@ -2,7 +2,7 @@ import os
 
 import requests
 
-SHARED_ACCESS_API_URL = os.getenv("SHARED_ACCESS_API_URL", "http://shared-backend:5000")
+SHARED_ACCESS_API_URL = os.getenv("SHARED_ACCESS_API_URL", "http://localhost:5000")
 
 
 def check(label, method, url, **kwargs):
@@ -24,7 +24,7 @@ def observe_all_services(plan):
     results = [observe_shared_access()]
 
     for service in plan["services"]:
-        url = f"http://{service['name']}-backend:{service['backend_port']}/"
+        url = f"http://localhost:{service["backend_port"]}/"
         result = check(f"{service['name']}-backend", "GET", url)
         print(f"  Checked {result}")
         results.append(result)

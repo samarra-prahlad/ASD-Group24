@@ -82,7 +82,7 @@ services:
       - healthcare-network
     restart: unless-stopped
 
-  # ---------- Student 2: EHR (Divyansh) ----------
+  # # ---------- Student 2: EHR (Divyansh) ----------
   ehr-frontend:
     build:
       context: ./2-div-ehr/frontend
@@ -148,7 +148,6 @@ services:
       - "5003:5003"
     environment:
       DATABASE_SERVICE_URL: http://pharmacy-database:6003
-      EHR_DATABASE_API_URL: http://ehr-backend:5002
       SHARED_ACCESS_API_URL: http://shared-backend:5000
       OLLAMA_BASE_URL: http://host.docker.internal:11434/v1
       OLLAMA_MODEL: qwen2.5:0.5b
@@ -157,7 +156,6 @@ services:
     depends_on:
       - pharmacy-database
       - shared-backend
-      - ehr-backend
     networks:
       - healthcare-network
     restart: unless-stopped
@@ -197,7 +195,7 @@ services:
       DATABASE_SERVICE_URL: http://billing-database:6004
       APPOINTMENTS_DATABASE_API_URL: http://appointments-backend:5001
       PHARMACY_DATABASE_API_URL: http://pharmacy-backend:5003
-      WARDBED_DATABASE_API_URL: http://wardbed-backend:5006
+      # WARDBED_DATABASE_API_URL: http://wardbed-backend:5006
       SHARED_ACCESS_API_URL: http://shared-backend:5000
       OLLAMA_BASE_URL: http://host.docker.internal:11434/v1
       OLLAMA_MODEL: qwen2.5:0.5b
@@ -208,7 +206,7 @@ services:
       - shared-backend
       - appointments-backend
       - pharmacy-backend
-      - wardbed-backend
+      # - wardbed-backend
     networks:
       - healthcare-network
     restart: unless-stopped
@@ -270,7 +268,7 @@ services:
       - healthcare-network
     restart: unless-stopped
 
-  # ---------- Student 6: Ward & Bed Management (Brian) ----------
+#---------- Student 6: Ward & Bed Management (Brian) ----------
   wardbed-frontend:
     build:
       context: ./6-brian-wardbed/frontend
@@ -284,24 +282,24 @@ services:
     restart: unless-stopped
 
   wardbed-backend:
-    build:
-      context: ./6-brian-wardbed/backend
-    container_name: wardbed-backend
-    ports:
-      - "5006:5006"
-    environment:
-      DATABASE_SERVICE_URL: http://wardbed-database:6006
-      SHARED_ACCESS_API_URL: http://shared-backend:5000
-      OLLAMA_BASE_URL: http://host.docker.internal:11434/v1
-      OLLAMA_MODEL: qwen2.5:0.5b
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
-    depends_on:
-      - wardbed-database
-      - shared-backend
-    networks:
-      - healthcare-network
-    restart: unless-stopped
+     build:
+       context: ./6-brian-wardbed/backend
+     container_name: wardbed-backend
+     ports:
+       - "5006:5006"
+     environment:
+       DATABASE_SERVICE_URL: http://wardbed-database:6006
+       SHARED_ACCESS_API_URL: http://shared-backend:5000
+       OLLAMA_BASE_URL: http://host.docker.internal:11434/v1
+       OLLAMA_MODEL: qwen2.5:0.5b
+     extra_hosts:
+       - "host.docker.internal:host-gateway"
+     depends_on:
+       - wardbed-database
+       - shared-backend
+     networks:
+       - healthcare-network
+     restart: unless-stopped
 
   wardbed-database:
     build:

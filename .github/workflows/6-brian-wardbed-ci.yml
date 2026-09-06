@@ -1,0 +1,49 @@
+name: Student 6 - Ward Bed CI
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '6-brian-wardbed/**'
+
+  pull_request:
+    branches: [main]
+    paths:
+      - '6-brian-wardbed/**'
+
+jobs:
+  dependency-check:
+    name: Dependency validation
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install backend dependencies
+        run: |
+          pip install -r 6-brian-wardbed/backend/requirements.txt
+          pip install pytest
+
+      - name: Install database dependencies
+        run: |
+          pip install -r 6-brian-wardbed/database/requirements.txt
+          
+      - name: Run pytest
+        run: |
+          python -m pytest 6-brian-wardbed/tests/ -v
+
+  ai-assisted-testing:
+    name: Post-commit AI-assisted unit testing
+    needs: dependency-check
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Placeholder for AI-assisted test step
+        run: echo "AI-assisted unit testing step — to be implemented"

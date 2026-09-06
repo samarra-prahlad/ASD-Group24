@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Ward management</title>
+    <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+    <nav class="top-nav">
+        <div class="top-nav-left">
+            <a href="http://localhost:5000/home" class="top-nav-home">&larr; Home</a>
+        </div>
+    </nav>
+
+    <header>
+        <h1>WARD MANAGEMENT</h1>
+        <p id="instructionText">Please select the ward you are assigning the patient</p>
+    </header>
+    <main>
+        <div class="MainMenu">
+            <div class="selectionBox" onclick="selectWard(1)">
+                <p>GENERAL MEDICINE WARD</p>
+            </div>
+            <div class="selectionBox" onclick="selectWard(2)">
+                <p>EMERGENCY WARD</p>
+            </div>
+            <div class="selectionBox" onclick="selectWard(3)">
+                <p>MATERNITY WARD</p>
+            </div>
+            <div class="selectionBox" onclick="selectWard(4)">
+                <p>INTENSIVE CARE UNIT</p>
+            </div>
+            <div class="selectionBox" onclick="selectWard(5)">
+                <p>SURGICAL WARD</p>
+            </div>
+            <div class="selectionBox" onclick="selectWard(6)">
+                <p>PEDIATRIC WARD</p>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        function selectWard(wardId) {
+            window.location.href = `ward_detail.html?ward_id=${wardId}`;
+        }
+    </script>
+</body>
+</html>
