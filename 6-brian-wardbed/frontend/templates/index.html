@@ -6,60 +6,59 @@
     <link rel="stylesheet" href="./styles.css">
 </head>
 <body>
+    <a href="http://localhost:5000/home" id="Homepagetext">← Return to home page</a>
     <header>
         <h1>WARD MANAGEMENT</h1>
         <P id="instructionText">Please select the ward you are assigning the patient</P>
-        <a href="http://localhost:5000/home" id="Homepagetext">Return to home page</a>
     </header>
     <main>
         <div class="MainMenu">
             <div class="selectionBox" onclick="selectWard(1)">
-                <p>General Medicine Ward</p>
+                <p>GENERAL MEDICINE WARD</p>
             </div>
             <div class="selectionBox" onclick="selectWard(2)">
-                <p>Emergency Ward</p>
+                <p>EMERGENCY WARD</p>
             </div>
             <div class="selectionBox" onclick="selectWard(3)">
-                <p>maternity ward</p>
+                <p>MATERNITY WARD</p>
             </div>
             <div class="selectionBox" onclick="selectWard(4)">
-                <p>Intensive Care Unit</p>
+                <p>INTENSIVE CARE UNIT</p>
             </div>
             <div class="selectionBox" onclick="selectWard(5)">
-                <p>Surgical Ward</p>
+                <p>SURGICAL WARD</p>
             </div>
             <div class="selectionBox" onclick="selectWard(6)">
-                <p>Pediatric Ward</p>
+                <p>PEDIATRIC WARD</p>
             </div>
         </div>
     </main>
 
     <script>
-            async function checkAuth() {
-                try {
-                    const response = await fetch(
-                        "http://localhost:5006/auth/check", {credentials: "include"} 
-                    );
+       /*  async function checkAuth() {
+            const response = await fetch("http://localhost:5006/auth/check", {
+                credentials: "include"
+            });
 
-                    if (response.status === 401) {
-                        window.location.href = "http://localhost:5000/login";
-                        return false;
-                    }
+            if (!response.ok) {
+                window.location.href = "http://localhost:5000/login";
+                return false;
+            }
 
-                    if (response.status === 403) {
-                        window.location.href = "http://localhost:5000/home";
-                        return false;
-                    }
+            const data = await response.json();
 
-                    return response.ok;
+            if (data.role === "admin") {
+                return true;
+            }
 
-                } catch (error) {
-                    document.body.innerHTML =
-                        "<h2>Unable to verify access.</h2>";
+            if (data.role === "patient") {
+                window.location.href = "patient_dashboard.html";
+                return false;
+            }
 
-                    return false;
-                }
-    }
+            window.location.href = "login.html";
+            return false;
+        }
 
     async function startPage() {
         const authorised = await checkAuth();
@@ -69,7 +68,8 @@
         }
     }
 
-    startPage();
+    startPage(); */
+
         function selectWard(wardId) {
             window.location.href = `ward_detail.html?ward_id=${wardId}`;
         }

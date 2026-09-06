@@ -27,10 +27,15 @@ jobs:
       - name: Install backend dependencies
         run: |
           pip install -r 6-brian-wardbed/backend/requirements.txt
+          pip install pytest
 
       - name: Install database dependencies
         run: |
           pip install -r 6-brian-wardbed/database/requirements.txt
+          
+      - name: Run pytest
+        run: |
+          python -m pytest 6-brian-wardbed/tests/ -v
 
   ai-assisted-testing:
     name: Post-commit AI-assisted unit testing

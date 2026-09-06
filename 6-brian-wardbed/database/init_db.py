@@ -18,7 +18,7 @@ def init_db():
         CREATE TABLE IF NOT EXISTS beds (
             bed_id INTEGER PRIMARY KEY AUTOINCREMENT,
             ward_id INTEGER NOT NULL,
-            patient_id INTEGER,
+            patient_id INTEGER UNIQUE,
             bed_number TEXT NOT NULL,
             status TEXT NOT NULL DEFAULT 'available',
 
@@ -27,13 +27,25 @@ def init_db():
         )
     """)
 
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS bed_assignments (
+            assignment_id INTEGER PRIMARY KEY AUTOINCREMENT,
+            bed_id INTEGER NOT NULL,
+            patient_id INTEGER NOT NULL,
+            date_assigned DATETIME DEFAULT CURRENT_TIMESTAMP,
+            date_released DATETIME DEFAULT NULL,
+
+            FOREIGN KEY (bed_id) REFERENCES beds(bed_id)
+        )
+    """)
+
     wards = [
-        ("General", 10),
-        ("Emergency", 8),
-        ("Maternity", 6),
-        ("Intensive Care", 5),
-        ("Surgical", 8),
-        ("Pediatric", 6),
+        ("GENERAL", 10),
+        ("EMERGENCY", 8),
+        ("MATERNITY", 6),
+        ("INTENSIVE CARE", 5),
+        ("SURGICAL", 8),
+        ("PEDIATRIC", 6),
     ]
 
     conn.executemany("""
