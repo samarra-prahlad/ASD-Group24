@@ -28,6 +28,13 @@ def db_client():
             status TEXT DEFAULT 'available',
             UNIQUE(ward_id, bed_number)
         );
+        CREATE TABLE bed_assignments (
+            assignment_id INTEGER PRIMARY KEY AUTOINCREMENT,
+            bed_id INTEGER NOT NULL,
+            patient_id INTEGER NOT NULL,
+            date_assigned DATETIME DEFAULT CURRENT_TIMESTAMP,
+            date_released DATETIME DEFAULT NULL
+        );
     """)
 
     conn.execute(
