@@ -51,7 +51,7 @@
                 const user = await authResponse.json();
 
                 if (user.role !== "patient") {
-                    window.location.href = "index.html";
+                    window.location.href = "admin.html";
                     return;
                 }
 
