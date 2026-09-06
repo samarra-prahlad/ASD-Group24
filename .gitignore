@@ -1,9 +1,4 @@
 **/__pycache__/
 .pytest_cache/
 database/data/
-<<<<<<< HEAD
 tests/.test_data/
-||||||| parent of e781180 (shared microservice architecture complete)
-=======
-tests/.test_data/
->>>>>>> e781180 (shared microservice architecture complete)
