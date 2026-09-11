@@ -1,9 +1,9 @@
-TOOL_NAME = "echo"
-TOOL_DESCRIPTION = "Returns the input it was given. Reference template for new tools."
-INPUT_SCHEMA = {
-    "message": {"type": "string", "required": True}
-}
+from mcp_instance import mcp
 
 
-def run(input: dict) -> dict:
-    return {"echo": input.get("message")}
+def echo(message: str) -> dict:
+    """Reference tool: returns the input it was given."""
+    return {"echo": message}
+
+
+mcp.tool()(echo)

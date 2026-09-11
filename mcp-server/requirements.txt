@@ -1,2 +1,2 @@
-flask
+mcp<2
 pytest
