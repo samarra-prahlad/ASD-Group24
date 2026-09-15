@@ -1,8 +1,11 @@
 import os
 import re
+import asyncio
 import requests
 from flask import Flask, jsonify, request
 from flask_cors import CORS
+from mcp import ClientSession
+from mcp.client.streamable_http import streamablehttp_client
 
 app = Flask(__name__)
 CORS(app)
@@ -12,7 +15,16 @@ SHARED_ACCESS_API_URL = os.getenv("SHARED_ACCESS_API_URL", "http://shared-backen
 SHARED_DATABASE_URL = os.getenv("SHARED_DATABASE_URL", "http://shared-database:6000")
 OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://host.docker.internal:11434/v1")
 OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "qwen2.5:0.5b")
+MCP_SERVER_URL = os.getenv("MCP_SERVER_URL", "http://host.docker.internal:7000/mcp")
 
+
+async def _call_mcp_tool(tool_name, arguments):
+    async with streamablehttp_client(MCP_SERVER_URL) as (read_stream, write_stream, _):
+        async with ClientSession(read_stream, write_stream) as session:
+            await session.initialize()
+            result = await session.call_tool(tool_name, arguments)
+            return result
+        
 def load_prompt(filename):
     path = os.path.join(os.path.dirname(__file__), "prompts", filename)
     with open(path, "r") as f:
@@ -28,6 +40,27 @@ def get_orders():
     r = requests.get(f"{DATABASE_SERVICE_URL}/orders", timeout=5)
     return jsonify(r.json())
 
+@app.get("/orders/<int:order_id>")
+def get_order(order_id):
+    r = requests.get(f"{DATABASE_SERVICE_URL}/orders/{order_id}", timeout=5)
+    return jsonify(r.json()), r.status_code
+
+
+@app.get("/mcp/order-status/<int:order_id>")
+def mcp_order_status(order_id):
+    try:
+        result = asyncio.run(
+            _call_mcp_tool("labtests_get_order_status", {"order_id": order_id})
+        )
+    except Exception as exc:
+        return jsonify({"error": "MCP server unreachable", "detail": str(exc)}), 503
+
+    if getattr(result, "structuredContent", None):
+        return jsonify(result.structuredContent)
+
+    import json
+    text = result.content[0].text
+    return jsonify(json.loads(text))
 
 @app.post("/orders")
 def create_order():
