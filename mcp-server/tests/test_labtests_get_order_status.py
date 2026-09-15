@@ -1,33 +1,47 @@
-import os
-import requests
-from mcp_instance import mcp
-
-# MCP server runs locally and reaches labtests backend through the
-# Docker-exposed port on localhost, not through host.docker.internal.
-
-LABTESTS_BACKEND_URL = os.getenv("LABTESTS_BACKEND_URL", "http://localhost:5005")
+from unittest.mock import patch, MagicMock
+from tools.labtests_get_order_status import get_order_status
 
 
-def get_order_status(order_id: int) -> dict:
-    """Real-time status of a specific lab order."""
-    try:
-        r = requests.get(f"{LABTESTS_BACKEND_URL}/orders/{order_id}", timeout=5)
-    except requests.RequestException as exc:
-        return {"error": "labtests backend unreachable", "detail": str(exc)}
+@patch("tools.labtests_get_order_status.requests.get")
+def test_get_order_status_returns_expected_shape(mock_get):
+    mock_response = MagicMock()
+    mock_response.status_code = 200
+    mock_response.json.return_value = {
+        "order_id": 1,
+        "status": "pending",
+        "test_type": "WBC",
+        "ordered_by": "Dr. Test",
+        "created_at": "2026-09-10T10:00:00",
+    }
+    mock_get.return_value = mock_response
 
-    if r.status_code == 404:
-        return {"error": "Order not found", "order_id": order_id}
-    if r.status_code != 200:
-        return {"error": "Unexpected response from labtests backend", "status_code": r.status_code}
+    result = get_order_status(1)
 
-    order = r.json()
-    return {
-        "order_id": order["order_id"],
-        "status": order["status"],
-        "test_type": order["test_type"],
-        "ordered_by": order["ordered_by"],
-        "created_at": order["created_at"],
+    assert result == {
+        "order_id": 1,
+        "status": "pending",
+        "test_type": "WBC",
+        "ordered_by": "Dr. Test",
+        "created_at": "2026-09-10T10:00:00",
     }
 
 
-mcp.tool(name="labtests_get_order_status")(get_order_status)
+@patch("tools.labtests_get_order_status.requests.get")
+def test_get_order_status_handles_missing_order(mock_get):
+    mock_response = MagicMock()
+    mock_response.status_code = 404
+    mock_get.return_value = mock_response
+
+    result = get_order_status(999999)
+
+    assert result == {"error": "Order not found", "order_id": 999999}
+
+
+@patch("tools.labtests_get_order_status.requests.get")
+def test_get_order_status_handles_backend_unreachable(mock_get):
+    import requests
+    mock_get.side_effect = requests.RequestException("connection refused")
+
+    result = get_order_status(1)
+
+    assert result["error"] == "labtests backend unreachable"
