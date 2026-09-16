@@ -1,21 +1,30 @@
 /*Shared css*/
 body {
     margin: 0;
-    background-color: #f1f8e9;
+    background-color: #f3f3f3;
     font-family: Arial, sans-serif;
     color: #111;
 }
 
 header {
-    background-color: #dcedc8;
-    padding: 28px 40px 24px;
-    text-align: center;
+    padding: 30px 60px 10px;
+    text-align: left;
 }
 
 header h1 {
     margin: 0 0 12px;
     font-size: 42px;
     font-weight: 700;
+    color: #558b2f
+}
+
+#Homepagetext {
+    color: #558b2f;
+    text-decoration: underline;
+    font-weight: 600;
+    padding: 20px;
+    display: inline-block;
+    margin-top: 10px;
 }
 
 header p {
@@ -23,62 +32,45 @@ header p {
     font-size: 18px;
 }
 
-header a {
-    color: #558b2f;
-    text-decoration: none;
-    font-weight: 600;
-}
-
 header a:hover {
     text-decoration: underline;
 }
 
 main {
-    padding: 40px;
+    padding: 0px 50px 0px;
 }
 
-/*The Ward selection page*/
 .MainMenu {
+    background-color: white;
+    border-radius: 50px;
     display: grid;
     grid-template-columns: repeat(3, 1fr);
     gap: 36px;
-
-    max-width: 1100px;
     margin: 0 auto;
+    padding: 50px 50px 50px;
 }
 
 .selectionBox {
     min-height: 220px;
-
-    background-color: white;
-
+    background-color: #dcedc8;
+    color: #33691e;
     border: none;
     border-radius: 18px;
-
     box-shadow: 0 6px 18px rgba(0, 0, 0, 0.10);
-
     display: flex;
     justify-content: center;
     align-items: center;
-
     text-align: center;
-
     padding: 24px;
-
     cursor: pointer;
-
-    transition:
-        transform 0.2s ease,
-        box-shadow 0.2s ease,
-        background-color 0.2s ease;
+    transition: transform 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease;
 }
 
 .selectionBox:hover {
     transform: translateY(-4px);
-
     box-shadow: 0 10px 24px rgba(0, 0, 0, 0.16);
-
     background-color: #f7fbf2;
+    color: black;
 }
 
 .selectionBox h2,
@@ -89,26 +81,26 @@ main {
     font-weight: 700;
 }
 
-/*Below is the ward details page*/
-.beds-section {
-    width: 95%;
-    margin: 30px auto;
+#main-ward-details {
+    margin: 20px;
+    padding: 10px 20px 30px;
+    background-color: white;
+    border-radius: 20px;
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.10);
+    text-align: center;
 }
 
-.beds-section h2 {
-    text-align: center;
-    margin-bottom: 20px;
+.beds-section {
+    width: 95%;
 }
 
 .table-container {
-    width: 80%;
-    max-width: 1000px;
-    margin: 40px auto;
+    width: 100%;
     background-color: white;
     padding: 20px;
-    border-radius: 12px;
+    margin: 0 auto;
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-    background-color: white;
+    box-sizing: border-box;
 }
 
 .beds-table {
@@ -125,6 +117,10 @@ main {
 
 .beds-table th {
     font-weight: bold;
+    background: #dcedc8;
+    color: #558b2f;
+    text-transform: uppercase;
+    font-size: 0.85rem;
 }
 
 #beds-table-body {
@@ -143,16 +139,12 @@ main {
 
 .modal {
     display: none;
-
     position: fixed;
     top: 0;
     left: 0;
-
     width: 100%;
     height: 100%;
-
     background-color: rgba(0, 0, 0, 0.35);
-
     justify-content: center;
     align-items: center;
 }
@@ -160,12 +152,9 @@ main {
 .modal-box {
     width: 320px;
     background-color: white;
-
     padding: 25px;
     border-radius: 12px;
-
     text-align: center;
-
     box-shadow: 0 4px 15px rgba(0, 0, 0, 0.25);
 }
 
@@ -173,7 +162,6 @@ main {
     width: 90%;
     padding: 10px;
     margin: 15px 0;
-
     border: 1px solid #ccc;
     border-radius: 8px;
 }
@@ -184,23 +172,56 @@ main {
     gap: 10px;
 }
 
+.modal-actions button {
+    padding: 10px 20px;
+    border: none;
+    border-radius: 8px;
+    font-weight: 600;
+    cursor: pointer;
+    font-family: inherit;
+    font-size: 14px;
+}
+
+#assignConfirm,
+#releaseConfirm {
+    background-color: #558b2f;
+    color: white;
+}
+
+#assignConfirm:hover,
+#releaseConfirm:hover {
+    background-color: #a5d6a7;
+}
+
+#assignCancel,
+#releaseCancel {
+    background-color: #33691e;
+    color: #558b2f;
+    border: 1px solid #aed581;
+}
+
+#assignCancel:hover,
+#releaseCancel:hover {
+    background-color: #dcedc8;
+}
+
 #aiButton {
-    background-color: #81c784;
+    background-color: #a5d6a7;
     color: white;
     position: fixed;
     right: 25px;
     bottom: 25px;
-
     width: 100px;
     height: 100px;
-
     border: none;
     border-radius: 20%;
-
     cursor: pointer;
     font-weight: bold;
-
     box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+}
+
+#aiButton:hover {
+    background-color: #558b2f;
 }
 
 #chatMessages {
@@ -212,20 +233,29 @@ main {
 
 .ai-chat {
     display: none;
-
     position: fixed;
     right: 25px;
     bottom: 100px;
-
     width: 320px;
     height: 400px;
-
     background-color: white;
     border-radius: 12px;
-
     padding: 15px;
-
     box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+}
+
+.chat-input {
+    display: flex;
+    gap: 8px;
+    margin-top: 8px;
+}
+
+.chat-input input {
+    flex: 1;
+    padding: 8px 10px;
+    border: 1px solid #aed581;
+    border-radius: 6px;
+    font-family: inherit;
 }
 
 #aiSend {
@@ -234,16 +264,13 @@ main {
     border-radius: 8px;
     cursor: pointer;
     font-weight: bold;
-
     box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+    background-color: #558b2f;
+    color: white;
 }
 
-#aiButton:hover{
-    background-color: #558b2f;
-}
-
-#assignConfirm:hover {
-    background-color: #558b2f;
+#aiSend:hover {
+    background-color: #a5d6a7;
 }
 
 .page-nav {
@@ -251,10 +278,55 @@ main {
     display: flex;
     justify-content: space-between;
     align-items: center;
+    margin: 20px
+}
 
-    width: 100%;
+.page-nav a {
+    color: #558b2f;
+    text-decoration: underline;
 }
 
 .page-nav a:hover {
     color: #81c784;
+}
+
+/* ---------------------------------------------------------------------
+   Top nav (matches Appointments' and Billing's shared nav bar exactly)
+--------------------------------------------------------------------- */
+
+.top-nav {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    max-width: 1200px;
+    margin: 20px auto 16px;
+    padding: 12px 20px;
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+}
+
+.top-nav-left {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+}
+
+.top-nav a {
+    color: #222;
+    text-decoration: none;
+    font-size: 14px;
+    font-weight: 600;
+    padding: 6px 4px;
+    border-bottom: 2px solid transparent;
+    transition: color 0.15s ease, border-color 0.15s ease;
+}
+
+.top-nav a:hover {
+    color: #558b2f;
+    border-bottom-color: #aed581;
+}
+
+.top-nav-home {
+    color: #558b2f !important;
 }

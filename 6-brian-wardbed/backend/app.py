@@ -62,16 +62,11 @@ def check_auth():
 
     session = response.json() or {}
 
-    if session.get("role") != "admin":
-        return jsonify({
-            "authenticated": True,
-            "authorised": False,
-            "error": "Admin access required"
-        }), 403
-
     return jsonify({
         "authenticated": True,
-        "authorised": True
+        "role": session.get("role"),
+        "patient_id": session.get("patient_id"),
+        "first_name": session.get("first_name")
     }), 200
 
 @app.route("/wards/<int:ward_id>")
@@ -137,6 +132,18 @@ def assign_patient_to_bed(bed_id):
 
     return jsonify(bed_response.json()), bed_response.status_code
 
+@app.get("/patients/<int:patient_id>/bed")
+def get_patient_bed(patient_id):
+    try:
+        response = requests.get(
+            f"{DATABASE_SERVICE_URL}/patients/{patient_id}/bed",
+            timeout=10
+        )
+    except requests.RequestException:
+        return jsonify({"error": "Ward database service unavailable"}), 502
+
+    return jsonify(response.json()), response.status_code
+
 @app.route("/beds/<int:bed_id>/release", methods=["PUT"])
 def release_patient_from_bed(bed_id):
     try:
@@ -150,6 +157,47 @@ def release_patient_from_bed(bed_id):
         }), 502
 
     return jsonify(bed_response.json()), bed_response.status_code
+
+@app.get("/patients/<int:patient_id>/assignments")
+def get_patient_assignments(patient_id):
+    token = request.cookies.get("session_token")
+
+    if not token:
+        return jsonify({"error": "Not logged in"}), 401
+
+    try:
+        session_response = requests.post(
+            f"{SHARED_ACCESS_API_URL}/session/verify",
+            json={"token": token},
+            timeout=10
+        )
+    except requests.RequestException:
+        return jsonify({"error": "Shared access service unavailable"}), 502
+
+    if session_response.status_code != 200:
+        return jsonify({"error": "Invalid session"}), 401
+
+    session = session_response.json()
+
+    #Making sure a patient can only see their records but admins can see anyone's records. 
+    if (
+        session.get("role") == "patient" and session.get("patient_id") != patient_id
+    ):
+        return jsonify({
+            "error": "You can only view your own records"
+        }), 403
+
+    try:
+        db_response = requests.get(
+            f"{DATABASE_SERVICE_URL}/patients/{patient_id}/assignments",
+            timeout=10
+        )
+    except requests.RequestException:
+        return jsonify({
+            "error": "Ward database service unavailable"
+        }), 502
+
+    return jsonify(db_response.json()), db_response.status_code
 
 @app.route("/ai/chat", methods=["POST"])
 def ai_chat():
