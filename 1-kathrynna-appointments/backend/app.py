@@ -4,6 +4,8 @@ from datetime import datetime, timedelta
 import os
 import requests
 from routes.ai_mode import ai_mode_bp
+import asyncio
+from mcp_client import call_get_appointment
 
 app = Flask(__name__)
 CORS(app)
@@ -786,6 +788,22 @@ def delete_appointment_htmx(appointment_id):
                 <p>Unable to connect to the appointments database: {exc}</p>
             </div>
         """, 503
+    
+@app.get("/appointments/<int:appointment_id>/via-mcp")
+def get_appointment_via_mcp(appointment_id):
+    """Round-trips this backend as an MCP client, calling the shared
+    MCP server's appointments_get_appointment tool instead of hitting
+    the database service directly."""
+    try:
+        result = asyncio.run(call_get_appointment(appointment_id))
+    except Exception as exc:
+        return jsonify({"error": "MCP call failed", "detail": str(exc)}), 502
+
+    if "error" in result:
+        status = 404 if result["error"] == "Appointment not found" else 502
+        return jsonify(result), status
+
+    return jsonify(result)
 
 if __name__ == "__main__":
     app.run(
