@@ -3,6 +3,7 @@ import json
 from datetime import datetime, timezone
 from pathlib import Path
 import chromadb
+import requests
 
 
 EMBED_VECTOR_SIZE = 256
@@ -12,6 +13,15 @@ CORPUS_PATH = Path(__file__).parent / "corpus" / "corpus.jsonl"
 CHUNK_SIZE_WORDS = 80
 CHROMA_DIR = Path(__file__).parent / "chroma"
 CHROMA_COLLECTION_NAME = "rag_corpus"
+
+AUTHORITY_TIER_WEIGHTS = {
+    "tier_1": 1.0,
+    "tier_2": 0.7,
+    "tier_3": 0.4,
+}
+
+OLLAMA_URL = "http://localhost:11434/api/generate"
+OLLAMA_MODEL = "qwen2.5:0.5b"
 
 
 def embed_texts(texts: list[str]) -> list[list[float]]:
@@ -163,3 +173,80 @@ def retrieve_context(query: str, top_k: int = 5) -> dict:
     except Exception:
         results = lexical_fallback_retrieve(query, top_k)
         return {"retrieval_mode": "lexical", "results": results}
+
+
+def confidence_from_results(results: list[dict]) -> str:
+    if not results:
+        return "Insufficient"
+
+    weighted_scores = []
+    for r in results:
+        weight = AUTHORITY_TIER_WEIGHTS.get(r.get("authority_tier"), 0.4)
+        score = r.get("score") or 0.0
+        weighted_scores.append(score * weight)
+
+    top_score = max(weighted_scores)
+
+    if top_score >= 0.75:
+        return "High"
+    elif top_score >= 0.45:
+        return "Medium"
+    else:
+        return "Low"
+
+
+def generate_with_ollama(prompt: str, model: str = OLLAMA_MODEL) -> str:
+    try:
+        response = requests.post(
+            OLLAMA_URL,
+            json={"model": model, "prompt": prompt, "stream": False},
+            timeout=30,
+        )
+        response.raise_for_status()
+        return response.json().get("response", "").strip()
+    except Exception as e:
+        return f"[Ollama unavailable: {e}]"
+
+
+def answer_question(query: str, top_k: int = 5) -> dict:
+    retrieval = retrieve_context(query, top_k)
+    results = retrieval["results"]
+    confidence = confidence_from_results(results)
+
+    if not results or confidence == "Insufficient":
+        return {
+            "status": "insufficient_context",
+            "query": query,
+            "answer": "There is not enough information in the knowledge base to answer this question.",
+            "citations": [],
+            "confidence_category": "Insufficient",
+            "retrieval_summary": {
+                "retrieval_mode": retrieval["retrieval_mode"],
+                "num_results": len(results),
+            },
+        }
+
+    context_text = "\n\n".join(f"[{r['source_id']}] {r['text']}" for r in results)
+    prompt = (
+        "Answer the question using ONLY the context below. "
+        "If the context does not contain the answer, say so.\n\n"
+        f"Context:\n{context_text}\n\nQuestion: {query}\nAnswer:"
+    )
+    answer_text = generate_with_ollama(prompt)
+
+    citations = [
+        {"source_id": r["source_id"], "chunk_id": r["chunk_id"]}
+        for r in results
+    ]
+
+    return {
+        "status": "ok",
+        "query": query,
+        "answer": answer_text,
+        "citations": citations,
+        "confidence_category": confidence,
+        "retrieval_summary": {
+            "retrieval_mode": retrieval["retrieval_mode"],
+            "num_results": len(results),
+        },
+    }
