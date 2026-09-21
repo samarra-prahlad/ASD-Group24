@@ -2,12 +2,16 @@ import hashlib
 import json
 from datetime import datetime, timezone
 from pathlib import Path
+import chromadb
+
 
 EMBED_VECTOR_SIZE = 256
 
 KNOWLEDGE_DIR = Path(__file__).parent / "knowledge"
 CORPUS_PATH = Path(__file__).parent / "corpus" / "corpus.jsonl"
 CHUNK_SIZE_WORDS = 80
+CHROMA_DIR = Path(__file__).parent / "chroma"
+CHROMA_COLLECTION_NAME = "rag_corpus"
 
 
 def embed_texts(texts: list[str]) -> list[list[float]]:
@@ -65,3 +69,97 @@ def write_corpus(chunks: list[dict]) -> None:
     with open(CORPUS_PATH, "w", encoding="utf-8") as f:
         for chunk in chunks:
             f.write(json.dumps(chunk) + "\n")
+
+
+def get_chroma_client():
+    return chromadb.PersistentClient(path=str(CHROMA_DIR))
+
+
+def refresh_corpus() -> dict:
+    chunks = build_corpus()
+    write_corpus(chunks)
+
+    client = get_chroma_client()
+    try:
+        client.delete_collection(CHROMA_COLLECTION_NAME)
+    except Exception:
+        pass
+    collection = client.create_collection(CHROMA_COLLECTION_NAME)
+
+    if chunks:
+        texts = [c["text"] for c in chunks]
+        embeddings = embed_texts(texts)
+        ids = [c["chunk_id"] for c in chunks]
+        metadatas = [
+            {
+                "source_id": c["source_id"],
+                "authority_tier": c["authority_tier"],
+                "indexed_at": c["indexed_at"],
+            }
+            for c in chunks
+        ]
+        collection.add(ids=ids, embeddings=embeddings, documents=texts, metadatas=metadatas)
+
+    return {"status": "ok", "chunks_indexed": len(chunks)}
+
+
+def _lexical_score(query_tokens: list[str], text: str) -> int:
+    text_tokens = set(text.lower().split())
+    return len(set(query_tokens) & text_tokens)
+
+
+def lexical_fallback_retrieve(query: str, top_k: int = 5) -> list[dict]:
+    if not CORPUS_PATH.exists():
+        return []
+    query_tokens = query.lower().split()
+    scored = []
+    with open(CORPUS_PATH, "r", encoding="utf-8") as f:
+        for line in f:
+            chunk = json.loads(line)
+            score = _lexical_score(query_tokens, chunk["text"])
+            if score > 0:
+                scored.append((score, chunk))
+    scored.sort(key=lambda x: x[0], reverse=True)
+
+    results = []
+    for score, chunk in scored[:top_k]:
+        results.append({
+            "chunk_id": chunk["chunk_id"],
+            "source_id": chunk["source_id"],
+            "authority_tier": chunk["authority_tier"],
+            "text": chunk["text"],
+            "score": float(score),
+        })
+    return results
+
+
+def retrieve_context(query: str, top_k: int = 5) -> dict:
+    client = get_chroma_client()
+    try:
+        collection = client.get_collection(CHROMA_COLLECTION_NAME)
+        if collection.count() == 0:
+            raise ValueError("empty collection")
+
+        query_embedding = embed_texts([query])[0]
+        raw = collection.query(
+            query_embeddings=[query_embedding],
+            n_results=min(top_k, collection.count()),
+        )
+
+        results = []
+        ids = raw["ids"][0]
+        docs = raw["documents"][0]
+        metadatas = raw["metadatas"][0]
+        distances = raw["distances"][0]
+        for i in range(len(ids)):
+            results.append({
+                "chunk_id": ids[i],
+                "source_id": metadatas[i]["source_id"],
+                "authority_tier": metadatas[i]["authority_tier"],
+                "text": docs[i],
+                "score": float(1 - distances[i]) if distances[i] is not None else None,
+            })
+        return {"retrieval_mode": "vector", "results": results}
+    except Exception:
+        results = lexical_fallback_retrieve(query, top_k)
+        return {"retrieval_mode": "lexical", "results": results}
