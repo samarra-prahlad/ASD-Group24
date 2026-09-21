@@ -1,5 +1,6 @@
 import hashlib
 import json
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 import chromadb
@@ -13,6 +14,7 @@ CORPUS_PATH = Path(__file__).parent / "corpus" / "corpus.jsonl"
 CHUNK_SIZE_WORDS = 80
 CHROMA_DIR = Path(__file__).parent / "chroma"
 CHROMA_COLLECTION_NAME = "rag_corpus"
+AUDIT_PATH = Path(__file__).parent / "rag-audit.jsonl"
 
 AUTHORITY_TIER_WEIGHTS = {
     "tier_1": 1.0,
@@ -208,12 +210,29 @@ def generate_with_ollama(prompt: str, model: str = OLLAMA_MODEL) -> str:
         return f"[Ollama unavailable: {e}]"
 
 
+def append_audit(query: str, status: str, retrieval_mode: str, confidence_category: str, duration_ms: float) -> None:
+    AUDIT_PATH.parent.mkdir(parents=True, exist_ok=True)
+    record = {
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "query": query,
+        "status": status,
+        "retrieval_mode": retrieval_mode,
+        "confidence_category": confidence_category,
+        "duration_ms": duration_ms,
+    }
+    with open(AUDIT_PATH, "a", encoding="utf-8") as f:
+        f.write(json.dumps(record) + "\n")
+
+
 def answer_question(query: str, top_k: int = 5) -> dict:
+    start = time.perf_counter()
     retrieval = retrieve_context(query, top_k)
     results = retrieval["results"]
     confidence = confidence_from_results(results)
 
     if not results or confidence == "Insufficient":
+        duration_ms = (time.perf_counter() - start) * 1000
+        append_audit(query, "insufficient_context", retrieval["retrieval_mode"], "Insufficient", duration_ms)
         return {
             "status": "insufficient_context",
             "query": query,
@@ -238,6 +257,9 @@ def answer_question(query: str, top_k: int = 5) -> dict:
         {"source_id": r["source_id"], "chunk_id": r["chunk_id"]}
         for r in results
     ]
+
+    duration_ms = (time.perf_counter() - start) * 1000
+    append_audit(query, "ok", retrieval["retrieval_mode"], confidence, duration_ms)
 
     return {
         "status": "ok",
