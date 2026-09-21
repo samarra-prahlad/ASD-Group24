@@ -1,4 +1,0 @@
-{"timestamp": "2026-09-21T00:47:40.564079+00:00", "query": "what is the late fee", "status": "ok", "retrieval_mode": "vector", "confidence_category": "Low", "duration_ms": 5.259709199890494}
-{"timestamp": "2026-09-21T00:47:40.574073+00:00", "query": "anything", "status": "insufficient_context", "retrieval_mode": "lexical", "confidence_category": "Insufficient", "duration_ms": 8.973750052973628}
-{"timestamp": "2026-09-21T00:47:40.583923+00:00", "query": "anything", "status": "insufficient_context", "retrieval_mode": "lexical", "confidence_category": "Insufficient", "duration_ms": 8.695833152160048}
-{"timestamp": "2026-09-21T00:47:40.601759+00:00", "query": "late fee", "status": "ok", "retrieval_mode": "vector", "confidence_category": "Low", "duration_ms": 2.9186669271439314}
