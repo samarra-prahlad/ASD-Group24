@@ -4,3 +4,5 @@ database/data/
 tests/.test_data/
 corpus/corpus.jsonl
 chroma/
+rag-audit.jsonl
+corpus/corpus.jsonl

@@ -3,6 +3,7 @@ import os
 import requests
 
 SHARED_ACCESS_API_URL = os.getenv("SHARED_ACCESS_API_URL", "http://localhost:5000")
+RAG_SERVER_URL = os.getenv("RAG_SERVER_URL", "http://localhost:8001")
 
 
 def check(label, method, url, **kwargs):
@@ -20,8 +21,14 @@ def observe_shared_access():
     return result
 
 
+def observe_rag_server():
+    result = check("rag-server", "GET", f"{RAG_SERVER_URL}/health")
+    print(f"  Checked {result}")
+    return result
+
+
 def observe_all_services(plan):
-    results = [observe_shared_access()]
+    results = [observe_shared_access(), observe_rag_server()]
 
     for service in plan["services"]:
         url = f"http://localhost:{service["backend_port"]}/"

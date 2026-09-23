@@ -9,4 +9,5 @@ PLAN = {
         {"name": "wardbed", "backend_port": 5006},
     ],
     "shared_access_check": "GET /validate on the shared access API",
+    "rag_check": "GET /health on the local RAG server",
 }
