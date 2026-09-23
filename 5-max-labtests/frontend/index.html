@@ -59,6 +59,7 @@
                     <tr><td colspan="6">Loading orders...</td></tr>
                 </tbody>
             </table>
+            <div id="mcp-result-box" class="mcp-result-box" style="display:none;"></div>
         </section>
 
         <section>
@@ -102,7 +103,10 @@
                             <option value="completed" ${o.status === 'completed' ? 'selected' : ''}>completed</option>
                         </select>
                     </td>
-                    <td><button onclick="deleteOrder(${o.order_id})">Delete</button></td>
+                    <td>
+                        <button class="mcp-status-btn" onclick="checkLiveStatus(${o.order_id})">Check Live Status (MCP)</button>
+                        <button onclick="deleteOrder(${o.order_id})">Delete</button>
+                    </td>
                 </tr>
             `).join("");
         }
@@ -134,6 +138,35 @@
         async function deleteOrder(orderId) {
             await fetch(`${BACKEND}/orders/${orderId}`, { method: "DELETE" });
             loadOrders();
+        }
+
+        async function checkLiveStatus(orderId) {
+            const box = document.getElementById("mcp-result-box");
+            box.style.display = "block";
+            box.classList.remove("mcp-error");
+            box.innerHTML = `<span class="mcp-label">MCP Tool Result</span>Calling labtests_get_order_status via shared MCP server...`;
+
+            try {
+                const res = await fetch(`${BACKEND}/mcp/order-status/${orderId}`);
+                const data = await res.json();
+
+                if (!res.ok || data.error) {
+                    box.classList.add("mcp-error");
+                    box.innerHTML = `<span class="mcp-label">MCP Tool Result — Error</span>${data.error || "Unknown error"}${data.detail ? ` (${data.detail})` : ""}`;
+                    return;
+                }
+
+                box.innerHTML = `
+                    <span class="mcp-label">MCP Tool Result — labtests_get_order_status</span>
+                    Order #${data.order_id}: <strong>${data.status}</strong><br>
+                    Test type: ${data.test_type}<br>
+                    Ordered by: ${data.ordered_by}<br>
+                    Created at: ${data.created_at}
+                `;
+            } catch (exc) {
+                box.classList.add("mcp-error");
+                box.innerHTML = `<span class="mcp-label">MCP Tool Result — Error</span>Could not reach backend: ${exc}`;
+            }
         }
 
         document.getElementById("order-form").addEventListener("submit", async (e) => {
