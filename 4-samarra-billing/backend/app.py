@@ -18,16 +18,17 @@ PHARMACY_DATABASE_API_URL = os.environ.get("PHARMACY_DATABASE_API_URL", "http://
 WARDBED_DATABASE_API_URL = os.environ.get("WARDBED_DATABASE_API_URL", "http://wardbed-backend:5006")
 SHARED_ACCESS_API_URL = os.environ.get("SHARED_ACCESS_API_URL", "http://shared-backend:5000")
 OLLAMA_BASE_URL = os.environ.get("OLLAMA_BASE_URL", "http://host.docker.internal:11434/v1")
-OLLAMA_MODEL = os.environ.get("OLLAMA_MODEL", "qwen2.5:0.5b")
+OLLAMA_MODEL = os.environ.get("OLLAMA_MODEL", "llama3.1:8b")
 MCP_SERVER_URL = os.environ.get("MCP_SERVER_URL", "http://host.docker.internal:7000/mcp")
 AI_TIMEOUT = 30  # seconds - LLM responses are slower than normal service calls
 REQUEST_TIMEOUT = 3  # seconds - fail fast to mock rather than hang if a teammate's service is down
 
 AI_SYSTEM_PROMPT = (
-    "You are a helpful billing assistant for a healthcare application. "
-    "Answer questions about invoices, insurance coverage, and billing status "
-    "concisely and in plain language. If you don't have enough information "
-    "to answer, say so rather than guessing."
+    "You are a billing assistant for a healthcare application. "
+    "When invoice data is provided in the user's message, answer directly from "
+    "those exact numbers — never say you lack information if data was given. "
+    "If no data was provided and the question needs it, say so plainly. "
+    "Be concise and use plain language, not JSON."
 )
 
 # ---------------------------------------------------------------------------
@@ -86,18 +87,14 @@ def call_invoice_status_tool(invoice_id):
 
 
 def build_grounded_prompt(user_message, invoice_data):
-    """
-    Appends real invoice data to the user's message when we have it, so
-    Ollama answers from actual numbers instead of guessing. Returns the
-    message unchanged when there's nothing to ground on.
-    """
     if invoice_data is None:
         return user_message
 
     return (
         f"{user_message}\n\n"
-        "Use this real invoice data to answer - do not invent numbers:\n"
-        f"{json.dumps(invoice_data)}"
+        "Here is the actual invoice record. Answer using ONLY these values, "
+        "in plain sentences (not JSON), and do not ask for more information:\n"
+        f"{json.dumps(invoice_data, indent=2)}"
     )
 
 def proxy_get(url):
