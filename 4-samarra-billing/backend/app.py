@@ -3,7 +3,12 @@ import requests
 from flask import Flask, jsonify, request
 from flask_cors import CORS
 from markupsafe import escape
+import asyncio
+import json
+import re
 
+from mcp import ClientSession
+from mcp.client.streamable_http import streamablehttp_client
 app = Flask(__name__)
 CORS(app)
 
@@ -14,7 +19,7 @@ WARDBED_DATABASE_API_URL = os.environ.get("WARDBED_DATABASE_API_URL", "http://wa
 SHARED_ACCESS_API_URL = os.environ.get("SHARED_ACCESS_API_URL", "http://shared-backend:5000")
 OLLAMA_BASE_URL = os.environ.get("OLLAMA_BASE_URL", "http://host.docker.internal:11434/v1")
 OLLAMA_MODEL = os.environ.get("OLLAMA_MODEL", "qwen2.5:0.5b")
-
+MCP_SERVER_URL = os.environ.get("MCP_SERVER_URL", "http://host.docker.internal:7000/mcp")
 AI_TIMEOUT = 30  # seconds - LLM responses are slower than normal service calls
 REQUEST_TIMEOUT = 3  # seconds - fail fast to mock rather than hang if a teammate's service is down
 
@@ -25,6 +30,75 @@ AI_SYSTEM_PROMPT = (
     "to answer, say so rather than guessing."
 )
 
+# ---------------------------------------------------------------------------
+# MCP tool grounding for AI chat
+#
+# The shared MCP server exposes billing_get_invoice_status. When a chat
+# message mentions a specific invoice, we call the real tool and feed its
+# result into the prompt so Ollama answers from actual data instead of
+# guessing. If the invoice ID can't be extracted, or the tool/server is
+# unreachable, we fall back to answering without grounding rather than
+# failing the whole request.
+# ---------------------------------------------------------------------------
+
+INVOICE_ID_PATTERN = re.compile(r"invoice\s*#?\s*(\d+)", re.IGNORECASE)
+
+
+def extract_invoice_id(message):
+    """Pulls an invoice ID out of a message like 'invoice 5' or 'invoice #12'."""
+    if not message:
+        return None
+    match = INVOICE_ID_PATTERN.search(message)
+    if not match:
+        return None
+    return int(match.group(1))
+
+
+async def _call_invoice_status_tool_async(invoice_id):
+    async with streamablehttp_client(MCP_SERVER_URL) as (read_stream, write_stream, _):
+        async with ClientSession(read_stream, write_stream) as session:
+            await session.initialize()
+            return await session.call_tool(
+                "billing_get_invoice_status", {"invoice_id": invoice_id}
+            )
+
+
+def call_invoice_status_tool(invoice_id):
+    """
+    Calls the shared MCP server's billing_get_invoice_status tool.
+    Returns a dict on success, or None if the server is unreachable or the
+    response can't be parsed - callers should treat None as "no grounding
+    available" and still answer without it, rather than fail the request.
+    """
+    try:
+        result = asyncio.run(_call_invoice_status_tool_async(invoice_id))
+    except Exception:
+        return None
+
+    if getattr(result, "isError", False):
+        return None
+
+    try:
+        text = result.content[0].text
+        return json.loads(text)
+    except (IndexError, AttributeError, TypeError, json.JSONDecodeError):
+        return None
+
+
+def build_grounded_prompt(user_message, invoice_data):
+    """
+    Appends real invoice data to the user's message when we have it, so
+    Ollama answers from actual numbers instead of guessing. Returns the
+    message unchanged when there's nothing to ground on.
+    """
+    if invoice_data is None:
+        return user_message
+
+    return (
+        f"{user_message}\n\n"
+        "Use this real invoice data to answer - do not invent numbers:\n"
+        f"{json.dumps(invoice_data)}"
+    )
 
 def proxy_get(url):
     """
@@ -699,13 +773,22 @@ def ai_chat():
     if not data or "message" not in data or not data["message"].strip():
         return jsonify({"error": "message is required"}), 400
 
-    reply, error = call_ollama(data["message"])
+    user_message = data["message"]
+    invoice_id = extract_invoice_id(user_message)
+    invoice_data = call_invoice_status_tool(invoice_id) if invoice_id is not None else None
+    prompt = build_grounded_prompt(user_message, invoice_data)
+
+    reply, error = call_ollama(prompt)
 
     if error:
         return jsonify({"error": error}), 503
 
-    return jsonify({"reply": reply})
+    response_body = {"reply": reply}
+    if invoice_data is not None:
+        response_body["tool_used"] = "billing_get_invoice_status"
+        response_body["tool_result"] = invoice_data
 
+    return jsonify(response_body)
 
 @app.post("/ai/chat/html")
 def ai_chat_html():
