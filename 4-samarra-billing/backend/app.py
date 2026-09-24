@@ -794,14 +794,20 @@ def ai_chat():
 def ai_chat_html():
     """
     HTML fragment version for the HTMX chat widget. Appends a user bubble and
-    an assistant bubble to the chat log on each request.
+    an assistant bubble to the chat log on each request. Grounds invoice
+    questions in real data the same way /ai/chat does, via the
+    billing_get_invoice_status MCP tool.
     """
     user_message = request.form.get("message", "").strip()
 
     if not user_message:
         return "<div class='chat-msg chat-error'>Please enter a message.</div>", 400
 
-    reply, error = call_ollama(user_message)
+    invoice_id = extract_invoice_id(user_message)
+    invoice_data = call_invoice_status_tool(invoice_id) if invoice_id is not None else None
+    prompt = build_grounded_prompt(user_message, invoice_data)
+
+    reply, error = call_ollama(prompt)
 
     user_bubble = f"<div class='chat-msg chat-user'><strong>You:</strong> {escape(user_message)}</div>"
 
@@ -810,7 +816,6 @@ def ai_chat_html():
 
     bot_bubble = f"<div class='chat-msg chat-bot'><strong>Assistant:</strong> {escape(reply)}</div>"
     return f"{user_bubble}{bot_bubble}"
-
 
 # run application
 if __name__ == "__main__":
