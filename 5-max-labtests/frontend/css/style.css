@@ -161,3 +161,61 @@ textarea {
     padding: 0.4rem 0.75rem;
     font-size: 0.85rem;
 }
+
+.confidence-badge {
+    display: inline-block;
+    padding: 0.15rem 0.6rem;
+    border-radius: 999px;
+    font-size: 0.7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    margin-bottom: 0.6rem;
+}
+
+.confidence-high {
+    background: #d4edda;
+    color: #1e5e2c;
+}
+
+.confidence-medium {
+    background: #fff3cd;
+    color: #7a5c00;
+}
+
+.confidence-low {
+    background: #fde2c8;
+    color: #8a4b00;
+}
+
+.confidence-insufficient {
+    background: #fdecea;
+    color: #a12b1f;
+}
+
+.answer-box.insufficient-context {
+    background: #fdecea;
+    border: 1px solid #f5c6cb;
+}
+
+.citations-list {
+    margin-top: 0.75rem;
+    padding-top: 0.6rem;
+    border-top: 1px solid rgba(0,0,0,0.08);
+    font-size: 0.8rem;
+    color: var(--color-muted);
+}
+
+.citations-list .citations-label {
+    display: block;
+    font-weight: 700;
+    text-transform: uppercase;
+    font-size: 0.7rem;
+    letter-spacing: 0.03em;
+    margin-bottom: 0.3rem;
+}
+
+.citations-list ul {
+    margin: 0;
+    padding-left: 1.2rem;
+}

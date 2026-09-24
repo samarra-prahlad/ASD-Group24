@@ -16,15 +16,34 @@ SHARED_DATABASE_URL = os.getenv("SHARED_DATABASE_URL", "http://shared-database:6
 OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://host.docker.internal:11434/v1")
 OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "qwen2.5:0.5b")
 MCP_SERVER_URL = os.getenv("MCP_SERVER_URL", "http://host.docker.internal:7000/mcp")
+RAG_SERVER_URL = os.getenv("RAG_SERVER_URL", "http://host.docker.internal:7001/mcp")
+
+# MCP/RAG integration is retained in code but disabled during CI, since the
+# shared MCP/RAG servers aren't running on GitHub's runner. Set to "false" in
+# student-x.yml; defaults to "true" for local/Docker use.
+MCP_RAG_ENABLED = os.getenv("MCP_RAG_ENABLED", "true").lower() == "true"
 
 
-async def _call_mcp_tool(tool_name, arguments):
-    async with streamablehttp_client(MCP_SERVER_URL) as (read_stream, write_stream, _):
+async def _call_tool(server_url, tool_name, arguments):
+    """Generic MCP-protocol tool call, used for both the shared MCP server
+    (port 7000) and the shared RAG server (port 7001) — both speak the same
+    MCP client/session protocol, just expose different tools."""
+    async with streamablehttp_client(server_url) as (read_stream, write_stream, _):
         async with ClientSession(read_stream, write_stream) as session:
             await session.initialize()
             result = await session.call_tool(tool_name, arguments)
             return result
-        
+
+
+def _extract_tool_result(result):
+    """MCP tool results can come back as structuredContent (preferred) or as
+    a text blob that needs JSON-parsing, depending on SDK/server version."""
+    if getattr(result, "structuredContent", None):
+        return result.structuredContent
+    import json
+    text = result.content[0].text
+    return json.loads(text)
+
 def load_prompt(filename):
     path = os.path.join(os.path.dirname(__file__), "prompts", filename)
     with open(path, "r") as f:
@@ -48,19 +67,15 @@ def get_order(order_id):
 
 @app.get("/mcp/order-status/<int:order_id>")
 def mcp_order_status(order_id):
+    if not MCP_RAG_ENABLED:
+        return jsonify({"error": "MCP/RAG disabled in this environment"}), 503
     try:
         result = asyncio.run(
-            _call_mcp_tool("labtests_get_order_status", {"order_id": order_id})
+            _call_tool(MCP_SERVER_URL, "labtests_get_order_status", {"order_id": order_id})
         )
+        return jsonify(_extract_tool_result(result))
     except Exception as exc:
         return jsonify({"error": "MCP server unreachable", "detail": str(exc)}), 503
-
-    if getattr(result, "structuredContent", None):
-        return jsonify(result.structuredContent)
-
-    import json
-    text = result.content[0].text
-    return jsonify(json.loads(text))
 
 @app.post("/orders")
 def create_order():
@@ -141,25 +156,45 @@ def flag_result_with_ai(result_value, reference_range):
 
 @app.post("/chat")
 def chat():
+    """
+    Grounded chatbot: instead of sending the user's question straight to
+    Ollama (which just guesses from its training data), this calls the
+    shared RAG server's answer_question tool. That tool retrieves relevant
+    chunks from our knowledge base (rag-server/knowledge/labtests/*.md),
+    then asks Ollama to answer using only that retrieved context — and
+    reports back which sources it used and how confident it is.
+    """
     data = request.get_json()
     user_message = data.get("message", "")
 
-    prompt = load_prompt("chat_prompt.txt").format(user_message=user_message)
+    if not MCP_RAG_ENABLED:
+        return jsonify({
+            "reply": "MCP/RAG disabled in this environment.",
+            "status": "disabled",
+            "citations": [],
+            "confidence_category": "Insufficient",
+        })
 
     try:
-        r = requests.post(
-            f"{OLLAMA_BASE_URL}/chat/completions",
-            json={
-                "model": OLLAMA_MODEL,
-                "messages": [{"role": "user", "content": prompt}],
-            },
-            timeout=15,
+        result = asyncio.run(
+            _call_tool(RAG_SERVER_URL, "answer_question", {"query": user_message, "top_k": 5})
         )
-        reply = r.json()["choices"][0]["message"]["content"].strip()
+        rag_response = _extract_tool_result(result)
     except Exception as exc:
-        reply = f"Chat unavailable: {exc}"
+        return jsonify({
+            "reply": f"Chat unavailable: RAG server unreachable ({exc})",
+            "status": "error",
+            "citations": [],
+            "confidence_category": "Insufficient",
+        })
 
-    return jsonify({"reply": reply})
+    return jsonify({
+        "reply": rag_response.get("answer", "No answer returned."),
+        "status": rag_response.get("status", "ok"),
+        "citations": rag_response.get("citations", []),
+        "confidence_category": rag_response.get("confidence_category", "Insufficient"),
+        "retrieval_summary": rag_response.get("retrieval_summary", {}),
+    })
 
 @app.put("/orders/<int:order_id>")
 def update_order(order_id):
