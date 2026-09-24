@@ -1,10 +1,13 @@
 import os
 from pathlib import Path
-
+import asyncio
+from mcp import ClientSession
+from mcp.client.streamable_http import streamablehttp_client
 from flask import Flask, jsonify, request
 from flask_cors import CORS
 from openai import OpenAI
 import requests
+import json
 
 app = Flask(__name__)
 CORS(app)
@@ -15,6 +18,7 @@ SHARED_DB_URL = os.environ.get("SHARED_DB_URL", "http://shared-database:6000")
 OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434/v1")
 OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "qwen2.5:0.5b")
 PROMPT_DIR = Path(__file__).with_name("prompts")
+MCP_SERVER_URL = os.environ.get("MCP_SERVER_URL", "http://host.docker.internal:7000/mcp")
 
 client = OpenAI(
     base_url=OLLAMA_BASE_URL,
@@ -45,6 +49,11 @@ def check_session(token):
     data = resp.json()
     return data.get("patient_id"), data.get("role"), None
 
+async def _call_mcp_tool(tool_name, arguments):
+    async with streamablehttp_client(MCP_SERVER_URL) as (read_stream, write_stream, _):
+        async with ClientSession(read_stream, write_stream) as session:
+            await session.initialize()
+            return await session.call_tool(tool_name, arguments)
 
 @app.get("/")
 def health():
@@ -213,6 +222,25 @@ def get_change_requests(patient_id):
 
     return jsonify(resp.json())
 
+# Single change request's status via the shared MCP server
+@app.get("/change_requests/mcp-status/<int:request_id>")
+def get_change_request_status_via_mcp(request_id):
+    token = request.args.get("token")
+    caller_id, role, err = check_session(token)
+    if err:
+        return err
+
+    try:
+        result = asyncio.run(
+            _call_mcp_tool("ehr_get_change_request_status", {"request_id": request_id})
+        )
+    except Exception as exc:
+        return jsonify({"error": "MCP server unavailable", "details": str(exc)}), 503
+
+    if result.isError:
+        return jsonify({"error": "MCP tool call failed"}), 502
+
+    return jsonify(json.loads(result.content[0].text)), 200
 
 # CREATE
 @app.post("/change_requests")
