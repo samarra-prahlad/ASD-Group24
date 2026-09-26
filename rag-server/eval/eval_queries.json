@@ -1,0 +1,10 @@
+[
+  {
+    "query": "what is the late payment fee",
+    "relevant_source_ids": ["billing/late_fee.md"]
+  },
+  {
+    "query": "how long do refunds take",
+    "relevant_source_ids": ["billing/refunds.md"]
+  }
+]
