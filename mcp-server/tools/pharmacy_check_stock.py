@@ -15,7 +15,7 @@ def check_stock(medication_name: str) -> dict:
         raise RuntimeError(f"Failed to fetch stock from pharmacy backend: {e}")
     medications = response.json()
     match = next(
-        (m for m in medications if m.get("name", "").lower() == medication_name.strip().lower()),
+        (m for m in medications if medication_name.strip().lower() in m.get("name", "").lower()),
         None,
     )
 

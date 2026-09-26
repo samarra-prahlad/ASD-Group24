@@ -4,6 +4,7 @@ from openai import OpenAI
 from pathlib import Path
 import os
 import requests
+from mcp_client import call_check_stock
 
 DATABASE_URL = os.environ.get("DATABASE_SERVICE_URL", "http://localhost:6003")
 OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434/v1")
@@ -17,6 +18,27 @@ client = OpenAI(
     base_url=OLLAMA_BASE_URL,
     api_key="ollama"
 )
+
+
+MCP_ENABLED = os.getenv("MCP_ENABLED", "true").strip().lower() in ("1", "true", "yes", "on")
+
+
+def find_medication_in_question(question: str) -> str | None:
+    """Naive match: see if any known medication name appears in the question."""
+    try:
+        resp = requests.get(f"{DATABASE_URL}/medications", timeout=5)
+        resp.raise_for_status()
+        medications = resp.json()
+    except requests.RequestException:
+        return None
+
+    question_lower = question.lower()
+    for med in medications:
+        name = med.get("name", "")
+        if name and name.lower() in question_lower:
+            return name
+    return None
+
 
 SHARED_ACCESS_API_URL = os.environ.get("SHARED_ACCESS_API_URL", "http://shared-backend:5000")
 
@@ -164,13 +186,20 @@ def ask_with_context():
     if not question:
         return "<p>Question is required.</p>", 400
 
-
     loaded_system_prompt = load_prompt("implementation_system_prompt.txt")
     loaded_task_prompt = load_prompt("context_qa_task_prompt.txt")
 
+    stock_context = ""
+    if MCP_ENABLED and "stock" in question.lower():
+        medication_name = find_medication_in_question(question)
+        if medication_name:
+            try:
+                stock_result = call_check_stock(medication_name)
+                stock_context = f"\n\nVerified stock data (from MCP tool): {stock_result}"
+            except Exception as exc:
+                stock_context = f"\n\n(Stock lookup via MCP failed: {exc})"
 
-    final_prompt = loaded_task_prompt + "\n\n" + question
-
+    final_prompt = loaded_task_prompt + "\n\n" + question + stock_context
 
     try:
         response = client.chat.completions.create(
