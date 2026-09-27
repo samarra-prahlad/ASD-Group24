@@ -5,7 +5,7 @@ import os
 from mcp import ClientSession
 from mcp.client.streamable_http import streamablehttp_client
 
-RAG_SERVER_URL = os.getenv("RAG_SERVER_URL", "http://localhost:7001/mcp")
+RAG_SERVER_URL = os.getenv("RAG_SERVER_URL", "http://host.docker.internal:7001/mcp")
 
 
 def _extract_result(result):
