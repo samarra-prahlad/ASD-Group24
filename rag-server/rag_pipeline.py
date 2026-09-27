@@ -204,23 +204,27 @@ def confidence_from_results(results: list[dict], query: str = "") -> str:
         return "Insufficient"
 
     query_tokens = set(query.lower().split()) - STOPWORDS
-    top_text_tokens = set(results[0].get("text", "").lower().split()) - STOPWORDS
-    overlap = len(query_tokens & top_text_tokens)
-
-    if overlap == 0:
+    if not query_tokens:
         return "Insufficient"
 
-    weighted_scores = []
-    for r in results:
-        weight = AUTHORITY_TIER_WEIGHTS.get(r.get("authority_tier"), 0.4)
-        score = r.get("score") or 0.0
-        weighted_scores.append(score * weight)
+    top_text_tokens = set(results[0].get("text", "").lower().split()) - STOPWORDS
+    overlap = query_tokens & top_text_tokens
 
-    top_score = max(weighted_scores)
+    if not overlap:
+        return "Insufficient"
 
-    if top_score >= 0.75:
+    # embed_texts() isn't a real semantic embedding, so the vector "score" is
+    # noise and can't be graded against a fixed threshold (see FIX comment
+    # above retrieve_context). Confidence is instead based on how much of the
+    # query's own (non-stopword) tokens are present in the top matched chunk -
+    # a near-exact phrase match scores high, a loosely related one scores low.
+    overlap_ratio = len(overlap) / len(query_tokens)
+    weight = AUTHORITY_TIER_WEIGHTS.get(results[0].get("authority_tier"), 0.4)
+    weighted_ratio = overlap_ratio * weight
+
+    if weighted_ratio >= 0.75:
         return "High"
-    elif top_score >= 0.45:
+    elif weighted_ratio >= 0.45:
         return "Medium"
     else:
         return "Low"
