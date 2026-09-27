@@ -767,15 +767,15 @@ def render_confidence_badge(confidence_category):
     if not confidence_category:
         return ""
     css_class = f"confidence-badge confidence-{confidence_category.lower()}"
-    return f"<span class='{css_class}'>{escape(confidence_category)}</span>"
-
+    return f" <span class='{css_class}'>{escape(confidence_category)}</span>"
 
 def render_citations(citations):
     if not citations:
         return ""
-    items = "".join(f"<li>{escape(str(c))}</li>" for c in citations)
+    items = "".join(
+        f"<li>{escape(str(c.get('source_id', c)))}</li>" for c in citations
+    )
     return f"<ul class='citation-list'>{items}</ul>"
-
 
 @app.post("/ai/chat")
 def ai_chat():

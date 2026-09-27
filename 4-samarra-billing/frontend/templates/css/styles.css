@@ -20,12 +20,12 @@
 body {
     margin: 0;
     font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
-    background: var(--color-bg);
+    background: #f5f5f5;
     color: var(--color-text);
 }
 
 .app-shell {
-    max-width: 1400px;
+    max-width: 1600px;
     margin: 0 auto;
     padding: 2rem 1rem;
 }
@@ -75,13 +75,13 @@ body {
 
 .tab-content {
     position: relative;
-    min-height: 700px;
+    min-height: 450px;
 }
 
 .tab-frame {
     display: none;
     width: 100%;
-    min-height: 700px;
+    min-height: 450px;
     border: 1px solid var(--color-mid);
     border-radius: 6px;
     background: #ffffff;
@@ -96,6 +96,7 @@ body {
     border: 1px solid var(--color-mid);
     border-radius: 6px;
     padding: 1.5rem;
+    margin-bottom: 1.5rem;
 }
 
 .card h2 {
@@ -126,7 +127,8 @@ body {
 
 .patient-form {
     display: flex;
-    gap: 0.5rem;
+    flex-wrap: wrap;
+    gap: 1rem;
     align-items: end;
     margin-bottom: 1rem;
 }
@@ -219,3 +221,233 @@ body {
 .chat-form button:hover {
     background: var(--color-accent);
 }
+
+/* ---------------------------------------------------------------------
+   Utility
+--------------------------------------------------------------------- */
+
+.is-hidden {
+    display: none;
+}
+
+/* ---------------------------------------------------------------------
+   Create Invoice form
+--------------------------------------------------------------------- */
+
+.invoice-form {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 1rem;
+    align-items: end;
+    margin-bottom: 0.75rem;
+}
+
+.invoice-form > div {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+}
+
+.invoice-form label {
+    font-size: 0.85rem;
+    color: var(--color-muted);
+    font-weight: 600;
+}
+
+.invoice-form input,
+.invoice-form select {
+    padding: 0.55rem 0.6rem;
+    background: #ffffff;
+    color: var(--color-text);
+    border: 1px solid var(--color-mid);
+    border-radius: 6px;
+    font-size: 0.95rem;
+    font-family: inherit;
+}
+
+.invoice-form input:focus,
+.invoice-form select:focus {
+    outline: none;
+    border-color: var(--color-dark);
+}
+
+.invoice-form button {
+    grid-column: 1 / -1;
+    justify-self: start;
+    padding: 0.6rem 1.5rem;
+    background: var(--color-dark);
+    color: #ffffff;
+    border: none;
+    border-radius: 6px;
+    font-weight: 600;
+    font-size: 0.95rem;
+    cursor: pointer;
+}
+
+.invoice-form button:hover {
+    background: var(--color-accent);
+}
+
+.form-message {
+    margin-top: 0.5rem;
+    padding: 0.6rem 0.85rem;
+    border-radius: 6px;
+    font-size: 0.9rem;
+}
+
+.form-message.form-success {
+    background: #f0fdf4;
+    color: var(--color-dark);
+    border: 1px solid var(--color-mid);
+}
+
+.form-message.form-error {
+    background: #fdecea;
+    color: #b3261e;
+    border: 1px solid #f5c6c3;
+}
+
+/* ---------------------------------------------------------------------
+   Invoice table: Actions column + inline edit rows
+--------------------------------------------------------------------- */
+
+.invoice-table td:last-child {
+    white-space: nowrap;
+}
+
+.invoice-table button {
+    padding: 0.4rem 0.9rem;
+    border: 1px solid var(--color-mid);
+    background: #ffffff;
+    color: var(--color-dark);
+    border-radius: 6px;
+    font-size: 0.85rem;
+    font-family: inherit;
+    cursor: pointer;
+}
+
+.invoice-table button:hover {
+    background: var(--color-panel);
+}
+
+.edit-row td {
+    background: var(--color-bg);
+    padding: 1rem 0.75rem;
+}
+
+.edit-row form {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem;
+    align-items: end;
+}
+
+.edit-row label {
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+    font-size: 0.8rem;
+    color: var(--color-muted);
+    font-weight: 600;
+}
+
+.edit-row input,
+.edit-row select {
+    padding: 0.45rem 0.55rem;
+    background: #ffffff;
+    color: var(--color-text);
+    border: 1px solid var(--color-mid);
+    border-radius: 6px;
+    font-size: 0.9rem;
+    font-family: inherit;
+}
+
+.edit-row input:focus,
+.edit-row select:focus {
+    outline: none;
+    border-color: var(--color-dark);
+}
+
+.edit-row button[type="submit"] {
+    background: var(--color-dark);
+    color: #ffffff;
+    border: none;
+}
+
+.edit-row button[type="submit"]:hover {
+    background: var(--color-accent);
+}
+
+.edit-row button[type="button"] {
+    background: #ffffff;
+    color: var(--color-muted);
+    border: 1px solid var(--color-mid);
+}
+
+.edit-row button[type="button"]:hover {
+    background: var(--color-panel);
+}
+
+.edit-row div[id^="invoice-edit-message-"] {
+    margin-top: 0.5rem;
+    width: 100%;
+}
+
+/* ---------------------------------------------------------------------
+   Top nav (matches Appointments' shared nav bar exactly)
+--------------------------------------------------------------------- */
+
+.top-nav {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    max-width: 1200px;
+    margin: 0 auto 16px;
+    padding: 12px 20px;
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+}
+
+.top-nav-left {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+}
+
+.top-nav a {
+    color: #222;
+    text-decoration: none;
+    font-size: 14px;
+    font-weight: 600;
+    padding: 6px 4px;
+    border-bottom: 2px solid transparent;
+    transition: color 0.15s ease, border-color 0.15s ease;
+}
+
+.top-nav a:hover {
+    color: var(--color-dark);
+    border-bottom-color: var(--color-mid);
+}
+
+.top-nav-home {
+    color: var(--color-dark) !important;
+}
+.confidence-badge {
+    display: inline-block;
+    margin-left: 0.5rem;
+    padding: 0.15rem 0.55rem;
+    border-radius: 999px;
+    font-size: 0.7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+    vertical-align: middle;
+}
+.confidence-badge.confidence-high { background: var(--color-accent); color: #ffffff; }
+.confidence-badge.confidence-medium { background: #fff3cd; color: #8a6100; border: 1px solid #ffe69c; }
+.confidence-badge.confidence-low { background: #fde8d0; color: #9a5b00; border: 1px solid #f7c98e; }
+.confidence-badge.confidence-insufficient { background: #eeeeee; color: #555555; border: 1px solid #cccccc; }
+.citation-list { margin: 0.5rem 0 0; padding-left: 1.2rem; font-size: 0.8rem; color: var(--color-muted); }
+.citation-list li { margin-bottom: 0.15rem; }
+.chat-msg.chat-insufficient { background: var(--color-bg); border: 1px dashed var(--color-mid); color: var(--color-muted); font-style: italic; }
