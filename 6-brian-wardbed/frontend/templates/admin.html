@@ -37,11 +37,64 @@
                 <p>PEDIATRIC WARD</p>
             </div>
         </div>
+
+        <section class="mcp-section">
+            <h2>Ward/Bed Assistant</h2>
+
+            <div class="mcp-input-row">
+                <input
+                    type="text"
+                    id="mcpQuestion"
+                    placeholder="e.g. What bed is patient 5 in?"
+                >
+
+                <button type="button" onclick="askMcp()">
+                    Ask
+                </button>
+            </div>
+
+            <div class="mcp-response-box">
+                <div id="mcpResult">The response will appear here.</div>
+            </div>
+        </section>
     </main>
 
     <script>
         function selectWard(wardId) {
             window.location.href = `ward_detail.html?ward_id=${wardId}`;
+        }
+
+        async function askMcp() {
+            const question = document.getElementById("mcpQuestion").value.trim();
+            const resultBox = document.getElementById("mcpResult");
+
+            if (!question) {
+                resultBox.textContent = "Please enter a question.";
+                return;
+            }
+
+            resultBox.textContent = "Checking...";
+
+            const formData = new FormData();
+            formData.append("question", question);
+
+            try {
+                const response = await fetch(
+                    "http://localhost:5006/ask-mcp",
+                    {
+                        method: "POST",
+                        body: formData,
+                        credentials: "include"
+                    }
+                );
+
+                const text = await response.text();
+                resultBox.innerHTML = text;
+
+            } catch (error) {
+                resultBox.textContent =
+                    "Could not connect to the Ward/Bed backend.";
+            }
         }
     </script>
 </body>
