@@ -330,3 +330,102 @@ main {
 .top-nav-home {
     color: #558b2f !important;
 }
+
+.mcp-section {
+    width: calc(100% - 80px);
+    margin: 40px auto 60px;
+    padding: 35px 40px;
+
+    background: white;
+    border-radius: 30px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
+
+    text-align: center;
+}
+
+.mcp-section h2 {
+    margin-top: 0;
+    margin-bottom: 25px;
+
+    color: #2f7d24;
+    font-size: 28px;
+}
+
+.mcp-input-row {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+
+    gap: 15px;
+    margin-bottom: 25px;
+}
+
+#mcpQuestion {
+    width: 60%;
+    max-width: 650px;
+
+    padding: 15px 18px;
+
+    border: 2px solid #d8eac6;
+    border-radius: 12px;
+
+    font-size: 16px;
+    outline: none;
+
+    transition: border-color 0.2s ease,
+                box-shadow 0.2s ease;
+}
+
+#mcpQuestion:focus {
+    border-color: #4b922f;
+    box-shadow: 0 0 0 3px rgba(75, 146, 47, 0.15);
+}
+
+.mcp-input-row button {
+    padding: 15px 26px;
+
+    border: none;
+    border-radius: 12px;
+
+    background: #4b922f;
+    color: white;
+
+    font-size: 16px;
+    font-weight: bold;
+
+    cursor: pointer;
+
+    transition: transform 0.15s ease,
+                background 0.2s ease;
+}
+
+.mcp-input-row button:hover {
+    background: #3c7b25;
+    transform: translateY(-1px);
+}
+
+.mcp-response-box {
+    width: 70%;
+    max-width: 760px;
+    min-height: 90px;
+
+    margin: 0 auto;
+    padding: 20px 25px;
+
+    background: #eef7df;
+    border-radius: 16px;
+
+    display: flex;
+    align-items: center;
+
+    text-align: left;
+}
+
+#mcpResult {
+    width: 100%;
+    margin: 0;
+
+    color: #2f4f2f;
+    font-size: 16px;
+    line-height: 1.5;
+}
