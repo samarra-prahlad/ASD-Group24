@@ -230,7 +230,7 @@ def generate_with_ollama(prompt: str, model: str = OLLAMA_MODEL) -> str:
     try:
         response = requests.post(
             OLLAMA_URL,
-            json={"model": model, "prompt": prompt, "stream": False},
+            json={"model": model, "prompt": prompt, "stream": False, "options": {"temperature": 0}},
             timeout=30,
         )
         response.raise_for_status()
@@ -274,17 +274,30 @@ def answer_question(query: str, top_k: int = 5) -> dict:
             },
         }
 
-    context_text = "\n\n".join(f"[{r['source_id']}] {r['text']}" for r in results)
+    # Only keep chunks that actually share non-stopword tokens with the query.
+    # embed_texts() isn't a real semantic embedding, so vector search alone
+    # returns noise-ranked results - this filters out the irrelevant ones
+    # instead of blindly using all top_k results.
+    query_tokens = set(query.lower().split()) - STOPWORDS
+    relevant_results = [
+        r for r in results
+        if query_tokens & (set(r.get("text", "").lower().split()) - STOPWORDS)
+    ]
+    if not relevant_results:
+        relevant_results = results[:1]  # confidence check already passed, so keep the top match
+
+    context_text = "\n\n".join(f"[{r['source_id']}] {r['text']}" for r in relevant_results)
     prompt = (
         "Answer the question using ONLY the context below. "
-        "If the context does not contain the answer, say so.\n\n"
+        "Do not contradict the context. Do not add information that is not "
+        "stated in the context. If the context does not contain the answer, say so.\n\n"
         f"Context:\n{context_text}\n\nQuestion: {query}\nAnswer:"
     )
     answer_text = generate_with_ollama(prompt)
 
     citations = [
         {"source_id": r["source_id"], "chunk_id": r["chunk_id"]}
-        for r in results
+        for r in relevant_results
     ]
 
     duration_ms = (time.perf_counter() - start) * 1000
