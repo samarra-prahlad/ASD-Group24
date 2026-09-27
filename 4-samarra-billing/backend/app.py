@@ -22,6 +22,7 @@ OLLAMA_MODEL = os.environ.get("OLLAMA_MODEL", "llama3.1:8b")
 MCP_SERVER_URL = os.environ.get("MCP_SERVER_URL", "http://host.docker.internal:7000/mcp")
 AI_TIMEOUT = 30  # seconds - LLM responses are slower than normal service calls
 REQUEST_TIMEOUT = 3  # seconds - fail fast to mock rather than hang if a teammate's service is down
+RAG_SERVER_URL = os.environ.get("RAG_SERVER_URL", "http://host.docker.internal:7001/mcp")
 
 AI_SYSTEM_PROMPT = (
     "You are a billing assistant for a healthcare application. "
@@ -762,6 +763,19 @@ def call_ollama(user_message):
 
     return reply, None
 
+def render_confidence_badge(confidence_category):
+    if not confidence_category:
+        return ""
+    css_class = f"confidence-badge confidence-{confidence_category.lower()}"
+    return f"<span class='{css_class}'>{escape(confidence_category)}</span>"
+
+
+def render_citations(citations):
+    if not citations:
+        return ""
+    items = "".join(f"<li>{escape(str(c))}</li>" for c in citations)
+    return f"<ul class='citation-list'>{items}</ul>"
+
 
 @app.post("/ai/chat")
 def ai_chat():
@@ -809,29 +823,63 @@ def ai_chat_html():
     """
     HTML fragment version for the HTMX chat widget. Appends a user bubble and
     an assistant bubble to the chat log on each request. Grounds invoice
-    questions in real data the same way /ai/chat does, via the
-    billing_get_invoice_status MCP tool.
+    questions in real data via billing_get_invoice_status (MCP), and falls
+    back to the RAG server for everything else - surfacing its citations and
+    confidence category, with a distinct style when confidence is
+    "Insufficient".
     """
     user_message = request.form.get("message", "").strip()
 
     if not user_message:
         return "<div class='chat-msg chat-error'>Please enter a message.</div>", 400
 
-    invoice_id = extract_invoice_id(user_message)
-    invoice_data = call_invoice_status_tool(invoice_id) if invoice_id is not None else None
-    prompt = build_grounded_prompt(user_message, invoice_data)
-
-    reply, error = call_ollama(prompt)
-
     user_bubble = f"<div class='chat-msg chat-user'><strong>You:</strong> {escape(user_message)}</div>"
+    invoice_id = extract_invoice_id(user_message)
+
+    if invoice_id is not None:
+        invoice_data = call_invoice_status_tool(invoice_id)
+        prompt = build_grounded_prompt(user_message, invoice_data)
+        reply, error = call_ollama(prompt)
+
+        if error:
+            return f"{user_bubble}<div class='chat-msg chat-error'>{escape(error)}</div>", 503
+
+        bot_bubble = f"<div class='chat-msg chat-bot'><strong>Assistant:</strong> {escape(reply)}</div>"
+        return f"{user_bubble}{bot_bubble}"
+
+    rag_result = call_rag_answer_question(user_message)
+
+    if rag_result is not None:
+        confidence_category = rag_result.get("confidence_category")
+        citations = rag_result.get("citations", [])
+        reply = rag_result["answer"]
+
+        if confidence_category == "Insufficient":
+            bot_bubble = (
+                f"<div class='chat-msg chat-bot chat-insufficient'>"
+                f"<strong>Assistant:</strong> I don't have enough information in the "
+                f"knowledge base to answer that confidently. {escape(reply)}"
+                f"{render_confidence_badge(confidence_category)}"
+                f"</div>"
+            )
+        else:
+            bot_bubble = (
+                f"<div class='chat-msg chat-bot'>"
+                f"<strong>Assistant:</strong> {escape(reply)}"
+                f"{render_confidence_badge(confidence_category)}"
+                f"{render_citations(citations)}"
+                f"</div>"
+            )
+
+        return f"{user_bubble}{bot_bubble}"
+
+    reply, error = call_ollama(user_message)
 
     if error:
         return f"{user_bubble}<div class='chat-msg chat-error'>{escape(error)}</div>", 503
 
     bot_bubble = f"<div class='chat-msg chat-bot'><strong>Assistant:</strong> {escape(reply)}</div>"
     return f"{user_bubble}{bot_bubble}"
-
-RAG_SERVER_URL = os.environ.get("RAG_SERVER_URL", "http://host.docker.internal:7001/mcp")
 
 async def _call_rag_answer_question_async(query, top_k=5):
     async with streamablehttp_client(RAG_SERVER_URL) as (read_stream, write_stream, _):
