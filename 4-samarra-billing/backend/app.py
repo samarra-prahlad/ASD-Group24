@@ -772,9 +772,12 @@ def render_confidence_badge(confidence_category):
 def render_citations(citations):
     if not citations:
         return ""
-    items = "".join(
-        f"<li>{escape(str(c.get('source_id', c)))}</li>" for c in citations
-    )
+    seen = []
+    for c in citations:
+        source = str(c.get('source_id', c))
+        if source not in seen:
+            seen.append(source)
+    items = "".join(f"<li>{escape(s)}</li>" for s in seen)
     return f"<ul class='citation-list'>{items}</ul>"
 
 @app.post("/ai/chat")
