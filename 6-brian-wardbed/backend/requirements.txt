@@ -3,4 +3,4 @@ flask-cors
 requests
 python-dotenv
 openai
-mcp
+mcp<2
