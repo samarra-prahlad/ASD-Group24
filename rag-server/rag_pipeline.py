@@ -25,6 +25,15 @@ AUTHORITY_TIER_WEIGHTS = {
 OLLAMA_URL = "http://localhost:11434/api/generate"
 OLLAMA_MODEL = "qwen2.5:0.5b"
 
+STOPWORDS = {
+    "a", "an", "the", "is", "are", "was", "were", "be", "been", "being",
+    "of", "in", "on", "at", "to", "for", "with", "by", "from", "as",
+    "what", "which", "who", "whom", "this", "that", "these", "those",
+    "and", "or", "but", "if", "do", "does", "did", "have", "has", "had",
+    "i", "you", "he", "she", "it", "we", "they", "my", "your", "his",
+    "her", "its", "our", "their", "not", "no", "so", "can", "will",
+}
+
 
 def embed_texts(texts: list[str]) -> list[list[float]]:
     vectors = []
@@ -177,8 +186,28 @@ def retrieve_context(query: str, top_k: int = 5) -> dict:
         return {"retrieval_mode": "lexical", "results": results}
 
 
-def confidence_from_results(results: list[dict]) -> str:
+# ---------------------------------------------------------------------------
+# FIX: the hash-based embedding in embed_texts() is not a real semantic
+# embedding, so vector cosine scores don't reliably track topical relevance
+# (confirmed empirically: an on-topic billing query scored -0.25, an
+# off-topic "capital of France" query scored -0.21). So confidence now also
+# requires literal, non-stopword token overlap between the query and the
+# top retrieved chunk's text. The first version of this fix used raw token
+# overlap, but that let "what is the capital of France" pass because it
+# shared stopwords ("of", "the", "is") with an unrelated billing chunk -
+# confirmed directly against the real corpus. Stopwords are now excluded
+# before computing overlap.
+# ---------------------------------------------------------------------------
+
+def confidence_from_results(results: list[dict], query: str = "") -> str:
     if not results:
+        return "Insufficient"
+
+    query_tokens = set(query.lower().split()) - STOPWORDS
+    top_text_tokens = set(results[0].get("text", "").lower().split()) - STOPWORDS
+    overlap = len(query_tokens & top_text_tokens)
+
+    if overlap == 0:
         return "Insufficient"
 
     weighted_scores = []
@@ -228,7 +257,7 @@ def answer_question(query: str, top_k: int = 5) -> dict:
     start = time.perf_counter()
     retrieval = retrieve_context(query, top_k)
     results = retrieval["results"]
-    confidence = confidence_from_results(results)
+    confidence = confidence_from_results(results, query)
 
     if not results or confidence == "Insufficient":
         duration_ms = (time.perf_counter() - start) * 1000
