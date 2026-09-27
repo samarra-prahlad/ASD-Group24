@@ -4,6 +4,8 @@ from flask import Flask, jsonify, request, render_template, redirect
 from flask_cors import CORS
 from dotenv import load_dotenv
 from openai import OpenAI
+import re
+from mcp_client import call_get_current_bed
 
 load_dotenv()
 
@@ -15,6 +17,8 @@ OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434/v1")
 OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "qwen2.5:0.5b")
 
 SHARED_ACCESS_API_URL = os.getenv("SHARED_ACCESS_API_URL", "http://localhost:5000")
+
+MCP_ENABLED = os.getenv("MCP_ENABLED", "true").strip().lower() in ("1", "true", "yes", "on")
 
 client = OpenAI(
     base_url=OLLAMA_BASE_URL,
@@ -279,6 +283,47 @@ def ai_chat():
         return jsonify({
             "error": "AI service unavailable"
         }), 502
+
+def find_patient_id_in_question(question: str):
+    match = re.search(r"\bpatient\s*(\d+)\b", question, re.IGNORECASE)
+
+    if match:
+        return int(match.group(1))
+
+    return None
+
+@app.route("/ask-mcp", methods=["POST"])
+def ask_mcp():
+    question = request.form.get("question", "").strip()
+
+    if not question:
+        return jsonify({
+            "error": "Question is required"
+        }), 400
+
+    if not MCP_ENABLED:
+        return jsonify({
+            "error": "MCP is disabled"
+        }), 503
+
+    patient_id = find_patient_id_in_question(question)
+
+    if patient_id is None:
+        return jsonify({
+            "error": "Could not identify a patient ID",
+            "message": "Try asking: 'What bed is patient 12 in?'"
+        }), 400
+
+    try:
+        bed_result = call_get_current_bed(patient_id)
+
+    except Exception as exc:
+        return jsonify({
+            "error": "Could not reach MCP server",
+            "details": str(exc)
+        }), 503
+
+    return jsonify(bed_result)
 
 #this was during testing to confirm the backend runs
 @app.route("/health")
