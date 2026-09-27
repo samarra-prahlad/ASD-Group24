@@ -301,4 +301,64 @@ async function summarizeHistory() {
   box.textContent = data.reply || data.error || "Something went wrong.";
 }
 
-   start();
+   async function checkChangeRequestStatus() {
+  const requestId = document.getElementById("mcp-request-id").value.trim();
+  const box = document.getElementById("mcp-result");
+
+  if (!requestId) {
+    box.textContent = "Enter a request ID.";
+    return;
+  }
+
+  box.textContent = "Checking via MCP...";
+
+  const resp = await fetch(`${API_URL}/change_requests/mcp-status/${requestId}?token=${token}`);
+  const data = await resp.json();
+
+  if (!resp.ok) {
+    box.textContent = "Error: " + (data.error || "unknown");
+    return;
+  }
+
+  box.innerHTML = `
+    Request #${data.request_id} - <strong>${data.status}</strong><br>
+    Type: ${data.request_type}
+  `;
+}
+
+async function askKnowledgeBase() {
+  const question = document.getElementById("rag-question").value.trim();
+  const box = document.getElementById("rag-result");
+
+  if (!question) {
+    box.textContent = "Enter a question.";
+    return;
+  }
+
+  box.textContent = "Searching knowledge base...";
+
+  const resp = await fetch(`${API_URL}/ask-rag`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ token: token, question: question })
+  });
+
+  const data = await resp.json();
+
+  if (!resp.ok) {
+    box.textContent = "Error: " + (data.error || "unknown");
+    return;
+  }
+
+  const citations = (data.citations || [])
+    .map(c => c.source_id)
+    .join(", ");
+
+  box.innerHTML = `
+    ${data.answer}<br>
+    <em>Confidence: ${data.confidence_category}</em>
+    ${citations ? `<br><small>Sources: ${citations}</small>` : ""}
+  `;
+}
+
+start();
