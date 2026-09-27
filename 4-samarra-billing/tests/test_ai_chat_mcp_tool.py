@@ -1,7 +1,8 @@
 """
-Pytest suite for MCP tool grounding in the billing AI chat endpoints
-(backend/app.py: extract_invoice_id, call_invoice_status_tool,
-build_grounded_prompt, and the /ai/chat routes using them).
+Pytest suite for MCP tool and RAG grounding in the billing AI chat
+endpoints (backend/app.py: extract_invoice_id, call_invoice_status_tool,
+call_rag_answer_question, build_grounded_prompt, and the /ai/chat routes
+using them).
 
 Run with:
     pytest tests/test_ai_chat_mcp_tool.py -v
@@ -83,9 +84,11 @@ class TestAiChatWithToolGrounding:
         assert data["tool_result"]["status"] == "pending"
         mock_tool.assert_called_once_with(5)
 
+    @patch.object(billing_backend_app, "call_rag_answer_question")
     @patch.object(billing_backend_app, "call_invoice_status_tool")
     @patch.object(billing_backend_app, "call_ollama")
-    def test_ai_chat_skips_tool_when_no_invoice_mentioned(self, mock_ollama, mock_tool, client):
+    def test_ai_chat_skips_tool_when_no_invoice_mentioned(self, mock_ollama, mock_tool, mock_rag, client):
+        mock_rag.return_value = None  # simulate RAG unreachable, so this falls through to Ollama
         mock_ollama.return_value = ("Insurance coverage varies by plan.", None)
 
         response = client.post("/ai/chat", json={"message": "how does insurance coverage work"})
@@ -114,3 +117,77 @@ class TestAiChatWithToolGrounding:
 
         assert response.status_code == 400
         mock_ollama.assert_not_called()
+
+
+class TestAiChatWithRagGrounding:
+
+    @patch.object(billing_backend_app, "call_rag_answer_question")
+    @patch.object(billing_backend_app, "call_invoice_status_tool")
+    @patch.object(billing_backend_app, "call_ollama")
+    def test_ai_chat_uses_rag_when_no_invoice_mentioned(self, mock_ollama, mock_tool, mock_rag, client):
+        mock_rag.return_value = {
+            "status": "ok",
+            "answer": "A pending invoice means payment has not been received yet.",
+            "citations": [{"source_id": "billing/invoice_statuses.md", "chunk_id": "abc123"}],
+            "confidence_category": "Low",
+        }
+        mock_ollama.return_value = ("This should not be called directly", None)
+
+        response = client.post("/ai/chat", json={"message": "what does pending invoice status mean"})
+
+        assert response.status_code == 200
+        data = response.get_json()
+        assert data["reply"] == "A pending invoice means payment has not been received yet."
+        assert data["confidence_category"] == "Low"
+        assert data["citations"] == [{"source_id": "billing/invoice_statuses.md", "chunk_id": "abc123"}]
+        mock_rag.assert_called_once_with("what does pending invoice status mean")
+        mock_tool.assert_not_called()
+        mock_ollama.assert_not_called()
+
+    @patch.object(billing_backend_app, "call_rag_answer_question")
+    @patch.object(billing_backend_app, "call_invoice_status_tool")
+    @patch.object(billing_backend_app, "call_ollama")
+    def test_ai_chat_shows_insufficient_context(self, mock_ollama, mock_tool, mock_rag, client):
+        mock_rag.return_value = {
+            "status": "insufficient_context",
+            "answer": "There is not enough information in the knowledge base to answer this question.",
+            "citations": [],
+            "confidence_category": "Insufficient",
+        }
+
+        response = client.post("/ai/chat", json={"message": "what is the capital of France"})
+
+        assert response.status_code == 200
+        data = response.get_json()
+        assert data["confidence_category"] == "Insufficient"
+        assert data["reply"] == "There is not enough information in the knowledge base to answer this question."
+        mock_ollama.assert_not_called()
+
+    @patch.object(billing_backend_app, "call_rag_answer_question")
+    @patch.object(billing_backend_app, "call_invoice_status_tool")
+    @patch.object(billing_backend_app, "call_ollama")
+    def test_ai_chat_falls_back_to_ollama_when_rag_unreachable(self, mock_ollama, mock_tool, mock_rag, client):
+        mock_rag.return_value = None
+        mock_ollama.return_value = ("A generic, ungrounded answer.", None)
+
+        response = client.post("/ai/chat", json={"message": "what does pending invoice status mean"})
+
+        assert response.status_code == 200
+        data = response.get_json()
+        assert data["reply"] == "A generic, ungrounded answer."
+        assert "confidence_category" not in data
+        mock_ollama.assert_called_once()
+
+    @patch.object(billing_backend_app, "call_invoice_status_tool")
+    @patch.object(billing_backend_app, "call_rag_answer_question")
+    @patch.object(billing_backend_app, "call_ollama")
+    def test_ai_chat_still_uses_mcp_tool_when_invoice_mentioned(self, mock_ollama, mock_rag, mock_tool, client):
+        mock_tool.return_value = {"invoice_id": 5, "status": "pending", "patient_owed_amount": 165.0}
+        mock_ollama.return_value = ("Invoice 5 is pending, with $165.00 owed.", None)
+
+        response = client.post("/ai/chat", json={"message": "what's the status of invoice 5"})
+
+        assert response.status_code == 200
+        data = response.get_json()
+        assert data["tool_used"] == "billing_get_invoice_status"
+        mock_rag.assert_not_called()

@@ -772,20 +772,37 @@ def ai_chat():
 
     user_message = data["message"]
     invoice_id = extract_invoice_id(user_message)
-    invoice_data = call_invoice_status_tool(invoice_id) if invoice_id is not None else None
-    prompt = build_grounded_prompt(user_message, invoice_data)
 
-    reply, error = call_ollama(prompt)
+    if invoice_id is not None:
+        invoice_data = call_invoice_status_tool(invoice_id)
+        prompt = build_grounded_prompt(user_message, invoice_data)
+        reply, error = call_ollama(prompt)
+
+        if error:
+            return jsonify({"error": error}), 503
+
+        response_body = {"reply": reply}
+        if invoice_data is not None:
+            response_body["tool_used"] = "billing_get_invoice_status"
+            response_body["tool_result"] = invoice_data
+
+        return jsonify(response_body)
+
+    rag_result = call_rag_answer_question(user_message)
+
+    if rag_result is not None:
+        return jsonify({
+            "reply": rag_result["answer"],
+            "citations": rag_result.get("citations", []),
+            "confidence_category": rag_result.get("confidence_category"),
+        })
+
+    reply, error = call_ollama(user_message)
 
     if error:
         return jsonify({"error": error}), 503
 
-    response_body = {"reply": reply}
-    if invoice_data is not None:
-        response_body["tool_used"] = "billing_get_invoice_status"
-        response_body["tool_result"] = invoice_data
-
-    return jsonify(response_body)
+    return jsonify({"reply": reply})
 
 @app.post("/ai/chat/html")
 def ai_chat_html():
@@ -813,6 +830,27 @@ def ai_chat_html():
 
     bot_bubble = f"<div class='chat-msg chat-bot'><strong>Assistant:</strong> {escape(reply)}</div>"
     return f"{user_bubble}{bot_bubble}"
+
+RAG_SERVER_URL = os.environ.get("RAG_SERVER_URL", "http://host.docker.internal:7001/mcp")
+
+async def _call_rag_answer_question_async(query, top_k=5):
+    async with streamablehttp_client(RAG_SERVER_URL) as (read_stream, write_stream, _):
+        async with ClientSession(read_stream, write_stream) as session:
+            await session.initialize()
+            return await session.call_tool("answer_question", {"query": query, "top_k": top_k})
+
+def call_rag_answer_question(query, top_k=5):
+    try:
+        result = asyncio.run(_call_rag_answer_question_async(query, top_k))
+    except Exception:
+        return None
+    if getattr(result, "isError", False):
+        return None
+    try:
+        text = result.content[0].text
+        return json.loads(text)
+    except (IndexError, AttributeError, TypeError, json.JSONDecodeError):
+        return None
 
 # run application
 if __name__ == "__main__":
