@@ -204,23 +204,27 @@ def confidence_from_results(results: list[dict], query: str = "") -> str:
         return "Insufficient"
 
     query_tokens = set(query.lower().split()) - STOPWORDS
-    top_text_tokens = set(results[0].get("text", "").lower().split()) - STOPWORDS
-    overlap = len(query_tokens & top_text_tokens)
-
-    if overlap == 0:
+    if not query_tokens:
         return "Insufficient"
 
-    weighted_scores = []
-    for r in results:
-        weight = AUTHORITY_TIER_WEIGHTS.get(r.get("authority_tier"), 0.4)
-        score = r.get("score") or 0.0
-        weighted_scores.append(score * weight)
+    top_text_tokens = set(results[0].get("text", "").lower().split()) - STOPWORDS
+    overlap = query_tokens & top_text_tokens
 
-    top_score = max(weighted_scores)
+    if not overlap:
+        return "Insufficient"
 
-    if top_score >= 0.75:
+    # embed_texts() isn't a real semantic embedding, so the vector "score" is
+    # noise and can't be graded against a fixed threshold (see FIX comment
+    # above retrieve_context). Confidence is instead based on how much of the
+    # query's own (non-stopword) tokens are present in the top matched chunk -
+    # a near-exact phrase match scores high, a loosely related one scores low.
+    overlap_ratio = len(overlap) / len(query_tokens)
+    weight = AUTHORITY_TIER_WEIGHTS.get(results[0].get("authority_tier"), 0.4)
+    weighted_ratio = overlap_ratio * weight
+
+    if weighted_ratio >= 0.75:
         return "High"
-    elif top_score >= 0.45:
+    elif weighted_ratio >= 0.45:
         return "Medium"
     else:
         return "Low"
@@ -230,7 +234,7 @@ def generate_with_ollama(prompt: str, model: str = OLLAMA_MODEL) -> str:
     try:
         response = requests.post(
             OLLAMA_URL,
-            json={"model": model, "prompt": prompt, "stream": False},
+            json={"model": model, "prompt": prompt, "stream": False, "options": {"temperature": 0}},
             timeout=30,
         )
         response.raise_for_status()
@@ -274,17 +278,30 @@ def answer_question(query: str, top_k: int = 5) -> dict:
             },
         }
 
-    context_text = "\n\n".join(f"[{r['source_id']}] {r['text']}" for r in results)
+    # Only keep chunks that actually share non-stopword tokens with the query.
+    # embed_texts() isn't a real semantic embedding, so vector search alone
+    # returns noise-ranked results - this filters out the irrelevant ones
+    # instead of blindly using all top_k results.
+    query_tokens = set(query.lower().split()) - STOPWORDS
+    relevant_results = [
+        r for r in results
+        if query_tokens & (set(r.get("text", "").lower().split()) - STOPWORDS)
+    ]
+    if not relevant_results:
+        relevant_results = results[:1]  # confidence check already passed, so keep the top match
+
+    context_text = "\n\n".join(f"[{r['source_id']}] {r['text']}" for r in relevant_results)
     prompt = (
         "Answer the question using ONLY the context below. "
-        "If the context does not contain the answer, say so.\n\n"
+        "Do not contradict the context. Do not add information that is not "
+        "stated in the context. If the context does not contain the answer, say so.\n\n"
         f"Context:\n{context_text}\n\nQuestion: {query}\nAnswer:"
     )
     answer_text = generate_with_ollama(prompt)
 
     citations = [
         {"source_id": r["source_id"], "chunk_id": r["chunk_id"]}
-        for r in results
+        for r in relevant_results
     ]
 
     duration_ms = (time.perf_counter() - start) * 1000
