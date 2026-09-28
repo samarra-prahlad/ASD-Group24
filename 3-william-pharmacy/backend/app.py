@@ -21,9 +21,6 @@ client = OpenAI(
     api_key="ollama"
 )
 
-RAG_ENABLED = os.getenv("RAG_ENABLED", "true").strip().lower() in ("1", "true", "yes", "on")
-MCP_ENABLED = os.getenv("MCP_ENABLED", "true").strip().lower() in ("1", "true", "yes", "on")
-
 
 SHARED_ACCESS_API_URL = os.environ.get("SHARED_ACCESS_API_URL", "http://shared-backend:5000")
 
@@ -162,9 +159,6 @@ def ask_mcp():
     if not question:
         return "<p>Question is required.</p>", 400
 
-    if not MCP_ENABLED:
-        return "<p>MCP is disabled.</p>", 503
-
     medication_name = find_medication_in_question(question)
     if not medication_name:
         return (
@@ -220,9 +214,6 @@ def ask_rag():
     question = request.form.get("question", "").strip()
     if not question:
         return "<p>Question is required.</p>", 400
-
-    if not RAG_ENABLED:
-        return "<p>RAG is disabled.</p>", 503
 
     try:
         result = call_answer_question(question)
