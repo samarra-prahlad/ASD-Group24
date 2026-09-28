@@ -300,7 +300,11 @@ def answer_question(query: str, top_k: int = 5) -> dict:
     answer_text = generate_with_ollama(prompt)
 
     citations = [
-        {"source_id": r["source_id"], "chunk_id": r["chunk_id"]}
+        {
+            "source_id": r["source_id"],
+            "chunk_id": r["chunk_id"],
+            "authority_tier": r.get("authority_tier"),
+        }
         for r in relevant_results
     ]
 
@@ -314,6 +318,9 @@ def answer_question(query: str, top_k: int = 5) -> dict:
         "citations": citations,
         "confidence_category": confidence,
         "retrieval_summary": {
+            "k": top_k,
+            "retrieved_count": len(results),
+            "top_chunk": results[0].get("chunk_id") if results else None,
             "retrieval_mode": retrieval["retrieval_mode"],
             "num_results": len(results),
         },
