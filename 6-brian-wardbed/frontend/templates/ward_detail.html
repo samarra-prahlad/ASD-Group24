@@ -77,6 +77,43 @@
                     <p id="releaseMessage"></p>
                 </div>
             </div>
+            <section class="rag-section">
+    <h2>RAG Knowledge Assistant</h2>
+
+    <p class="rag-description">
+        Ask questions about Ward and Bed Management policies and procedures.
+    </p>
+
+    <div class="rag-input-row">
+        <input
+            type="text"
+            id="ragQuestion"
+            placeholder="e.g. How many active bed assignments may a patient have?"
+        >
+
+        <button type="button" onclick="askRag()">
+            Ask
+        </button>
+    </div>
+
+    <div class="rag-response-box">
+        <p id="ragResult">
+            The response will appear here.
+        </p>
+
+        <div id="ragDetails" style="display: none;">
+            <p>
+                <strong>Confidence:</strong>
+                <span id="ragConfidence"></span>
+            </p>
+
+            <p>
+                <strong>Source:</strong>
+                <span id="ragSource"></span>
+            </p>
+        </div>
+    </div>
+</section>
         </div>
         <script>
             const params = new URLSearchParams(window.location.search);
@@ -276,6 +313,79 @@
                     chatMessages.innerHTML += `
                         <p><strong>AI:</strong> Unable to connect to the AI service.</p>
                     `;
+                }
+            }
+
+            async function askRag() {
+                const input = document.getElementById("ragQuestion");
+                const resultBox = document.getElementById("ragResult");
+                const detailsBox = document.getElementById("ragDetails");
+                const confidenceBox = document.getElementById("ragConfidence");
+                const sourceBox = document.getElementById("ragSource");
+
+                const question = input.value.trim();
+
+                if (!question) {
+                    resultBox.textContent = "Please enter a question.";
+                    detailsBox.style.display = "none";
+                    return;
+                }
+
+                resultBox.textContent = "Searching knowledge base...";
+                detailsBox.style.display = "none";
+
+                try {
+                    const response = await fetch(
+                        "http://localhost:5006/ask-rag",
+                        {
+                            method: "POST",
+                            headers: {
+                                "Content-Type": "application/json"
+                            },
+                            body: JSON.stringify({
+                                question: question
+                            })
+                        }
+                    );
+
+                    const data = await response.json();
+
+                    if (!response.ok) {
+                        if (data.details) {
+                            resultBox.textContent =
+                                `${data.error}: ${data.details}`;
+                        } else {
+                            resultBox.textContent =
+                                data.error || "Something went wrong.";
+                        }
+
+                        detailsBox.style.display = "none";
+                        return;
+                    }
+
+                    resultBox.textContent =
+                        data.reply || "No response was returned.";
+
+                    confidenceBox.textContent =
+                        data.confidence_category || "Unknown";
+
+                    if (data.citations && data.citations.length > 0) {
+                        sourceBox.textContent = data.citations
+                            .map(citation => citation.source_id)
+                            .join(", ");
+                    } else {
+                        sourceBox.textContent = "No relevant source found";
+                    }
+
+                    detailsBox.style.display = "block";
+
+                } catch (error) {
+                    console.error("RAG request failed:", error);
+
+                    resultBox.textContent =
+                        "Could not connect to the RAG service.";
+
+                    detailsBox.style.display = "none";
                 }
             }
         </script>
