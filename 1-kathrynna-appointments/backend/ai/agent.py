@@ -1,10 +1,13 @@
+import asyncio
 import json
 import os
+import re
 from datetime import date as date_cls
 from datetime import datetime
 
 import requests
 
+from mcp_client import call_get_appointment
 from service.llm_client import OLLAMA_MODEL, create_chat_completion
 from service.prompt_loader import load_prompt
 
@@ -19,6 +22,7 @@ PATIENT_INTENTS = [
     "check_availability",
     "list_my_appointments",
     "recommend_specialty",
+    "get_appointment_status",
     "general_question",
     "unsupported_action",
 ]
@@ -28,21 +32,49 @@ ADMIN_INTENTS = [
     "find_patient_appointment",
     "next_scheduled_appointment",
     "appointments_today_count",
+    "get_appointment_status",
     "general_question",
     "unsupported_action",
 ]
 
+
+# Matches "appointment 102", "appointment id 102", "appointment #102",
+# "appointment number 102". The lookahead stops "appointment 10:30" or
+# "appointment 3pm" from being read as an ID.
+APPOINTMENT_ID_PATTERN = re.compile(
+    r"appointment\s*(?:id|number|no\.?|#)?\s*#?\s*(\d+)\b(?!\s*(?:am|pm|:))",
+    re.IGNORECASE,
+)
+
+
+def _extract_appointment_id(message):
+    match = APPOINTMENT_ID_PATTERN.search(message)
+    return int(match.group(1)) if match else None
+
+
 def plan(message, context):
 
-
     role = context.get("role", "patient")
+
+    # Deterministic routing for the MCP tool: a 0.5B model is unreliable at
+    # picking tools, so if the message names an appointment ID we go straight
+    # to the MCP-backed intent without asking the LLM.
+    appointment_id = _extract_appointment_id(message)
+
+    if appointment_id is not None:
+        return {
+            "intent": "get_appointment_status",
+            "appointment_id": appointment_id,
+            "raw_message": message
+        }
 
     if role == "admin":
         system_prompt = load_prompt("admin_system_prompt.txt")
         supported_intents = ADMIN_INTENTS
         default_fields = {
             "patient_identifier": None,
-            "date": None
+            "date": None,
+            "appointment_id": None
         }
     else:
         system_prompt = load_prompt("system_prompt.txt")
@@ -50,7 +82,8 @@ def plan(message, context):
         default_fields = {
             "specialty": None,
             "date": None,
-            "symptom_description": None
+            "symptom_description": None,
+            "appointment_id": None
         }
 
     recent_history = context.get("history", [])[-4:]
@@ -497,6 +530,60 @@ def act(plan_result, context):
                 "intent": intent
             }
 
+        if intent == "get_appointment_status":
+
+            role = context.get("role", "patient")
+            appointment_id = plan_result.get("appointment_id")
+
+            if not appointment_id:
+                return {
+                    "success": False,
+                    "data": None,
+                    "error": "missing_appointment_id",
+                    "intent": intent
+                }
+
+            if role == "patient" and not context.get("patient_id"):
+                return {
+                    "success": False,
+                    "data": None,
+                    "error": "missing_patient_id",
+                    "intent": intent
+                }
+
+            # The actual MCP call: this backend acting as an MCP client.
+            result = asyncio.run(
+                call_get_appointment(int(appointment_id))
+            )
+
+            if result.get("error") == "Appointment not found":
+                result = None
+
+            elif "error" in result:
+                return {
+                    "success": False,
+                    "data": None,
+                    "error": f"mcp_call_failed: {result['error']}",
+                    "intent": intent
+                }
+
+            elif (
+                role == "patient"
+                and str(result.get("patient_id"))
+                != str(context.get("patient_id"))
+            ):
+                # Patients may only view their own appointments. A wrong-owner
+                # lookup looks identical to "not found" so it doesn't reveal
+                # that the appointment exists.
+                result = None
+
+            return {
+                "success": True,
+                "data": result,
+                "error": None,
+                "intent": intent
+            }
+
         if intent == "find_patient_appointment":
 
             identifier = plan_result.get(
@@ -641,6 +728,7 @@ LIST_RESULT_INTENTS = (
 
 SINGLE_RESULT_INTENTS = (
     "next_scheduled_appointment",
+    "get_appointment_status",
 )
 
 
@@ -662,6 +750,12 @@ def observe(action_result):
 
             flags.append(
                 "missing_patient_identifier"
+            )
+
+        elif error == "missing_appointment_id":
+
+            flags.append(
+                "missing_appointment_id"
             )
 
         else:
@@ -721,6 +815,13 @@ def adapt(
             "so I can look up their appointment."
         )
 
+    if "missing_appointment_id" in flags:
+
+        return (
+            "Please tell me the appointment ID, for example: "
+            "status of appointment 102."
+        )
+
     if "action_failed" in flags:
 
         return (
@@ -776,6 +877,13 @@ def adapt(
             return (
                 "There's no upcoming appointment "
                 "scheduled right now."
+            )
+
+        if intent == "get_appointment_status":
+
+            return (
+                "I couldn't find an appointment with that ID "
+                "for your account."
             )
 
     data = action_result.get("data")
@@ -842,6 +950,14 @@ def adapt(
             f"at {appointment['time']}."
         )
 
+    if intent == "get_appointment_status":
+
+        return (
+            f"Appointment #{data['id']}: {data['doctor_name']} "
+            f"({data['doctor_specialty']}) on {data['date']} "
+            f"at {data['time']}. Status: {data['status']}."
+        )
+
     if intent == "appointments_today_count":
 
         return (
@@ -850,6 +966,53 @@ def adapt(
         )
 
     return data
+
+
+LLM_ONLY_INTENTS = (
+    "general_question",
+    "recommend_specialty",
+)
+
+
+INTENT_SOURCES = {
+    "get_appointment_status": ["MCP: appointments_get_appointment"],
+    "check_availability": ["appointments database"],
+    "list_my_appointments": ["appointments database"],
+    "find_patient_appointment": ["appointments database"],
+    "next_scheduled_appointment": ["appointments database"],
+    "appointments_today_count": ["appointments database"],
+}
+
+
+def score_confidence(action_result, observation):
+    """
+    Rule-based confidence label:
+
+      HIGH          answer came straight from the database / MCP tool
+                    (or is a fixed, known response)
+      MEDIUM        the lookup ran fine but found nothing
+      LOW           free-text LLM answer, nothing verifiable behind it
+      INSUFFICIENT  the request failed or needed info we didn't have
+    """
+
+    flags = observation["flags"]
+    intent = action_result["intent"]
+
+    if "action_failed" in flags or any(
+        flag.startswith("missing_") for flag in flags
+    ):
+        return "INSUFFICIENT"
+
+    if intent == "unsupported_action":
+        return "HIGH"
+
+    if intent in LLM_ONLY_INTENTS:
+        return "LOW"
+
+    if "no_results" in flags:
+        return "MEDIUM"
+
+    return "HIGH"
 
 
 def run(
@@ -885,8 +1048,21 @@ def run(
         observation
     )
 
+    confidence = score_confidence(
+        action_result,
+        observation
+    )
+
+    sources = (
+        INTENT_SOURCES.get(action_result["intent"], [])
+        if action_result["success"]
+        else []
+    )
+
     return {
         "reply": reply,
+        "confidence": confidence,
+        "sources": sources,
         "trace": {
             "plan": plan_result,
             "action": action_result,
