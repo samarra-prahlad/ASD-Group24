@@ -35,6 +35,16 @@ STOPWORDS = {
 }
 
 
+def tokenize(text: str) -> set[str]:
+    # Knowledge-base docs use snake_case field names (e.g. patient_owed_amount,
+    # partially_paid) while questions phrase the same idea as separate words
+    # ("patient owed amount", "partially paid"). Without normalizing
+    # underscores to spaces, those never overlap and confidence/relevance
+    # matching silently fails on otherwise near-exact matches.
+    normalized = (text or "").lower().replace("_", " ")
+    return set(normalized.split())
+
+
 def embed_texts(texts: list[str]) -> list[list[float]]:
     vectors = []
     for text in texts:
@@ -203,11 +213,11 @@ def confidence_from_results(results: list[dict], query: str = "") -> str:
     if not results:
         return "Insufficient"
 
-    query_tokens = set(query.lower().split()) - STOPWORDS
+    query_tokens = tokenize(query) - STOPWORDS
     if not query_tokens:
         return "Insufficient"
 
-    top_text_tokens = set(results[0].get("text", "").lower().split()) - STOPWORDS
+    top_text_tokens = tokenize(results[0].get("text", "")) - STOPWORDS
     overlap = query_tokens & top_text_tokens
 
     if not overlap:
@@ -282,10 +292,10 @@ def answer_question(query: str, top_k: int = 5) -> dict:
     # embed_texts() isn't a real semantic embedding, so vector search alone
     # returns noise-ranked results - this filters out the irrelevant ones
     # instead of blindly using all top_k results.
-    query_tokens = set(query.lower().split()) - STOPWORDS
+    query_tokens = tokenize(query) - STOPWORDS
     relevant_results = [
         r for r in results
-        if query_tokens & (set(r.get("text", "").lower().split()) - STOPWORDS)
+        if query_tokens & (tokenize(r.get("text", "")) - STOPWORDS)
     ]
     if not relevant_results:
         relevant_results = results[:1]  # confidence check already passed, so keep the top match
