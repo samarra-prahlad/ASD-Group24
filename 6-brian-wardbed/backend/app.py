@@ -6,6 +6,7 @@ from dotenv import load_dotenv
 from openai import OpenAI
 import re
 from mcp_client import call_get_current_bed
+from rag_client import call_answer_question
 
 load_dotenv()
 
@@ -19,6 +20,7 @@ OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "qwen2.5:0.5b")
 SHARED_ACCESS_API_URL = os.getenv("SHARED_ACCESS_API_URL", "http://localhost:5000")
 
 MCP_ENABLED = os.getenv("MCP_ENABLED", "true").strip().lower() in ("1", "true", "yes", "on")
+RAG_ENABLED = os.getenv("RAG_ENABLED", "true").strip().lower() in ("1", "true", "yes", "on")
 
 client = OpenAI(
     base_url=OLLAMA_BASE_URL,
@@ -324,6 +326,31 @@ def ask_mcp():
         }), 503
 
     return jsonify(bed_result)
+
+@app.route("/ask-rag", methods=["POST"])
+def ask_rag():
+    data = request.get_json() or {}
+
+    question = data.get("question", "").strip()
+
+    if not question:
+        return jsonify({
+            "error": "Question is required"
+        }), 400
+
+    if not RAG_ENABLED:
+        return jsonify({"error": "RAG is disabled"}), 503
+
+    try:
+        result = call_answer_question(question)
+
+    except Exception as exc:
+        return jsonify({
+            "error": "Could not reach RAG server",
+            "details": str(exc)
+        }), 503
+
+    return jsonify(result), 200
 
 #this was during testing to confirm the backend runs
 @app.route("/health")
