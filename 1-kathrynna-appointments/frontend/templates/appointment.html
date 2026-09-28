@@ -517,9 +517,9 @@ requireSession(["patient", "admin"]).then(function(session) {
             </div>
         </div>
         <div class="ai-suggestions">
-            <button class="chip" type="button" onclick="sendChip(this)">When is my next appointment?</button>
-            <button class="chip" type="button" onclick="sendChip(this)">How do I reschedule an appointment</button>
-            <button class="chip" type="button" onclick="sendChip(this)">What is the status of appointment </button>
+            <button class="chip" type="button" onclick="sendChip(this)">How long is an appointment?</button>
+            <button class="chip" type="button" onclick="sendChip(this)">Show me what type of doctor I need.</button>
+            <button class="chip" type="button" onclick="sendChip(this)">How do you book an appointment?</button>
         </div>
         <form class="ai-input-row" onsubmit="return prepChat(event)">
             <input type="text" id="ai-input" placeholder="Type a message…" autocomplete="off" required>
@@ -609,8 +609,8 @@ function prepChat(e) {
 
     const typingEl = addChatMessage("assistant", "…");
 
-    // This page's patient ID field is lookup_patient_id (not patient_id)
-    const patientId = document.getElementById("lookup_patient_id")?.value || null;
+    // This page's patient ID field is patient_id
+    const patientId = document.getElementById("patient_id")?.value || null;
 
     fetch("/api/ai/chat", {
         method: "POST",

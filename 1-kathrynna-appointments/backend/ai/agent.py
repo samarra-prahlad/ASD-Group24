@@ -37,10 +37,6 @@ ADMIN_INTENTS = [
     "unsupported_action",
 ]
 
-
-# Matches "appointment 102", "appointment id 102", "appointment #102",
-# "appointment number 102". The lookahead stops "appointment 10:30" or
-# "appointment 3pm" from being read as an ID.
 APPOINTMENT_ID_PATTERN = re.compile(
     r"appointment\s*(?:id|number|no\.?|#)?\s*#?\s*(\d+)\b(?!\s*(?:am|pm|:))",
     re.IGNORECASE,
@@ -48,8 +44,7 @@ APPOINTMENT_ID_PATTERN = re.compile(
 
 
 # "How do I...", "how long is...", "what do I need..." questions are about
-# clinic procedure, so they go to the knowledge base. A 0.5B model often
-# misreads them as database lookups, so this is a rule rather than an LLM call.
+# clinic procedure, so they go to the knowledge base.
 HOWTO_PATTERN = re.compile(
     r"^\s*(how (do|does|can|long|much)|what (do i need|happens|is the policy)|do i need|is there a)\b",
     re.IGNORECASE,
@@ -63,6 +58,17 @@ LIST_PATTERN = re.compile(
 )
 
 
+# Words that mean the patient wants to change something, not just look it up.
+ACTION_PATTERN = re.compile(
+    r"\b(cancel|change|reschedule|move|book|edit|delete)\b",
+    re.IGNORECASE,
+)
+# "What type of doctor do I need" style questions go to the specialty recommender.
+SPECIALTY_PATTERN = re.compile(
+    r"\b(what|which) (type|kind) of (doctor|specialist)\b|\bwhich specialt(y|ist)\b|\bwhat specialty\b|\bwho should i see\b",
+    re.IGNORECASE,
+)
+
 def _extract_appointment_id(message):
     match = APPOINTMENT_ID_PATTERN.search(message)
     return int(match.group(1)) if match else None
@@ -72,9 +78,7 @@ def plan(message, context):
 
     role = context.get("role", "patient")
 
-    # Deterministic routing for the MCP tool: a 0.5B model is unreliable at
-    # picking tools, so if the message names an appointment ID we go straight
-    # to the MCP-backed intent without asking the LLM.
+    # 1. Message names an appointment ID -> MCP tool lookup.
     appointment_id = _extract_appointment_id(message)
 
     if appointment_id is not None:
@@ -84,7 +88,7 @@ def plan(message, context):
             "raw_message": message
         }
 
-    # Procedure questions go straight to the knowledge base (RAG).
+    # 2. Procedure questions go straight to the knowledge base (RAG).
     if HOWTO_PATTERN.search(message):
         return {
             "intent": "general_question",
@@ -95,7 +99,40 @@ def plan(message, context):
             "patient_identifier": None,
             "appointment_id": None
         }
+    # 2b. "What type of doctor do I need" -> specialty recommendation.
+    if SPECIALTY_PATTERN.search(message):
 
+        has_symptom = re.search(
+            r"\b(for|with|about|because|my|have|having|pain|ache|rash|cough|fever|hurts?)\b",
+            message.split("doctor", 1)[-1].split("specialist", 1)[-1],
+            re.IGNORECASE,
+        )
+
+        return {
+            "intent": "recommend_specialty" if has_symptom else "general_question",
+            "raw_message": message,
+            "specialty": None,
+            "date": None,
+            "symptom_description": message if has_symptom else None,
+            "appointment_id": None
+        }
+    
+    # 3. Patients asking to see their own appointments don't need the model.
+    if (
+        role == "patient"
+        and LIST_PATTERN.search(message)
+        and not ACTION_PATTERN.search(message)
+    ):
+        return {
+            "intent": "list_my_appointments",
+            "raw_message": message,
+            "specialty": None,
+            "date": None,
+            "symptom_description": None,
+            "appointment_id": None
+        }
+
+    # 4. Everything else: ask the model.
     if role == "admin":
         system_prompt = load_prompt("admin_system_prompt.txt")
         supported_intents = ADMIN_INTENTS
