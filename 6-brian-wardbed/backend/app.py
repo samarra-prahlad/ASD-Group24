@@ -209,7 +209,7 @@ def get_patient_assignments(patient_id):
 def ai_chat():
     data = request.get_json() or {}
 
-    query = data.get("query")
+    query = (data.get("query") or "").strip()
     ward_id = data.get("ward_id")
 
     if not query:
@@ -233,41 +233,16 @@ def ai_chat():
         )
 
         if beds_response.status_code != 200:
-            return jsonify({
-                "error": "Unable to load beds"
-            }), beds_response.status_code
+            return jsonify({"error": "Unable to load beds"}), beds_response.status_code
 
-    except requests.RequestException:
+    except requests.RequestException as exc:
         return jsonify({
-            "error": "Database service unavailable"
+            "error": "Database service unavailable",
+            "details": str(exc)
         }), 502
 
     ward = ward_response.json()
     beds = beds_response.json()
-
-    rag_results = []
-    rag_mode = None
-
-    if RAG_ENABLED:
-        try:
-            rag_response = call_retrieve_context(query)
-
-            rag_results = rag_response.get("results", [])
-            rag_mode = rag_response.get("retrieval_mode")
-
-        except Exception as exc:
-            print(f"RAG retrieval unavailable: {exc}")
-            rag_results = []
-
-
-    if rag_results:
-        rag_context = "\n\n".join(
-            f"Source: {result['source_id']}\n"
-            f"{result['text']}"
-            for result in rag_results
-        )
-    else:
-        rag_context = "No relevant policy information was retrieved."
 
     loaded_system_prompt = load_prompt("implementation_system_prompt.txt")
 
@@ -281,9 +256,6 @@ def ai_chat():
 
         CURRENT BEDS:
         {beds}
-
-        RETRIEVED POLICY CONTEXT:
-        {rag_context}
 
         USER QUESTION:
         {query}
@@ -308,29 +280,18 @@ def ai_chat():
 
         reply = response.choices[0].message.content
 
-        response_data = {
-            "reply": reply
-        }
-
-        # Add RAG information when retrieval produced results
-        if rag_results:
-            response_data["citations"] = [
-                {
-                    "source_id": result["source_id"],
-                    "chunk_id": result["chunk_id"]
-                }
-                for result in rag_results
-            ]
-
-            response_data["retrieval_mode"] = rag_mode
-
-        return jsonify(response_data), 200
-
-    except Exception:
         return jsonify({
-            "error": "AI service unavailable"
-        }), 502
+            "reply": reply,
+        }), 200
 
+    except Exception as exc:
+        print(f"AI error: {exc}")
+
+        return jsonify({
+            "error": "AI service unavailable",
+            "details": str(exc)
+        }), 502
+    
 def find_patient_id_in_question(question: str):
     match = re.search(r"\bpatient\s*(\d+)\b", question, re.IGNORECASE)
 
@@ -376,26 +337,39 @@ def ask_mcp():
 def ask_rag():
     data = request.get_json() or {}
 
-    question = data.get("question", "").strip()
+    question = (data.get("question") or "").strip()
 
     if not question:
         return jsonify({
-            "error": "Question is required"
+            "error": "question is required"
         }), 400
 
     if not RAG_ENABLED:
-        return jsonify({"error": "RAG is disabled"}), 503
+        return jsonify({
+            "error": "RAG is disabled"
+        }), 503
 
     try:
         result = call_answer_question(question)
 
+        return jsonify({
+            "reply": result.get("answer"),
+            "status": result.get("status"),
+            "confidence_category": result.get("confidence_category"),
+            "citations": result.get("citations", []),
+            "retrieval_mode": result.get(
+                "retrieval_summary", {}
+            ).get("retrieval_mode"),
+            "source": "rag"
+        }), 200
+
     except Exception as exc:
+        print(f"RAG error: {exc}")
+
         return jsonify({
             "error": "Could not reach RAG server",
             "details": str(exc)
         }), 503
-
-    return jsonify(result), 200
 
 #this was during testing to confirm the backend runs
 @app.route("/health")
