@@ -7,7 +7,7 @@ from datetime import datetime
 
 import requests
 
-from mcp_client import call_get_appointment
+from mcp_client import call_get_appointment, call_rag_answer_question
 from service.llm_client import OLLAMA_MODEL, create_chat_completion
 from service.prompt_loader import load_prompt
 
@@ -47,6 +47,22 @@ APPOINTMENT_ID_PATTERN = re.compile(
 )
 
 
+# "How do I...", "how long is...", "what do I need..." questions are about
+# clinic procedure, so they go to the knowledge base. A 0.5B model often
+# misreads them as database lookups, so this is a rule rather than an LLM call.
+HOWTO_PATTERN = re.compile(
+    r"^\s*(how (do|does|can|long|much)|what (do i need|happens|is the policy)|do i need|is there a)\b",
+    re.IGNORECASE,
+)
+
+
+# Phrasing that really is a lookup of the patient's own appointments.
+LIST_PATTERN = re.compile(
+    r"\b(my|upcoming|booked|scheduled)\b.*\bappointments?\b|\bwhen is my\b|\bnext appointment\b",
+    re.IGNORECASE,
+)
+
+
 def _extract_appointment_id(message):
     match = APPOINTMENT_ID_PATTERN.search(message)
     return int(match.group(1)) if match else None
@@ -66,6 +82,18 @@ def plan(message, context):
             "intent": "get_appointment_status",
             "appointment_id": appointment_id,
             "raw_message": message
+        }
+
+    # Procedure questions go straight to the knowledge base (RAG).
+    if HOWTO_PATTERN.search(message):
+        return {
+            "intent": "general_question",
+            "raw_message": message,
+            "specialty": None,
+            "date": None,
+            "symptom_description": None,
+            "patient_identifier": None,
+            "appointment_id": None
         }
 
     if role == "admin":
@@ -113,6 +141,16 @@ def plan(message, context):
             "raw_message": message,
             **default_fields
         }
+
+    # Only trust the model's database intents when the message has what they
+    # need; otherwise treat it as a knowledge-base question.
+    if parsed.get("intent") == "check_availability" and not (
+        parsed.get("specialty") and parsed.get("date")
+    ):
+        parsed["intent"] = "general_question"
+
+    if parsed.get("intent") == "list_my_appointments" and not LIST_PATTERN.search(message):
+        parsed["intent"] = "general_question"
 
     parsed["raw_message"] = message
 
@@ -672,6 +710,22 @@ def act(plan_result, context):
                 "intent": intent
             }
 
+        # general_question: knowledge base (RAG) first, plain LLM as fallback
+        rag = call_rag_answer_question(plan_result["raw_message"])
+
+        if rag is not None:
+
+            return {
+                "success": True,
+                "data": rag.get("answer", ""),
+                "error": None,
+                "intent": intent,
+                "rag": {
+                    "confidence": rag.get("confidence_category"),
+                    "citations": rag.get("citations", [])
+                }
+            }
+
         reply = _llm_reply(
             "general_question_system_prompt.txt",
             plan_result["raw_message"]
@@ -965,9 +1019,23 @@ def adapt(
             f"scheduled for {data['date']}."
         )
 
+    if intent == "general_question":
+
+        rag = action_result.get("rag")
+
+        if rag and str(rag.get("confidence") or "").lower() == "insufficient":
+
+            return (
+                "I don't have enough information in the knowledge base "
+                "to answer that confidently."
+            )
+
     return data
 
 
+# ---------- Confidence + sources ----------
+
+# Intents answered by free-text LLM output with nothing verifiable behind them.
 LLM_ONLY_INTENTS = (
     "general_question",
     "recommend_specialty",
@@ -986,13 +1054,9 @@ INTENT_SOURCES = {
 
 def score_confidence(action_result, observation):
     """
-    Rule-based confidence label:
-
-      HIGH          answer came straight from the database / MCP tool
-                    (or is a fixed, known response)
-      MEDIUM        the lookup ran fine but found nothing
-      LOW           free-text LLM answer, nothing verifiable behind it
-      INSUFFICIENT  the request failed or needed info we didn't have
+    HIGH / MEDIUM / LOW / INSUFFICIENT.
+    Knowledge-base answers use the RAG server's own category; database and
+    MCP answers are HIGH (straight from the source); free LLM text is LOW.
     """
 
     flags = observation["flags"]
@@ -1006,6 +1070,11 @@ def score_confidence(action_result, observation):
     if intent == "unsupported_action":
         return "HIGH"
 
+    rag = action_result.get("rag")
+
+    if rag:
+        return str(rag.get("confidence") or "LOW").upper()
+
     if intent in LLM_ONLY_INTENTS:
         return "LOW"
 
@@ -1013,6 +1082,35 @@ def score_confidence(action_result, observation):
         return "MEDIUM"
 
     return "HIGH"
+
+
+def _sources_for(action_result):
+
+    if not action_result["success"]:
+        return []
+
+    rag = action_result.get("rag")
+
+    if rag:
+
+        # nothing to cite when the answer is "not enough information"
+        if str(rag.get("confidence") or "").lower() == "insufficient":
+            return []
+
+        seen = []
+
+        for citation in rag.get("citations", []):
+            source = (
+                str(citation.get("source_id", citation))
+                if isinstance(citation, dict)
+                else str(citation)
+            )
+            if source not in seen:
+                seen.append(source)
+
+        return seen
+
+    return INTENT_SOURCES.get(action_result["intent"], [])
 
 
 def run(
@@ -1048,21 +1146,10 @@ def run(
         observation
     )
 
-    confidence = score_confidence(
-        action_result,
-        observation
-    )
-
-    sources = (
-        INTENT_SOURCES.get(action_result["intent"], [])
-        if action_result["success"]
-        else []
-    )
-
     return {
         "reply": reply,
-        "confidence": confidence,
-        "sources": sources,
+        "confidence": score_confidence(action_result, observation),
+        "sources": _sources_for(action_result),
         "trace": {
             "plan": plan_result,
             "action": action_result,
