@@ -6,7 +6,7 @@ from dotenv import load_dotenv
 from openai import OpenAI
 import re
 from mcp_client import call_get_current_bed
-from rag_client import call_answer_question
+from rag_client import call_answer_question, call_retrieve_context
 
 load_dotenv()
 
@@ -217,7 +217,7 @@ def ai_chat():
 
     if ward_id is None:
         return jsonify({"error": "ward_id is required"}), 400
-    
+
     try:
         ward_response = requests.get(
             f"{DATABASE_SERVICE_URL}/wards/{ward_id}",
@@ -233,30 +233,61 @@ def ai_chat():
         )
 
         if beds_response.status_code != 200:
-            return jsonify({"error": "Unable to load beds"}), beds_response.status_code
+            return jsonify({
+                "error": "Unable to load beds"
+            }), beds_response.status_code
 
     except requests.RequestException:
-        return jsonify({"error": "Database service unavailable"}), 502
+        return jsonify({
+            "error": "Database service unavailable"
+        }), 502
 
     ward = ward_response.json()
     beds = beds_response.json()
 
+    rag_results = []
+    rag_mode = None
+
+    if RAG_ENABLED:
+        try:
+            rag_response = call_retrieve_context(query)
+
+            rag_results = rag_response.get("results", [])
+            rag_mode = rag_response.get("retrieval_mode")
+
+        except Exception as exc:
+            print(f"RAG retrieval unavailable: {exc}")
+            rag_results = []
+
+
+    if rag_results:
+        rag_context = "\n\n".join(
+            f"Source: {result['source_id']}\n"
+            f"{result['text']}"
+            for result in rag_results
+        )
+    else:
+        rag_context = "No relevant policy information was retrieved."
+
     loaded_system_prompt = load_prompt("implementation_system_prompt.txt")
-    
+
     loaded_task_prompt = load_prompt("context_qa_task_prompt.txt")
 
     final_prompt = f"""
-    {loaded_task_prompt}
+        {loaded_task_prompt}
 
-    Current ward:
-    {ward}
+        CURRENT WARD:
+        {ward}
 
-    Current beds:
-    {beds}
+        CURRENT BEDS:
+        {beds}
 
-    Question:
-    {query}
-    """
+        RETRIEVED POLICY CONTEXT:
+        {rag_context}
+
+        USER QUESTION:
+        {query}
+        """
 
     try:
         response = client.chat.completions.create(
@@ -277,11 +308,25 @@ def ai_chat():
 
         reply = response.choices[0].message.content
 
-        return jsonify({
+        response_data = {
             "reply": reply
-        }), 200
+        }
 
-    except Exception as e:
+        # Add RAG information when retrieval produced results
+        if rag_results:
+            response_data["citations"] = [
+                {
+                    "source_id": result["source_id"],
+                    "chunk_id": result["chunk_id"]
+                }
+                for result in rag_results
+            ]
+
+            response_data["retrieval_mode"] = rag_mode
+
+        return jsonify(response_data), 200
+
+    except Exception:
         return jsonify({
             "error": "AI service unavailable"
         }), 502

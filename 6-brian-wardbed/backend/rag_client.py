@@ -45,3 +45,14 @@ def call_answer_question(query: str, top_k: int = 5) -> dict:
             }
         )
     )
+
+def call_retrieve_context(query: str, top_k: int = 5) -> dict:
+    return asyncio.run(
+        _call_tool(
+            "retrieve_context",
+            {
+                "query": query,
+                "top_k": top_k
+            }
+        )
+    )
