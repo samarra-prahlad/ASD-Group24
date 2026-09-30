@@ -1,10 +1,12 @@
 import os
 from pathlib import Path
-
 from flask import Flask, jsonify, request
 from flask_cors import CORS
 from openai import OpenAI
 import requests
+
+from mcp_client import call_get_change_request_status
+from rag_client import call_answer_question
 
 app = Flask(__name__)
 CORS(app)
@@ -15,6 +17,8 @@ SHARED_DB_URL = os.environ.get("SHARED_DB_URL", "http://shared-database:6000")
 OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434/v1")
 OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "qwen2.5:0.5b")
 PROMPT_DIR = Path(__file__).with_name("prompts")
+MCP_ENABLED = os.getenv("MCP_ENABLED", "true").strip().lower() in ("1", "true", "yes", "on")
+RAG_ENABLED = os.getenv("RAG_ENABLED", "true").strip().lower() in ("1", "true", "yes", "on")
 
 client = OpenAI(
     base_url=OLLAMA_BASE_URL,
@@ -44,7 +48,6 @@ def check_session(token):
 
     data = resp.json()
     return data.get("patient_id"), data.get("role"), None
-
 
 @app.get("/")
 def health():
@@ -213,6 +216,27 @@ def get_change_requests(patient_id):
 
     return jsonify(resp.json())
 
+@app.get("/change_requests/mcp-status/<int:request_id>")
+def get_change_request_status_via_mcp(request_id):
+    token = request.args.get("token")
+    caller_id, role, err = check_session(token)
+    if err:
+        return err
+
+    if not MCP_ENABLED:
+        return jsonify({"error": "MCP is disabled"}), 503
+
+    try:
+        result = call_get_change_request_status(request_id)
+    except Exception as exc:
+        # network/connection failure to the MCP server itself
+        return jsonify({"error": "MCP server unavailable", "details": str(exc)}), 503
+
+    if "error" in result:
+        # tool ran fine, but reported a problem (e.g. request not found, ehr-database down)
+        return jsonify(result), 404
+
+    return jsonify(result), 200
 
 # CREATE
 @app.post("/change_requests")
@@ -330,6 +354,29 @@ def summarize_history():
             "error": "Local AI agent request failed. Check that Ollama is running and qwen2.5:0.5b is installed.",
             "detail": str(exc)
         }), 503
+
+@app.post("/ask-rag")
+def ask_rag():
+    data = request.get_json(silent=True) or {}
+    token = data.get("token")
+    question = (data.get("question") or "").strip()
+
+    caller_id, role, err = check_session(token)
+    if err:
+        return err
+
+    if not question:
+        return jsonify({"error": "question is required"}), 400
+
+    if not RAG_ENABLED:
+        return jsonify({"error": "RAG is disabled"}), 503
+
+    try:
+        result = call_answer_question(question)
+    except Exception as exc:
+        return jsonify({"error": "RAG server unavailable", "details": str(exc)}), 503
+
+    return jsonify(result), 200
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5002, debug=True)
