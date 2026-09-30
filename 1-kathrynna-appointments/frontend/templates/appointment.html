@@ -517,7 +517,7 @@ requireSession(["patient", "admin"]).then(function(session) {
             </div>
         </div>
         <div class="ai-suggestions">
-            <button class="chip" type="button" onclick="sendChip(this)">When is the earliest appointment?</button>
+            <button class="chip" type="button" onclick="sendChip(this)">How long is an appointment?</button>
             <button class="chip" type="button" onclick="sendChip(this)">Show me what type of doctor I need.</button>
             <button class="chip" type="button" onclick="sendChip(this)">How do you book an appointment?</button>
         </div>
@@ -531,86 +531,116 @@ requireSession(["patient", "admin"]).then(function(session) {
 <button class="ai-action" id="ai-action" type="button" onclick="toggleChat(true)">
     Your AI Assistant
 </button>
- 
-<script>
-  function toggleChat(open) {
- 
- const aiWidget = document.getElementById("ai-widget");
- const aiAction = document.getElementById("ai-action");
 
- if (open) {
-     aiWidget.classList.add("open");
-     aiAction.classList.add("hidden");
-     document.getElementById("ai-input").focus();
- } else {
-     aiWidget.classList.remove("open");
-     aiAction.classList.remove("hidden");
- }
+<script>
+function toggleChat(open) {
+
+    const aiWidget = document.getElementById("ai-widget");
+    const aiAction = document.getElementById("ai-action");
+
+    if (open) {
+        aiWidget.classList.add("open");
+        aiAction.classList.add("hidden");
+        document.getElementById("ai-input").focus();
+    } else {
+        aiWidget.classList.remove("open");
+        aiAction.classList.remove("hidden");
+    }
 }
 
 function sendChip(chip) {
- document.getElementById("ai-input").value = chip.textContent;
+    const input = document.getElementById("ai-input");
+    input.value = chip.textContent;
+    input.focus();
 }
 
 let aiChatHistory = [];
 
 function addChatMessage(role, text) {
- const messages = document.getElementById("ai-messages");
- const el = document.createElement("div");
- el.className = `msg ${role}`;
- el.textContent = text;
- messages.appendChild(el);
- messages.scrollTop = messages.scrollHeight;
- return el;
+    const messages = document.getElementById("ai-messages");
+    const el = document.createElement("div");
+    el.className = `msg ${role}`;
+    el.textContent = text;
+    messages.appendChild(el);
+    messages.scrollTop = messages.scrollHeight;
+    return el;
+}
+
+// Shows the reply, then a confidence badge and the source list under it.
+function renderAssistantReply(el, data) {
+
+    el.textContent = data.reply;
+
+    if (data.confidence) {
+        const badge = document.createElement("span");
+        badge.className = "confidence-badge confidence-" + data.confidence.toLowerCase();
+        badge.textContent = data.confidence;
+        el.appendChild(badge);
+    }
+
+    if (data.sources && data.sources.length) {
+        const list = document.createElement("ul");
+        list.className = "msg-sources";
+        data.sources.forEach(function (source) {
+            const li = document.createElement("li");
+            li.textContent = source;
+            list.appendChild(li);
+        });
+        el.appendChild(list);
+    }
+
+    document.getElementById("ai-messages").scrollTop =
+        document.getElementById("ai-messages").scrollHeight;
 }
 
 function prepChat(e) {
 
- e.preventDefault();
+    e.preventDefault();
 
- const input = document.getElementById("ai-input");
- const text = input.value.trim();
+    const input = document.getElementById("ai-input");
+    const text = input.value.trim();
 
- if (!text) {
-     return false;
- }
+    if (!text) {
+        return false;
+    }
 
- addChatMessage("user", text);
- input.value = "";
+    addChatMessage("user", text);
+    input.value = "";
 
- const typingEl = addChatMessage("assistant", "…");
+    const typingEl = addChatMessage("assistant", "…");
 
- const patientId = document.getElementById("patient_id")?.value || null;
+    // This page's patient ID field is patient_id
+    const patientId = document.getElementById("patient_id")?.value || null;
 
- fetch("/api/ai/chat", {
-     method: "POST",
-     headers: { "Content-Type": "application/json" },
-     body: JSON.stringify({
-         message: text,
-         patientId,
-         history: aiChatHistory
-     })
- })
-     .then(function(res) {
-         return res.json().then(function(data) {
-             if (!res.ok) {
-                 throw new Error(data.error || `Request failed (${res.status})`);
-             }
-             return data;
-         });
-     })
-     .then(function(data) {
-         typingEl.textContent = data.reply;
-         aiChatHistory.push({ role: "user", content: text });
-         aiChatHistory.push({ role: "assistant", content: data.reply });
-     })
-     .catch(function(err) {
-         typingEl.textContent = "Sorry, I couldn't reach the assistant. " + (err.message || "");
-     });
+    fetch("/api/ai/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+            message: text,
+            patientId,
+            history: aiChatHistory
+        })
+    })
+        .then(function(res) {
+            return res.json().then(function(data) {
+                if (!res.ok) {
+                    throw new Error(data.error || `Request failed (${res.status})`);
+                }
+                return data;
+            });
+        })
+        .then(function(data) {
+            renderAssistantReply(typingEl, data);
+            // history keeps only the plain reply, so badge text never reaches the model
+            aiChatHistory.push({ role: "user", content: text });
+            aiChatHistory.push({ role: "assistant", content: data.reply });
+        })
+        .catch(function(err) {
+            typingEl.textContent = "Sorry, I couldn't reach the assistant. " + (err.message || "");
+        });
 
- return false;
+    return false;
 }
-
 </script>
 </body>
 
