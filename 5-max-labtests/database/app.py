@@ -16,6 +16,13 @@ def query_db(sql, args=()):
 def get_orders():
     return jsonify(query_db("SELECT * FROM lab_orders"))
 
+@app.route("/orders/<int:order_id>", methods=["GET"])
+def get_order(order_id):
+    rows = query_db("SELECT * FROM lab_orders WHERE order_id=?", (order_id,))
+    if not rows:
+        return jsonify({"error": "Order not found"}), 404
+    return jsonify(rows[0])
+
 @app.route("/orders", methods=["POST"])
 def create_order():
     data = request.get_json()
