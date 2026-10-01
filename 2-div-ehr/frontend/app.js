@@ -145,7 +145,7 @@ async function loadMyRequests() {
   const requests = await resp.json();
   const box = document.getElementById("patient-requests");
   box.innerHTML = requests.map(r => `
-    <div>${r.request_type} - ${r.request_details} - <strong>${r.status}</strong></div>
+    <div><strong>#${r.id}</strong> ${r.request_type} - ${r.request_details} - <strong>${r.status}</strong></div>
   `).join("") || "<p>No requests yet.</p>";
 }
 
