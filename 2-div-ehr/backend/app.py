@@ -229,12 +229,13 @@ def get_change_request_status_via_mcp(request_id):
     try:
         result = call_get_change_request_status(request_id)
     except Exception as exc:
-        # network/connection failure to the MCP server itself
         return jsonify({"error": "MCP server unavailable", "details": str(exc)}), 503
 
     if "error" in result:
-        # tool ran fine, but reported a problem (e.g. request not found, ehr-database down)
         return jsonify(result), 404
+
+    if role == "patient" and result.get("patient_id") != caller_id:
+        return jsonify({"error": "Patients can only access their own change requests"}), 403
 
     return jsonify(result), 200
 
