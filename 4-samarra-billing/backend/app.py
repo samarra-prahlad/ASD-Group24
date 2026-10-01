@@ -903,6 +903,119 @@ def call_rag_answer_question(query, top_k=5):
     except (IndexError, AttributeError, TypeError, json.JSONDecodeError):
         return None
 
+
+@app.post("/ask-mcp")
+def ask_mcp():
+    data = request.get_json(silent=True) or request.form
+    invoice_id = data.get("invoice_id")
+
+    if invoice_id is None:
+        return jsonify({"error": "invoice_id is required"}), 400
+
+    try:
+        invoice_id = int(invoice_id)
+    except (TypeError, ValueError):
+        return jsonify({"error": "invoice_id must be a number"}), 400
+
+    invoice_data = call_invoice_status_tool(invoice_id)
+
+    if invoice_data is None:
+        return jsonify({"error": "MCP tool unavailable or invoice not found"}), 503
+
+    return jsonify({
+        "tool_used": "billing_get_invoice_status",
+        "result": invoice_data,
+    })
+
+
+@app.post("/ask-rag")
+def ask_rag():
+    data = request.get_json(silent=True) or request.form
+    question = (data.get("question") or "").strip()
+
+    if not question:
+        return jsonify({"error": "question is required"}), 400
+
+    rag_result = call_rag_answer_question(question)
+
+    if rag_result is None:
+        return jsonify({"error": "RAG server unavailable"}), 503
+
+    return jsonify({
+        "answer": rag_result.get("answer"),
+        "citations": rag_result.get("citations", []),
+        "confidence_category": rag_result.get("confidence_category"),
+    })
+
+
+@app.post("/ask-mcp/html")
+def ask_mcp_html():
+    invoice_id = request.form.get("invoice_id", "").strip()
+    user_bubble = f"<div class='chat-msg chat-user'><strong>You:</strong> Invoice #{escape(invoice_id)}</div>"
+
+    if not invoice_id:
+        return "<div class='chat-msg chat-error'>Invoice ID is required.</div>", 400
+
+    try:
+        invoice_id_int = int(invoice_id)
+    except (TypeError, ValueError):
+        return f"{user_bubble}<div class='chat-msg chat-error'>Invoice ID must be a number.</div>", 400
+
+    invoice_data = call_invoice_status_tool(invoice_id_int)
+
+    if invoice_data is None:
+        return f"{user_bubble}<div class='chat-msg chat-error'>MCP tool unavailable or invoice not found.</div>", 503
+
+    rows = "".join(
+        f"<tr><td>{escape(str(key))}</td><td>{escape(str(value))}</td></tr>"
+        for key, value in invoice_data.items()
+    )
+    bot_bubble = (
+        f"<div class='chat-msg chat-bot'>"
+        f"<strong>Assistant:</strong> <em>Tool used: billing_get_invoice_status</em>"
+        f"<table>{rows}</table>"
+        f"</div>"
+    )
+    return f"{user_bubble}{bot_bubble}"
+
+
+@app.post("/ask-rag/html")
+def ask_rag_html():
+    question = request.form.get("question", "").strip()
+    user_bubble = f"<div class='chat-msg chat-user'><strong>You:</strong> {escape(question)}</div>"
+
+    if not question:
+        return "<div class='chat-msg chat-error'>Question is required.</div>", 400
+
+    rag_result = call_rag_answer_question(question)
+
+    if rag_result is None:
+        return f"{user_bubble}<div class='chat-msg chat-error'>RAG server unavailable.</div>", 503
+
+    confidence_category = rag_result.get("confidence_category")
+    citations = rag_result.get("citations", [])
+    answer = rag_result.get("answer", "")
+
+    if confidence_category == "Insufficient":
+        bot_bubble = (
+            f"<div class='chat-msg chat-bot chat-insufficient'>"
+            f"<strong>Assistant:</strong> I don't have enough information in the "
+            f"knowledge base to answer that confidently. {escape(answer)}"
+            f"{render_confidence_badge(confidence_category)}"
+            f"</div>"
+        )
+    else:
+        bot_bubble = (
+            f"<div class='chat-msg chat-bot'>"
+            f"<strong>Assistant:</strong> {escape(answer)}"
+            f"{render_confidence_badge(confidence_category)}"
+            f"{render_citations(citations)}"
+            f"</div>"
+        )
+
+    return f"{user_bubble}{bot_bubble}"
+
+
 # run application
 if __name__ == "__main__":
     app.run(
