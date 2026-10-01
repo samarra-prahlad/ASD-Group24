@@ -763,6 +763,11 @@ def call_ollama(user_message):
 
     return reply, None
 
+def humanize_field_label(key):
+    words = key.split("_")
+    return " ".join("ID" if w.lower() == "id" else w.capitalize() for w in words)
+
+
 def render_confidence_badge(confidence_category):
     if not confidence_category:
         return ""
@@ -967,7 +972,7 @@ def ask_mcp_html():
         return f"{user_bubble}<div class='chat-msg chat-error'>MCP tool unavailable or invoice not found.</div>", 503
 
     rows = "".join(
-        f"<tr><td>{escape(str(key))}</td><td>{escape(str(value))}</td></tr>"
+        f"<tr><td>{escape(humanize_field_label(key))}:</td><td>{escape(str(value))}</td></tr>"
         for key, value in invoice_data.items()
     )
     bot_bubble = (
