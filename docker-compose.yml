@@ -294,6 +294,11 @@ services:
        SHARED_ACCESS_API_URL: http://shared-backend:5000
        OLLAMA_BASE_URL: http://host.docker.internal:11434/v1
        OLLAMA_MODEL: qwen2.5:0.5b
+       MCP_ENABLED: "true"
+       MCP_SERVER_URL: http://host.docker.internal:7000/mcp
+
+       RAG_ENABLED: "true"
+       RAG_SERVER_URL: http://host.docker.internal:7001/mcp
      extra_hosts:
        - "host.docker.internal:host-gateway"
      depends_on:

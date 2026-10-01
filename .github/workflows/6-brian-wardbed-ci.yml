@@ -14,6 +14,11 @@ jobs:
   pytest-validation:
     name: Pre-commit pytest validation
     runs-on: ubuntu-latest
+
+    env:
+      MCP_ENABLED: "false"
+      RAG_ENABLED: "false"
+
     steps:
       - uses: actions/checkout@v4
 

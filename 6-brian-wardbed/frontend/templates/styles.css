@@ -330,3 +330,209 @@ main {
 .top-nav-home {
     color: #558b2f !important;
 }
+
+.mcp-section {
+    width: calc(100% - 80px);
+    margin: 40px auto 60px;
+    padding: 35px 40px;
+
+    background: white;
+    border-radius: 30px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
+
+    text-align: center;
+}
+
+.mcp-section h2 {
+    margin-top: 0;
+    margin-bottom: 25px;
+
+    color: #2f7d24;
+    font-size: 28px;
+}
+
+.mcp-input-row {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+
+    gap: 15px;
+    margin-bottom: 25px;
+}
+
+#mcpQuestion {
+    width: 60%;
+    max-width: 650px;
+
+    padding: 15px 18px;
+
+    border: 2px solid #d8eac6;
+    border-radius: 12px;
+
+    font-size: 16px;
+    outline: none;
+
+    transition: border-color 0.2s ease,
+                box-shadow 0.2s ease;
+}
+
+#mcpQuestion:focus {
+    border-color: #4b922f;
+    box-shadow: 0 0 0 3px rgba(75, 146, 47, 0.15);
+}
+
+.mcp-input-row button {
+    padding: 15px 26px;
+
+    border: none;
+    border-radius: 12px;
+
+    background: #4b922f;
+    color: white;
+
+    font-size: 16px;
+    font-weight: bold;
+
+    cursor: pointer;
+
+    transition: transform 0.15s ease,
+                background 0.2s ease;
+}
+
+.mcp-input-row button:hover {
+    background: #3c7b25;
+    transform: translateY(-1px);
+}
+
+.mcp-response-box {
+    width: 70%;
+    max-width: 760px;
+    min-height: 90px;
+
+    margin: 0 auto;
+    padding: 20px 25px;
+
+    background: #eef7df;
+    border-radius: 16px;
+
+    display: flex;
+    align-items: center;
+
+    text-align: left;
+}
+
+#mcpResult {
+    width: 100%;
+    margin: 0;
+
+    color: #2f4f2f;
+    font-size: 16px;
+    line-height: 1.5;
+}
+
+.rag-section {
+    width: 90%;
+    max-width: 950px;
+    margin: 35px auto;
+    text-align: center;
+}
+
+.rag-section h2 {
+    margin-bottom: 28px;
+    font-size: 32px;
+    font-weight: 700;
+    color: #2f7f1f;
+}
+
+.rag-description {
+    margin-bottom: 24px;
+    font-size: 18px;
+    color: #333;
+}
+
+.rag-input-row {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    width: 100%;
+}
+
+.rag-input-row input {
+    flex: 1;
+    padding: 16px 20px;
+    border: 2px solid #d3e8bf;
+    border-radius: 14px;
+    font-size: 18px;
+    outline: none;
+    background: white;
+}
+
+.rag-input-row input:focus {
+    border-color: #4b982f;
+}
+
+.rag-input-row button {
+    padding: 16px 30px;
+    border: none;
+    border-radius: 14px;
+    background: #3f8f2c;
+    color: white;
+    font-size: 18px;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.rag-input-row button:hover {
+    background: #347b24;
+}
+
+.rag-response-box {
+    margin-top: 28px;
+    padding: 28px;
+    min-height: 145px;
+    border-radius: 18px;
+    background: #edf7df;
+    text-align: left;
+}
+
+#ragResult {
+    margin: 0;
+    font-size: 18px;
+    line-height: 1.6;
+    color: #1f3a16;
+}
+
+#ragDetails {
+    margin-top: 22px;
+    padding-top: 16px;
+    border-top: 1px solid #cfe0be;
+}
+
+#ragDetails p {
+    margin: 8px 0;
+    font-size: 16px;
+    color: #2d4325;
+}
+
+#ragConfidence {
+    font-weight: 700;
+}
+
+#ragSource {
+    font-weight: 500;
+    word-break: break-word;
+}
+
+@media (max-width: 700px) {
+    .rag-input-row {
+        flex-direction: column;
+    }
+
+    .rag-input-row button {
+        width: 100%;
+    }
+
+    .rag-section h2 {
+        font-size: 26px;
+    }
+}
