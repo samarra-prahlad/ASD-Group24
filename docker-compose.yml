@@ -74,6 +74,8 @@ services:
     build:
       context: ./1-kathrynna-appointments/database
     container_name: appointments-database
+    environment:
+      DATA_DIR: /app/data
     ports:
       - "6001:6001"
     volumes:
@@ -262,6 +264,8 @@ services:
     build:
       context: ./5-max-labtests/database
     container_name: labtests-database
+    environment:
+      DATA_DIR: /app/data
     ports:
       - "6005:6005"
     volumes:
