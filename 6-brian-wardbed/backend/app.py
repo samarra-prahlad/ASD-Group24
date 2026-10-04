@@ -5,9 +5,13 @@ from flask_cors import CORS
 from dotenv import load_dotenv
 from openai import OpenAI
 import re
-from mcp_client import call_get_current_bed
-from rag_client import call_answer_question, call_retrieve_context
 
+try:
+    from .mcp_client import call_get_current_bed
+    from .rag_client import call_answer_question, call_retrieve_context
+except ImportError:
+    from mcp_client import call_get_current_bed
+    from rag_client import call_answer_question, call_retrieve_context
 load_dotenv()
 
 app = Flask(__name__)
