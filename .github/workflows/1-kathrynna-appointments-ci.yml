@@ -5,9 +5,11 @@ on:
     branches: [main]
     paths:
       - "1-kathrynna-appointments/**"
+      - ".github/workflows/1-kathrynna-appointments-ci.yml"
   pull_request:
     branches: [main]
     paths:
+      - ".github/workflows/1-kathrynna-appointments-ci.yml"
       - "1-kathrynna-appointments/**"
 
 jobs:
