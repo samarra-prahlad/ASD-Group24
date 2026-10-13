@@ -41,23 +41,21 @@ jobs:
 
       - name: Start shared database service
         run: python shared/database/app.py &
-        env:
-          PORT: 6000
 
       - name: Start shared backend service
         run: python shared/backend/app.py &
         env:
-          PORT: 5000
+          DATABASE_SERVICE_URL: http://localhost:6000
 
       - name: Start lab tests database service
         run: python 5-max-labtests/database/app.py &
-        env:
-          PORT: 6005
 
       - name: Start lab tests backend service
         run: python 5-max-labtests/backend/app.py &
         env:
-          PORT: 5005
+          DATABASE_SERVICE_URL: http://localhost:6005
+          SHARED_ACCESS_API_URL: http://localhost:5000
+          SHARED_DATABASE_URL: http://localhost:6000
           MCP_RAG_ENABLED: "false"
 
       - name: Wait for all services to be ready
@@ -65,11 +63,12 @@ jobs:
           for port in 6000 5000 6005 5005; do
             echo "Waiting for service on port $port..."
             for i in $(seq 1 60); do
-              if curl -sf "http://localhost:$port/" > /dev/null 2>&1; then
+              code=$(curl -s -o /dev/null -w "%{http_code}" "http://localhost:$port/" || true)
+              if [ "$code" != "000" ]; then
                 echo "Port $port is ready."
                 break
               fi
-              if [ "$i" -eq 30 ]; then
+              if [ "$i" -eq 60 ]; then
                 echo "Service on port $port did not become ready in time."
                 exit 1
               fi
