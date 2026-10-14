@@ -4,6 +4,9 @@ from flask import Flask, jsonify, request, render_template, redirect
 from flask_cors import CORS
 from dotenv import load_dotenv
 from openai import OpenAI
+import re
+from mcp_client import call_get_current_bed
+from rag_client import call_answer_question, call_retrieve_context
 
 load_dotenv()
 
@@ -15,6 +18,9 @@ OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434/v1")
 OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "qwen2.5:0.5b")
 
 SHARED_ACCESS_API_URL = os.getenv("SHARED_ACCESS_API_URL", "http://localhost:5000")
+
+MCP_ENABLED = os.getenv("MCP_ENABLED", "true").strip().lower() in ("1", "true", "yes", "on")
+RAG_ENABLED = os.getenv("RAG_ENABLED", "true").strip().lower() in ("1", "true", "yes", "on")
 
 client = OpenAI(
     base_url=OLLAMA_BASE_URL,
@@ -203,7 +209,7 @@ def get_patient_assignments(patient_id):
 def ai_chat():
     data = request.get_json() or {}
 
-    query = data.get("query")
+    query = (data.get("query") or "").strip()
     ward_id = data.get("ward_id")
 
     if not query:
@@ -211,7 +217,7 @@ def ai_chat():
 
     if ward_id is None:
         return jsonify({"error": "ward_id is required"}), 400
-    
+
     try:
         ward_response = requests.get(
             f"{DATABASE_SERVICE_URL}/wards/{ward_id}",
@@ -229,28 +235,31 @@ def ai_chat():
         if beds_response.status_code != 200:
             return jsonify({"error": "Unable to load beds"}), beds_response.status_code
 
-    except requests.RequestException:
-        return jsonify({"error": "Database service unavailable"}), 502
+    except requests.RequestException as exc:
+        return jsonify({
+            "error": "Database service unavailable",
+            "details": str(exc)
+        }), 502
 
     ward = ward_response.json()
     beds = beds_response.json()
 
     loaded_system_prompt = load_prompt("implementation_system_prompt.txt")
-    
+
     loaded_task_prompt = load_prompt("context_qa_task_prompt.txt")
 
     final_prompt = f"""
-    {loaded_task_prompt}
+        {loaded_task_prompt}
 
-    Current ward:
-    {ward}
+        CURRENT WARD:
+        {ward}
 
-    Current beds:
-    {beds}
+        CURRENT BEDS:
+        {beds}
 
-    Question:
-    {query}
-    """
+        USER QUESTION:
+        {query}
+        """
 
     try:
         response = client.chat.completions.create(
@@ -272,13 +281,95 @@ def ai_chat():
         reply = response.choices[0].message.content
 
         return jsonify({
-            "reply": reply
+            "reply": reply,
         }), 200
 
-    except Exception as e:
+    except Exception as exc:
+        print(f"AI error: {exc}")
+
         return jsonify({
-            "error": "AI service unavailable"
+            "error": "AI service unavailable",
+            "details": str(exc)
         }), 502
+    
+def find_patient_id_in_question(question: str):
+    match = re.search(r"\bpatient\s*(\d+)\b", question, re.IGNORECASE)
+
+    if match:
+        return int(match.group(1))
+
+    return None
+
+@app.route("/ask-mcp", methods=["POST"])
+def ask_mcp():
+    question = request.form.get("question", "").strip()
+
+    if not question:
+        return jsonify({
+            "error": "Question is required"
+        }), 400
+
+    if not MCP_ENABLED:
+        return jsonify({
+            "error": "MCP is disabled"
+        }), 503
+
+    patient_id = find_patient_id_in_question(question)
+
+    if patient_id is None:
+        return jsonify({
+            "error": "Could not identify a patient ID",
+            "message": "Try asking: 'What bed is patient 12 in?'"
+        }), 400
+
+    try:
+        bed_result = call_get_current_bed(patient_id)
+
+    except Exception as exc:
+        return jsonify({
+            "error": "Could not reach MCP server",
+            "details": str(exc)
+        }), 503
+
+    return jsonify(bed_result)
+
+@app.route("/ask-rag", methods=["POST"])
+def ask_rag():
+    data = request.get_json() or {}
+
+    question = (data.get("question") or "").strip()
+
+    if not question:
+        return jsonify({
+            "error": "question is required"
+        }), 400
+
+    if not RAG_ENABLED:
+        return jsonify({
+            "error": "RAG is disabled"
+        }), 503
+
+    try:
+        result = call_answer_question(question)
+
+        return jsonify({
+            "reply": result.get("answer"),
+            "status": result.get("status"),
+            "confidence_category": result.get("confidence_category"),
+            "citations": result.get("citations", []),
+            "retrieval_mode": result.get(
+                "retrieval_summary", {}
+            ).get("retrieval_mode"),
+            "source": "rag"
+        }), 200
+
+    except Exception as exc:
+        print(f"RAG error: {exc}")
+
+        return jsonify({
+            "error": "Could not reach RAG server",
+            "details": str(exc)
+        }), 503
 
 #this was during testing to confirm the backend runs
 @app.route("/health")

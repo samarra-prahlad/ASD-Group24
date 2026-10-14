@@ -5,9 +5,11 @@ on:
     branches: [main]
     paths:
       - "1-kathrynna-appointments/**"
+      - ".github/workflows/1-kathrynna-appointments-ci.yml"
   pull_request:
     branches: [main]
     paths:
+      - ".github/workflows/1-kathrynna-appointments-ci.yml"
       - "1-kathrynna-appointments/**"
 
 jobs:
@@ -63,7 +65,7 @@ jobs:
         run: |
           for port in 6000 5000 6001 5001; do
             echo "Waiting for service on port $port..."
-            for i in $(seq 1 30); do
+            for i in $(seq 1 60); do
               if curl -sf "http://localhost:$port/" > /dev/null 2>&1; then
                 echo "Port $port is ready."
                 break
@@ -75,6 +77,12 @@ jobs:
               sleep 1
             done
           done
+
+      - name: Debug - check services are still alive
+        run: |
+          ps aux | grep python
+          curl -v http://localhost:6001/ || echo "port 6001 is down"
+
 
       - name: Run pytest
         run: pytest 1-kathrynna-appointments/tests/ -v

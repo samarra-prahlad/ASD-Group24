@@ -78,12 +78,12 @@
 
         <br>
 
-        <button onclick="askAgent()">
-            Ask Agent
+        <button onclick="askMcp()">
+            Ask MCP (Stock)
         </button>
 
-        <button onclick="askWithContext()">
-            Ask With Context
+        <button onclick="askRag()">
+            Ask RAG (Knowledge Base)
         </button>
 
         <div id="ai-error" class="error"></div>
@@ -267,67 +267,10 @@
 
 
         // -------------------------
-        // BASIC AI AGENT
+        // MCP AI AGENT
         // -------------------------
 
-        async function askAgent() {
-
-            const question =
-                document.getElementById("question").value.trim();
-
-            const result =
-                document.getElementById("ai-result");
-
-            const error =
-                document.getElementById("ai-error");
-
-            error.textContent = "";
-
-            if (!question) {
-                error.textContent =
-                    "Please enter a question.";
-                return;
-            }
-
-            result.textContent = "Thinking...";
-
-            try {
-
-                const formData = new FormData();
-
-                formData.append("question", question);
-
-                const response =
-                    await fetch(`${API_URL}/ask`, {
-                        method: "POST",
-                        body: formData
-                    });
-
-                const text = await response.text();
-
-                if (!response.ok) {
-                    throw new Error(text);
-                }
-
-                result.innerHTML = text;
-
-            } catch (error) {
-
-                result.textContent = "";
-
-                document.getElementById("ai-error").textContent =
-                    "Failed to contact the AI agent.";
-
-                console.error(error);
-            }
-        }
-
-
-        // -------------------------
-        // CONTEXT AI AGENT
-        // -------------------------
-
-        async function askWithContext() {
+        async function askMcp() {
 
             const question =
                 document.getElementById("question").value.trim();
@@ -347,7 +290,7 @@
             }
 
             result.textContent =
-                "Thinking with context...";
+                "Checking stock via MCP...";
 
             try {
 
@@ -356,7 +299,7 @@
                 formData.append("question", question);
 
                 const response =
-                    await fetch(`${API_URL}/ask-with-context`, {
+                    await fetch(`${API_URL}/ask-mcp`, {
                         method: "POST",
                         body: formData
                     });
@@ -374,12 +317,69 @@
                 result.textContent = "";
 
                 document.getElementById("ai-error").textContent =
-                    "Failed to contact the context-aware AI agent.";
+                    "Failed to contact the MCP-backed AI agent.";
 
                 console.error(error);
             }
         }
 
+
+        // -------------------------
+        // RAG AI AGENT
+        // -------------------------
+
+        async function askRag() {
+
+            const question =
+                document.getElementById("question").value.trim();
+
+            const result =
+                document.getElementById("ai-result");
+
+            const error =
+                document.getElementById("ai-error");
+
+            error.textContent = "";
+
+            if (!question) {
+                error.textContent =
+                    "Please enter a question.";
+                return;
+            }
+
+            result.textContent =
+                "Searching knowledge base...";
+
+            try {
+
+                const formData = new FormData();
+
+                formData.append("question", question);
+
+                const response =
+                    await fetch(`${API_URL}/ask-rag`, {
+                        method: "POST",
+                        body: formData
+                    });
+
+                const text = await response.text();
+
+                if (!response.ok) {
+                    throw new Error(text);
+                }
+
+                result.innerHTML = text;
+
+            } catch (error) {
+
+                result.textContent = "";
+
+                document.getElementById("ai-error").textContent =
+                    "Failed to contact the RAG-backed AI agent.";
+
+                console.error(error);
+            }
+        }
 
         // Load medications when page opens
 

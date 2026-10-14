@@ -6,5 +6,45 @@
   {
     "query": "how long do refunds take",
     "relevant_source_ids": ["billing/refunds.md"]
+  },
+  {
+    "query": "how do I reschedule an appointment",
+    "relevant_source_ids": ["appointments/appointments_faq.md", "appointments/rescheduling-procedure.md"]
+  },
+  {
+    "query": "how long is an appointment",
+    "relevant_source_ids": ["appointments/appointments_faq.md", "appointments/booking-policy.md"]
+  },
+  {
+    "query": "how do I cancel an appointment",
+    "relevant_source_ids": ["appointments/appointments_faq.md", "appointments/cancellation-policy.md"]
+  },
+  {
+    "query": "do I need a referral to see a specialist",
+    "relevant_source_ids": ["appointments/appointments_faq.md", "appointments/referral-requirements.md"]
+  },
+  {
+    "query": "what do I need to book an appointment",
+    "relevant_source_ids": ["appointments/appointments_faq.md", "appointments/booking-policy.md"]
+  },
+  {
+    "query": "what does a cardiologist treat",
+    "relevant_source_ids": ["appointments/specialty-directory.md"]
+  },
+  {
+    "query": "what are the clinic opening hours",
+    "relevant_source_ids": ["appointments/clinic-hours.md"]
+  },
+  {
+    "query": "what happens after I request a change",
+    "relevant_source_ids": ["appointments/appointments_faq.md", "appointments/rescheduling-procedure.md"]
+  },
+  {
+    "query": "what happens to my slot when I cancel",
+    "relevant_source_ids": ["appointments/appointments_faq.md", "appointments/cancellation-policy.md"]
+  },
+  {
+    "query": "can I book through the chat assistant",
+    "relevant_source_ids": ["appointments/appointments_faq.md"]
   }
 ]

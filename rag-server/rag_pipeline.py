@@ -35,6 +35,16 @@ STOPWORDS = {
 }
 
 
+def tokenize(text: str) -> set[str]:
+    # Knowledge-base docs use snake_case field names (e.g. patient_owed_amount,
+    # partially_paid) while questions phrase the same idea as separate words
+    # ("patient owed amount", "partially paid"). Without normalizing
+    # underscores to spaces, those never overlap and confidence/relevance
+    # matching silently fails on otherwise near-exact matches.
+    normalized = (text or "").lower().replace("_", " ")
+    return set(normalized.split())
+
+
 def embed_texts(texts: list[str]) -> list[list[float]]:
     vectors = []
     for text in texts:
@@ -199,32 +209,47 @@ def retrieve_context(query: str, top_k: int = 5) -> dict:
 # before computing overlap.
 # ---------------------------------------------------------------------------
 
+# FIX (2026-10-01): confidence was computed from results[0] only - the
+# top-ranked chunk by vector "score". Since embed_texts() is a noisy hash,
+# not a real embedding, the top-ranked chunk is not reliably the most
+# relevant one - confirmed empirically: querying the exact billing FAQ
+# heading "What do I do if my invoice is marked pending?" put an unrelated
+# labtests/reference_ranges.md chunk at rank 0 (score -0.30) ahead of the
+# exact-match billing/billing_faq.md chunk at rank 1 (score -0.42), so the
+# real answer was discarded before answer_question()'s own relevant_results
+# filtering (which already scans all results) ever ran. Confidence is now
+# based on the BEST-overlapping chunk across all retrieved results, not
+# just the top-ranked one - matching the filtering answer_question already
+# does further down this file.
 def confidence_from_results(results: list[dict], query: str = "") -> str:
     if not results:
         return "Insufficient"
 
-    query_tokens = set(query.lower().split()) - STOPWORDS
+    query_tokens = tokenize(query) - STOPWORDS
     if not query_tokens:
         return "Insufficient"
 
-    top_text_tokens = set(results[0].get("text", "").lower().split()) - STOPWORDS
-    overlap = query_tokens & top_text_tokens
+    best_weighted_ratio = 0.0
+    found_overlap = False
 
-    if not overlap:
+    for result in results:
+        text_tokens = tokenize(result.get("text", "")) - STOPWORDS
+        overlap = query_tokens & text_tokens
+        if not overlap:
+            continue
+        found_overlap = True
+        overlap_ratio = len(overlap) / len(query_tokens)
+        weight = AUTHORITY_TIER_WEIGHTS.get(result.get("authority_tier"), 0.4)
+        weighted_ratio = overlap_ratio * weight
+        if weighted_ratio > best_weighted_ratio:
+            best_weighted_ratio = weighted_ratio
+
+    if not found_overlap:
         return "Insufficient"
 
-    # embed_texts() isn't a real semantic embedding, so the vector "score" is
-    # noise and can't be graded against a fixed threshold (see FIX comment
-    # above retrieve_context). Confidence is instead based on how much of the
-    # query's own (non-stopword) tokens are present in the top matched chunk -
-    # a near-exact phrase match scores high, a loosely related one scores low.
-    overlap_ratio = len(overlap) / len(query_tokens)
-    weight = AUTHORITY_TIER_WEIGHTS.get(results[0].get("authority_tier"), 0.4)
-    weighted_ratio = overlap_ratio * weight
-
-    if weighted_ratio >= 0.75:
+    if best_weighted_ratio >= 0.75:
         return "High"
-    elif weighted_ratio >= 0.45:
+    elif best_weighted_ratio >= 0.45:
         return "Medium"
     else:
         return "Low"
@@ -282,10 +307,10 @@ def answer_question(query: str, top_k: int = 5) -> dict:
     # embed_texts() isn't a real semantic embedding, so vector search alone
     # returns noise-ranked results - this filters out the irrelevant ones
     # instead of blindly using all top_k results.
-    query_tokens = set(query.lower().split()) - STOPWORDS
+    query_tokens = tokenize(query) - STOPWORDS
     relevant_results = [
         r for r in results
-        if query_tokens & (set(r.get("text", "").lower().split()) - STOPWORDS)
+        if query_tokens & (tokenize(r.get("text", "")) - STOPWORDS)
     ]
     if not relevant_results:
         relevant_results = results[:1]  # confidence check already passed, so keep the top match
@@ -300,7 +325,11 @@ def answer_question(query: str, top_k: int = 5) -> dict:
     answer_text = generate_with_ollama(prompt)
 
     citations = [
-        {"source_id": r["source_id"], "chunk_id": r["chunk_id"]}
+        {
+            "source_id": r["source_id"],
+            "chunk_id": r["chunk_id"],
+            "authority_tier": r.get("authority_tier"),
+        }
         for r in relevant_results
     ]
 
@@ -314,6 +343,9 @@ def answer_question(query: str, top_k: int = 5) -> dict:
         "citations": citations,
         "confidence_category": confidence,
         "retrieval_summary": {
+            "k": top_k,
+            "retrieved_count": len(results),
+            "top_chunk": results[0].get("chunk_id") if results else None,
             "retrieval_mode": retrieval["retrieval_mode"],
             "num_results": len(results),
         },
