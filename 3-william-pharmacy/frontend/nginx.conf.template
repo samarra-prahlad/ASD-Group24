@@ -1,0 +1,64 @@
+# Rendered at container start by the nginx image (envsubst on /etc/nginx/templates/).
+# Locally every *_PUBLIC default equals the original localhost URL, so the rewrites
+# are no-ops. In Azure, deploy-azure.sh sets them to the real cloud URLs.
+server {
+    listen 80;
+    server_name _;
+    root /usr/share/nginx/html;
+
+    # Rewrite hardcoded localhost URLs in served HTML/JS/JSON (static and proxied).
+    sub_filter_once off;
+    sub_filter_types application/javascript text/javascript application/json;
+    sub_filter 'http://localhost:${OWN_BACKEND_PORT}' '${OWN_BACKEND_PUBLIC}';
+    sub_filter 'http://localhost:5000' '${SHARED_BACKEND_PUBLIC}';
+    sub_filter 'http://localhost:3000' '${SHARED_FRONTEND_PUBLIC}';
+    sub_filter 'http://localhost:3001' '${APPOINTMENTS_PUBLIC}';
+    sub_filter 'http://localhost:3002' '${EHR_PUBLIC}';
+    sub_filter 'http://localhost:3003' '${PHARMACY_PUBLIC}';
+    sub_filter 'http://localhost:3004' '${BILLING_PUBLIC}';
+    sub_filter 'http://localhost:3005' '${LABTESTS_PUBLIC}';
+    sub_filter 'http://localhost:3006' '${WARDBED_PUBLIC}';
+
+    # Same rewrites for redirect Location headers coming back from the backend.
+    proxy_redirect http://localhost:5000 ${SHARED_BACKEND_PUBLIC};
+    proxy_redirect http://localhost:3000 ${SHARED_FRONTEND_PUBLIC};
+    proxy_redirect http://localhost:3001 ${APPOINTMENTS_PUBLIC};
+    proxy_redirect http://localhost:3002 ${EHR_PUBLIC};
+    proxy_redirect http://localhost:3003 ${PHARMACY_PUBLIC};
+    proxy_redirect http://localhost:3004 ${BILLING_PUBLIC};
+    proxy_redirect http://localhost:3005 ${LABTESTS_PUBLIC};
+    proxy_redirect http://localhost:3006 ${WARDBED_PUBLIC};
+
+    # Root: serve index.html if this frontend has one, otherwise the backend handles it.
+    location = / {
+        try_files /index.html @backend;
+    }
+
+    # Kept for frontends that call /api/... (Appointments).
+    location /api/ {
+        proxy_pass ${BACKEND_URL}/;
+        proxy_ssl_server_name on;
+        proxy_set_header Host $proxy_host;
+        proxy_set_header Accept-Encoding "";
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    # Static file if it exists, otherwise proxy to this frontend's backend.
+    location / {
+        try_files $uri @backend;
+    }
+
+    location @backend {
+        proxy_pass ${BACKEND_URL};
+        # Required for Azure internal ingress over HTTPS (routes by SNI/Host), else 502.
+        proxy_ssl_server_name on;
+        proxy_set_header Host $proxy_host;
+        # Backend must send uncompressed bodies so sub_filter can rewrite them.
+        proxy_set_header Accept-Encoding "";
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
