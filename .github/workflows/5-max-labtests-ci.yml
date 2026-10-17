@@ -79,6 +79,16 @@ jobs:
       - name: Run pytest
         run: pytest 5-max-labtests/tests/ -v
 
+      - name: Release 2 endpoint tests (POST /orders and GET /orders/id)
+        run: pytest 5-max-labtests/tests/test_endpoints_release2.py -v --junitxml=labtests-endpoint-tests.xml
+
+      - name: Upload endpoint test report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: labtests-endpoint-test-report
+          path: labtests-endpoint-tests.xml
+
   ai-assisted-testing:
     name: Post-commit AI-assisted unit testing
     needs: pytest-validation
