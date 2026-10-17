@@ -102,4 +102,4 @@ def get_all_results():
     return jsonify(query_db("SELECT * FROM lab_results"))
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=6005)
+    app.run(host="0.0.0.0", port=6005)  # noqa: S104 - container must listen on all interfaces
