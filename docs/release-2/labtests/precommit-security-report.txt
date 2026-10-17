@@ -1,21 +1,21 @@
 Feature 5 (Lab Tests & Diagnostics) - pre-commit security scan report
-Generated : 2026-10-17 18:27:52 AEDT
-Commit    : 7acd00f on branch r2/maximilian/labtests
+Generated : 2026-10-18 01:40:10 AEDT
+Commit    : fa403b1 on branch r2/maximilian/labtests
 Tools     : ruff 0.17.1, detect-secrets 1.5.0, pip-audit 2.10.1
 
 === Hooks (pre-commit, all files under 5-max-labtests/) ===
 Ruff security rules (flake8-bandit S)....................................Passed
 - hook id: ruff-check
-- duration: 0.05s
+- duration: 0.04s
 
 All checks passed!
 
 detect-secrets (hard-coded credentials)..................................Passed
 - hook id: detect-secrets
-- duration: 0.46s
+- duration: 0.53s
 pip-audit (known vulnerable dependencies)................................Passed
 - hook id: pip-audit
-- duration: 7.96s
+- duration: 8.74s
 
 No known vulnerabilities found
 
@@ -24,84 +24,6 @@ No known vulnerabilities found
 No security findings.
 
 === pip-audit (backend and database requirements) ===
-WARNING:cachecontrol.controller:Cache entry deserialization failed, entry ignored
-WARNING:cachecontrol.controller:Cache entry deserialization failed, entry ignored
-WARNING:cachecontrol.controller:Cache entry deserialization failed, entry ignored
-WARNING:cachecontrol.controller:Cache entry deserialization failed, entry ignored
-WARNING:cachecontrol.controller:Cache entry deserialization failed, entry ignored
-WARNING:cachecontrol.controller:Cache entry deserialization failed, entry ignored
-WARNING:cachecontrol.controller:Cache entry deserialization failed, entry ignored
-WARNING:cachecontrol.controller:Cache entry deserialization failed, entry ignored
-WARNING:cachecontrol.controller:Cache entry deserialization failed, entry ignored
-WARNING:cachecontrol.controller:Cache entry deserialization failed, entry ignored
-WARNING:cachecontrol.controller:Cache entry deserialization failed, entry ignored
-WARNING:cachecontrol.controller:Cache entry deserialization failed, entry ignored
-WARNING:cachecontrol.controller:Cache entry deserialization failed, entry ignored
-WARNING:cachecontrol.controller:Cache entry deserialization failed, entry ignored
-WARNING:cachecontrol.controller:Cache entry deserialization failed, entry ignored
-WARNING:cachecontrol.controller:Cache entry deserialization failed, entry ignored
-WARNING:cachecontrol.controller:Cache entry deserialization failed, entry ignored
-WARNING:cachecontrol.controller:Cache entry deserialization failed, entry ignored
-WARNING:cachecontrol.controller:Cache entry deserialization failed, entry ignored
-WARNING:cachecontrol.controller:Cache entry deserialization failed, entry ignored
-WARNING:cachecontrol.controller:Cache entry deserialization failed, entry ignored
-WARNING:cachecontrol.controller:Cache entry deserialization failed, entry ignored
-WARNING:cachecontrol.controller:Cache entry deserialization failed, entry ignored
-WARNING:cachecontrol.controller:Cache entry deserialization failed, entry ignored
-WARNING:cachecontrol.controller:Cache entry deserialization failed, entry ignored
-WARNING:cachecontrol.controller:Cache entry deserialization failed, entry ignored
-WARNING:cachecontrol.controller:Cache entry deserialization failed, entry ignored
-WARNING:cachecontrol.controller:Cache entry deserialization failed, entry ignored
-WARNING:cachecontrol.controller:Cache entry deserialization failed, entry ignored
-WARNING:cachecontrol.controller:Cache entry deserialization failed, entry ignored
-WARNING:cachecontrol.controller:Cache entry deserialization failed, entry ignored
-WARNING:cachecontrol.controller:Cache entry deserialization failed, entry ignored
-WARNING:cachecontrol.controller:Cache entry deserialization failed, entry ignored
-WARNING:cachecontrol.controller:Cache entry deserialization failed, entry ignored
-WARNING:cachecontrol.controller:Cache entry deserialization failed, entry ignored
-WARNING:cachecontrol.controller:Cache entry deserialization failed, entry ignored
-WARNING:cachecontrol.controller:Cache entry deserialization failed, entry ignored
-WARNING:cachecontrol.controller:Cache entry deserialization failed, entry ignored
-WARNING:cachecontrol.controller:Cache entry deserialization failed, entry ignored
-WARNING:cachecontrol.controller:Cache entry deserialization failed, entry ignored
-WARNING:cachecontrol.controller:Cache entry deserialization failed, entry ignored
-WARNING:cachecontrol.controller:Cache entry deserialization failed, entry ignored
-WARNING:cachecontrol.controller:Cache entry deserialization failed, entry ignored
-WARNING:cachecontrol.controller:Cache entry deserialization failed, entry ignored
-WARNING:cachecontrol.controller:Cache entry deserialization failed, entry ignored
-WARNING:cachecontrol.controller:Cache entry deserialization failed, entry ignored
-WARNING:cachecontrol.controller:Cache entry deserialization failed, entry ignored
-WARNING:cachecontrol.controller:Cache entry deserialization failed, entry ignored
-WARNING:cachecontrol.controller:Cache entry deserialization failed, entry ignored
-WARNING:cachecontrol.controller:Cache entry deserialization failed, entry ignored
-WARNING:cachecontrol.controller:Cache entry deserialization failed, entry ignored
-WARNING:cachecontrol.controller:Cache entry deserialization failed, entry ignored
-WARNING:cachecontrol.controller:Cache entry deserialization failed, entry ignored
-WARNING:cachecontrol.controller:Cache entry deserialization failed, entry ignored
-WARNING:cachecontrol.controller:Cache entry deserialization failed, entry ignored
-WARNING:cachecontrol.controller:Cache entry deserialization failed, entry ignored
-WARNING:cachecontrol.controller:Cache entry deserialization failed, entry ignored
-WARNING:cachecontrol.controller:Cache entry deserialization failed, entry ignored
-WARNING:cachecontrol.controller:Cache entry deserialization failed, entry ignored
-WARNING:cachecontrol.controller:Cache entry deserialization failed, entry ignored
-WARNING:cachecontrol.controller:Cache entry deserialization failed, entry ignored
-WARNING:cachecontrol.controller:Cache entry deserialization failed, entry ignored
-WARNING:cachecontrol.controller:Cache entry deserialization failed, entry ignored
-WARNING:cachecontrol.controller:Cache entry deserialization failed, entry ignored
-WARNING:cachecontrol.controller:Cache entry deserialization failed, entry ignored
-WARNING:cachecontrol.controller:Cache entry deserialization failed, entry ignored
-WARNING:cachecontrol.controller:Cache entry deserialization failed, entry ignored
-WARNING:cachecontrol.controller:Cache entry deserialization failed, entry ignored
-WARNING:cachecontrol.controller:Cache entry deserialization failed, entry ignored
-WARNING:cachecontrol.controller:Cache entry deserialization failed, entry ignored
-WARNING:cachecontrol.controller:Cache entry deserialization failed, entry ignored
-WARNING:cachecontrol.controller:Cache entry deserialization failed, entry ignored
-WARNING:cachecontrol.controller:Cache entry deserialization failed, entry ignored
-WARNING:cachecontrol.controller:Cache entry deserialization failed, entry ignored
-WARNING:cachecontrol.controller:Cache entry deserialization failed, entry ignored
-WARNING:cachecontrol.controller:Cache entry deserialization failed, entry ignored
-WARNING:cachecontrol.controller:Cache entry deserialization failed, entry ignored
-WARNING:cachecontrol.controller:Cache entry deserialization failed, entry ignored
 No known vulnerabilities found
 
 === detect-secrets baseline ===
