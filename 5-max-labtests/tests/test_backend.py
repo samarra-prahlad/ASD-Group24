@@ -79,8 +79,18 @@ def test_delete_result():
 def test_chat_returns_reply():
     r = requests.post(f"{BASE_URL}/chat", json={"message": "What is a CBC test?"})
     assert r.status_code == 200
-    assert "reply" in r.json()
+    data = r.json()
+    assert "reply" in data
+    assert "status" in data
+    assert "citations" in data
+    assert isinstance(data["citations"], list)
+    assert data.get("confidence_category") in ("High", "Medium", "Low", "Insufficient")
 
+def test_chat_empty_message_does_not_crash():
+    r = requests.post(f"{BASE_URL}/chat", json={"message": ""})
+    assert r.status_code == 200
+    assert "reply" in r.json()
+    
 def test_get_results_for_specific_order():
     r = requests.get(f"{BASE_URL}/results/1")
     assert r.status_code == 200

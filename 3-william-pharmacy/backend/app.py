@@ -4,6 +4,9 @@ from openai import OpenAI
 from pathlib import Path
 import os
 import requests
+from mcp_client import call_check_stock
+from rag_client import call_answer_question
+import difflib
 
 DATABASE_URL = os.environ.get("DATABASE_SERVICE_URL", "http://localhost:6003")
 OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434/v1")
@@ -17,6 +20,7 @@ client = OpenAI(
     base_url=OLLAMA_BASE_URL,
     api_key="ollama"
 )
+
 
 SHARED_ACCESS_API_URL = os.environ.get("SHARED_ACCESS_API_URL", "http://shared-backend:5000")
 
@@ -117,88 +121,117 @@ def delete_prescription(prescription_id):
 
 # AI chatbot endpoints
 
-@app.route("/ask", methods=["POST"])
-def ask_local_agent():
+def find_medication_in_question(question: str) -> str | None:
+    try:
+        resp = requests.get(f"{DATABASE_URL}/medications", timeout=5)
+        resp.raise_for_status()
+        medications = resp.json()
+    except requests.RequestException:
+        return None
+
+    question_lower = question.lower()
+
+    # map each drug's base name (first word) back to its full name
+    base_name_map = {}
+    for m in medications:
+        name = m.get("name", "")
+        if name:
+            base_name_map[name.split()[0].lower()] = name
+
+    # 1. direct substring match first — cheap and exact
+    for base, full_name in base_name_map.items():
+        if base in question_lower:
+            return full_name
+
+    # 2. fuzzy fallback — catches typos like "amoxicilin" -> "amoxicillin"
+    for word in question_lower.split():
+        close = difflib.get_close_matches(word, base_name_map.keys(), n=1, cutoff=0.75)
+        if close:
+            return base_name_map[close[0]]
+
+    return None
+
+
+@app.route("/ask-mcp", methods=["POST"])
+def ask_mcp():
     question = request.form.get("question", "").strip()
 
     if not question:
         return "<p>Question is required.</p>", 400
 
-    try:
-        response = client.chat.completions.create(
-            model=OLLAMA_MODEL,
-            messages=[
-                {
-                    "role": "system",
-                    "content": (
-                        "You are a concise software engineering assistant. "
-                        "Answer in one short paragraph unless asked otherwise."
-                    )
-                },
-                {
-                    "role": "user",
-                    "content": question
-                }
-            ],
-            max_tokens=200,
-            temperature=0.2,
+    medication_name = find_medication_in_question(question)
+    if not medication_name:
+        return (
+            "<p>Couldn't identify a medication in your question. "
+            "Try including the drug name, e.g. 'is amoxicillin in stock?'</p>",
+            400,
         )
 
-        answer = response.choices[0].message.content
-
-        return f"<p>{answer}</p>"
-
+    try:
+        stock_result = call_check_stock(medication_name)
     except Exception as exc:
+        # network/connection failure to the MCP server itself
         return (
-            "<p>Local AI agent request failed. "
-            "Check that Ollama is running and that qwen2.5:0.5b is installed.</p>"
+            "<p>Couldn't reach the MCP server. Is it running on port 7000?</p>"
             f"<pre>{exc}</pre>",
             503,
         )
 
-
-@app.route("/ask-with-context", methods=["POST"])
-def ask_with_context():
-    question = request.form.get("question", "").strip()
-
-    if not question:
-        return "<p>Question is required.</p>", 400
-
+    if "error" in stock_result:
+        # tool ran fine, but reported a problem (e.g. pharmacy-backend down, not found)
+        return f"<p>{stock_result['error']}</p>", 404
 
     loaded_system_prompt = load_prompt("implementation_system_prompt.txt")
-    loaded_task_prompt = load_prompt("context_qa_task_prompt.txt")
-
-
-    final_prompt = loaded_task_prompt + "\n\n" + question
-
+    final_prompt = (
+        f"Verified stock data: {stock_result}\n\n"
+        f"Using only this verified data, answer the question: {question}"
+    )
 
     try:
         response = client.chat.completions.create(
             model=OLLAMA_MODEL,
             messages=[
-                {
-                    "role": "system",
-                    "content": loaded_system_prompt
-                },
-                {
-                    "role": "user",
-                    "content": final_prompt
-                }
+                {"role": "system", "content": loaded_system_prompt},
+                {"role": "user", "content": final_prompt}
             ],
-            max_tokens=300,
+            max_tokens=200,
             temperature=0.0,
         )
-
         answer = response.choices[0].message.content
         return f"<p>{answer}</p>"
-    
+
     except Exception as exc:
         return (
-            "<p>Context-aware request failed. "
+            "<p>MCP-grounded request failed. "
             "Check that Ollama is running and that qwen2.5:0.5b is installed.</p>"
             f"<pre>{exc}</pre>",
             503,
         )
+
+
+@app.route("/ask-rag", methods=["POST"])
+def ask_rag():
+    question = request.form.get("question", "").strip()
+    if not question:
+        return "<p>Question is required.</p>", 400
+
+    try:
+        result = call_answer_question(question)
+    except Exception as exc:
+        return f"<p>RAG request failed.</p><pre>{exc}</pre>", 503
+
+    if result["status"] == "insufficient_context":
+        return (
+            f"<p>{result['answer']}</p>"
+            f"<p><em>Confidence: {result['confidence_category']}</em></p>"
+        )
+
+    citations_html = "".join(f"<li>{c['source_id']}</li>" for c in result["citations"])
+    return (
+        f"<p>{result['answer']}</p>"
+        f"<p><em>Confidence: {result['confidence_category']}</em></p>"
+        f"<ul>{citations_html}</ul>"
+    )
 
 
 if __name__ == "__main__":
