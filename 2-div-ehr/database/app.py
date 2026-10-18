@@ -108,6 +108,18 @@ def get_patient_change_requests(patient_id):
     db.close()
     return jsonify([dict(r) for r in requests])
 
+@app.get("/change_requests/by-id/<int:request_id>")
+def get_change_request_by_id(request_id):
+    db = get_db()
+    row = db.execute(
+        "SELECT * FROM change_requests WHERE id = ?",
+        (request_id,)
+    ).fetchone()
+    db.close()
+    if row is None:
+        return jsonify({"error": "Change request not found"}), 404
+    return jsonify(dict(row))
+
 # CREATE
 @app.post("/change_requests")
 def create_change_request():

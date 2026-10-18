@@ -1,6 +1,6 @@
 # Group 24 Agentic Loop - rag validation
 
-Captured: 2026-09-29T00:49:01.564921
+Captured: 2026-10-01T21:17:53.893434
 
 ```
 ============================================================
@@ -15,10 +15,10 @@ ACT
 Checking shared access API, local RAG server, and all six feature backends
 
 OBSERVE (RAG validation mode)
-  Checked rag-server.answer_question(query='What does partially paid mean?') -> status=insufficient_context, citations_present=False, confidence_category=Insufficient
+  Checked rag-server.answer_question(query='What do I do if my invoice is marked pending?') -> status=ok, citations_present=True, confidence_category=High
 
 Evidence collected:
-  rag-server.answer_question(query='What does partially paid mean?') -> status=insufficient_context, citations_present=False, confidence_category=Insufficient
+  rag-server.answer_question(query='What do I do if my invoice is marked pending?') -> status=ok, citations_present=True, confidence_category=High
 
 
 HUMAN REVIEW

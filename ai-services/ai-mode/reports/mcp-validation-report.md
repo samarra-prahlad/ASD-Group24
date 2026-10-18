@@ -1,6 +1,6 @@
 # Group 24 Agentic Loop - mcp validation
 
-Captured: 2026-09-29T00:48:31.848650
+Captured: 2026-10-01T21:16:44.533144
 
 ```
 ============================================================
@@ -16,12 +16,12 @@ Checking shared access API, local RAG server, and all six feature backends
 
 OBSERVE (MCP validation mode)
   Checked mcp-server -> tools_listed=7 (echo, ehr_get_change_request_status, billing_get_invoice_status, wardbed_get_current_bed, appointments_get_appointment, pharmacy_check_stock, labtests_get_order_status), structured_schema_ok=True
-  Checked billing_get_invoice_status(invoice_id=1) -> isError=True, structured_result_ok=False, keys=[], note=tool not yet implemented (Error executing tool billing_get_invoice_status: TODO: implement get_invoice_status)
+  Checked billing_get_invoice_status(invoice_id=1) -> isError=False, structured_result_ok=True, keys=['invoice_id', 'patient_id', 'status', 'total_amount', 'insurance_covered_amount', 'patient_owed_amount', 'date', 'insurance_provider_name']
   Checked echo(message='agentic-loop validation') -> isError=False, response='{\n  "echo": "agentic-loop validation"\n}'
 
 Evidence collected:
   mcp-server -> tools_listed=7 (echo, ehr_get_change_request_status, billing_get_invoice_status, wardbed_get_current_bed, appointments_get_appointment, pharmacy_check_stock, labtests_get_order_status), structured_schema_ok=True
-  billing_get_invoice_status(invoice_id=1) -> isError=True, structured_result_ok=False, keys=[], note=tool not yet implemented (Error executing tool billing_get_invoice_status: TODO: implement get_invoice_status)
+  billing_get_invoice_status(invoice_id=1) -> isError=False, structured_result_ok=True, keys=['invoice_id', 'patient_id', 'status', 'total_amount', 'insurance_covered_amount', 'patient_owed_amount', 'date', 'insurance_provider_name']
   echo(message='agentic-loop validation') -> isError=False, response='{\n  "echo": "agentic-loop validation"\n}'
 
 
@@ -30,9 +30,9 @@ HUMAN REVIEW
 2 - Partially Accept
 3 - Reject
 Decision: 
-Decision: Partially Accept
+Decision: Accept
 
-ADAPT: Apply selected recommendations and rerun validation.
+ADAPT: Apply recommendation and rerun validation.
 
 LOOP COMPLETE
 ```

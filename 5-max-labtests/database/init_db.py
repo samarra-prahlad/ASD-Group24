@@ -1,6 +1,9 @@
+import os
 import sqlite3
 
-conn = sqlite3.connect("/app/data/labtests.db")
+DATA_DIR = os.environ.get("DATA_DIR", os.path.join(os.path.dirname(__file__), "data"))
+os.makedirs(DATA_DIR, exist_ok=True)
+conn = sqlite3.connect(os.path.join(DATA_DIR, "labtests.db"))
 c = conn.cursor()
 
 c.execute("""

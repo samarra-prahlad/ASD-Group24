@@ -1,4 +1,5 @@
 import os
+import sys
 import importlib.util
 from unittest.mock import patch, MagicMock
 import pytest
@@ -6,6 +7,7 @@ import requests
 
 FEATURE_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 BACKEND_DIR = os.path.join(FEATURE_ROOT, "backend")
+sys.path.insert(0, BACKEND_DIR)  # so app.py's `from mcp_client import ...` / `from rag_client import ...` resolve
 
 
 def _load_module(module_name, file_path):
@@ -379,4 +381,96 @@ class TestSummarizeRoute:
         response = client.post("/summarize", json={
             "token": "patient-token", "patient_id": 3, "question": "Summarize",
         })
+        assert response.status_code == 503
+
+class TestMcpStatusRoute:
+
+    @patch.object(ehr_backend_app, "call_get_change_request_status")
+    @patch("requests.post")
+    def test_mcp_status_returns_result_on_success(self, mock_post, mock_call, client):
+        mock_post.return_value = fake_response(fake_session(role="admin"), 200)
+        mock_call.return_value = {
+            "request_id": 7, "status": "approved", "patient_id": 3, "request_type": "Update Allergies",
+        }
+
+        response = client.get("/change_requests/mcp-status/7?token=admin-token")
+
+        assert response.status_code == 200
+        assert response.get_json()["status"] == "approved"
+
+    @patch.object(ehr_backend_app, "call_get_change_request_status")
+    @patch("requests.post")
+    def test_mcp_status_tool_reported_error_returns_404(self, mock_post, mock_call, client):
+        mock_post.return_value = fake_response(fake_session(role="admin"), 200)
+        mock_call.return_value = {"error": "Change request not found", "request_id": 999}
+
+        response = client.get("/change_requests/mcp-status/999?token=admin-token")
+
+        assert response.status_code == 404
+
+    @patch.object(ehr_backend_app, "call_get_change_request_status")
+    @patch("requests.post")
+    def test_mcp_status_server_unreachable_returns_503(self, mock_post, mock_call, client):
+        mock_post.return_value = fake_response(fake_session(role="admin"), 200)
+        mock_call.side_effect = RuntimeError("MCP server unavailable")
+
+        response = client.get("/change_requests/mcp-status/1?token=admin-token")
+
+        assert response.status_code == 503
+
+    @patch.object(ehr_backend_app, "MCP_ENABLED", False)
+    @patch("requests.post")
+    def test_mcp_status_returns_503_when_disabled(self, mock_post, client):
+        mock_post.return_value = fake_response(fake_session(role="admin"), 200)
+
+        response = client.get("/change_requests/mcp-status/1?token=admin-token")
+
+        assert response.status_code == 503
+
+
+class TestAskRagRoute:
+
+    @patch.object(ehr_backend_app, "call_answer_question")
+    @patch("requests.post")
+    def test_ask_rag_returns_answer_on_success(self, mock_post, mock_call, client):
+        mock_post.return_value = fake_response(fake_session(role="patient"), 200)
+        mock_call.return_value = {
+            "status": "ok",
+            "answer": "Change requests are reviewed within 5 business days.",
+            "citations": [{"source_id": "ehr/change_request_policy.md"}],
+            "confidence_category": "High",
+        }
+
+        response = client.post("/ask-rag", json={
+            "token": "patient-token", "question": "How long do change requests take?",
+        })
+
+        assert response.status_code == 200
+        assert response.get_json()["confidence_category"] == "High"
+
+    @patch("requests.post")
+    def test_ask_rag_missing_question_returns_400(self, mock_post, client):
+        mock_post.return_value = fake_response(fake_session(role="patient"), 200)
+
+        response = client.post("/ask-rag", json={"token": "patient-token", "question": ""})
+
+        assert response.status_code == 400
+
+    @patch.object(ehr_backend_app, "call_answer_question")
+    @patch("requests.post")
+    def test_ask_rag_server_unreachable_returns_503(self, mock_post, mock_call, client):
+        mock_post.return_value = fake_response(fake_session(role="patient"), 200)
+        mock_call.side_effect = RuntimeError("RAG server unavailable")
+
+        response = client.post("/ask-rag", json={"token": "patient-token", "question": "test"})
+
+        assert response.status_code == 503
+
+    @patch.object(ehr_backend_app, "RAG_ENABLED", False)
+    @patch("requests.post")
+    def test_ask_rag_returns_503_when_disabled(self, mock_post, client):
+        mock_post.return_value = fake_response(fake_session(role="patient"), 200)
+
+        response = client.post("/ask-rag", json={"token": "patient-token", "question": "test"})
+
         assert response.status_code == 503

@@ -17,10 +17,14 @@ def test_get_all_appointments():
     assert len(data) > 0
 
 def test_get_single_appointment():
-    response = requests.get(f"{BASE_URL}/appointments/101")
+    all_appts = requests.get(f"{BASE_URL}/appointments").json()
+    assert len(all_appts) > 0
+    appointment_id = all_appts[0]["id"]
+
+    response = requests.get(f"{BASE_URL}/appointments/{appointment_id}")
     assert response.status_code == 200
     data = response.json()
-    assert data["id"] == 101
+    assert data["id"] == appointment_id
     assert "patient_id" in data
     assert "doctor_id" in data
     assert "date" in data

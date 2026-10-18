@@ -1,7 +1,7 @@
 from mcp_instance import mcp
 import tools  # noqa: F401  (import triggers tool registration)
 
-AVAILABLE_TOOLS = ["echo"]
+AVAILABLE_TOOLS = ["echo", "billing_get_invoice_status"]
 
 if __name__ == "__main__":
     print("Starting Group24 Shared MCP Server...")

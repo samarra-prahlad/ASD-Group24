@@ -1,10 +1,13 @@
+import asyncio
 import json
 import os
+import re
 from datetime import date as date_cls
 from datetime import datetime
 
 import requests
 
+from mcp_client import call_get_appointment, call_rag_answer_question
 from service.llm_client import OLLAMA_MODEL, create_chat_completion
 from service.prompt_loader import load_prompt
 
@@ -19,6 +22,7 @@ PATIENT_INTENTS = [
     "check_availability",
     "list_my_appointments",
     "recommend_specialty",
+    "get_appointment_status",
     "general_question",
     "unsupported_action",
 ]
@@ -28,21 +32,114 @@ ADMIN_INTENTS = [
     "find_patient_appointment",
     "next_scheduled_appointment",
     "appointments_today_count",
+    "get_appointment_status",
     "general_question",
     "unsupported_action",
 ]
 
-def plan(message, context):
+APPOINTMENT_ID_PATTERN = re.compile(
+    r"appointment\s*(?:id|number|no\.?|#)?\s*#?\s*(\d+)\b(?!\s*(?:am|pm|:))",
+    re.IGNORECASE,
+)
 
+
+# "How do I...", "how long is...", "what do I need..." questions are about
+# clinic procedure, so they go to the knowledge base.
+HOWTO_PATTERN = re.compile(
+    r"^\s*(how (do|does|can|long|much)|what (do i need|happens|is the policy)|do i need|is there a)\b",
+    re.IGNORECASE,
+)
+
+
+# Phrasing that really is a lookup of the patient's own appointments.
+LIST_PATTERN = re.compile(
+    r"\b(my|upcoming|booked|scheduled)\b.*\bappointments?\b|\bwhen is my\b|\bnext appointment\b",
+    re.IGNORECASE,
+)
+
+
+# Words that mean the patient wants to change something, not just look it up.
+ACTION_PATTERN = re.compile(
+    r"\b(cancel|change|reschedule|move|book|edit|delete)\b",
+    re.IGNORECASE,
+)
+# "What type of doctor do I need" style questions go to the specialty recommender.
+SPECIALTY_PATTERN = re.compile(
+    r"\b(what|which) (type|kind) of (doctor|specialist)\b|\bwhich specialt(y|ist)\b|\bwhat specialty\b|\bwho should i see\b",
+    re.IGNORECASE,
+)
+
+def _extract_appointment_id(message):
+    match = APPOINTMENT_ID_PATTERN.search(message)
+    return int(match.group(1)) if match else None
+
+
+def plan(message, context):
 
     role = context.get("role", "patient")
 
+    # 1. Message names an appointment ID -> MCP tool lookup.
+    appointment_id = _extract_appointment_id(message)
+
+    if appointment_id is not None:
+        return {
+            "intent": "get_appointment_status",
+            "appointment_id": appointment_id,
+            "raw_message": message
+        }
+
+    # 2. Procedure questions go straight to the knowledge base (RAG).
+    if HOWTO_PATTERN.search(message):
+        return {
+            "intent": "general_question",
+            "raw_message": message,
+            "specialty": None,
+            "date": None,
+            "symptom_description": None,
+            "patient_identifier": None,
+            "appointment_id": None
+        }
+    # 2b. "What type of doctor do I need" -> specialty recommendation.
+    if SPECIALTY_PATTERN.search(message):
+
+        has_symptom = re.search(
+            r"\b(for|with|about|because|my|have|having|pain|ache|rash|cough|fever|hurts?)\b",
+            message.split("doctor", 1)[-1].split("specialist", 1)[-1],
+            re.IGNORECASE,
+        )
+
+        return {
+            "intent": "recommend_specialty" if has_symptom else "general_question",
+            "raw_message": message,
+            "specialty": None,
+            "date": None,
+            "symptom_description": message if has_symptom else None,
+            "appointment_id": None
+        }
+    
+    # 3. Patients asking to see their own appointments don't need the model.
+    if (
+        role == "patient"
+        and LIST_PATTERN.search(message)
+        and not ACTION_PATTERN.search(message)
+    ):
+        return {
+            "intent": "list_my_appointments",
+            "raw_message": message,
+            "specialty": None,
+            "date": None,
+            "symptom_description": None,
+            "appointment_id": None
+        }
+
+    # 4. Everything else: ask the model.
     if role == "admin":
         system_prompt = load_prompt("admin_system_prompt.txt")
         supported_intents = ADMIN_INTENTS
         default_fields = {
             "patient_identifier": None,
-            "date": None
+            "date": None,
+            "appointment_id": None
         }
     else:
         system_prompt = load_prompt("system_prompt.txt")
@@ -50,7 +147,8 @@ def plan(message, context):
         default_fields = {
             "specialty": None,
             "date": None,
-            "symptom_description": None
+            "symptom_description": None,
+            "appointment_id": None
         }
 
     recent_history = context.get("history", [])[-4:]
@@ -80,6 +178,16 @@ def plan(message, context):
             "raw_message": message,
             **default_fields
         }
+
+    # Only trust the model's database intents when the message has what they
+    # need; otherwise treat it as a knowledge-base question.
+    if parsed.get("intent") == "check_availability" and not (
+        parsed.get("specialty") and parsed.get("date")
+    ):
+        parsed["intent"] = "general_question"
+
+    if parsed.get("intent") == "list_my_appointments" and not LIST_PATTERN.search(message):
+        parsed["intent"] = "general_question"
 
     parsed["raw_message"] = message
 
@@ -497,6 +605,60 @@ def act(plan_result, context):
                 "intent": intent
             }
 
+        if intent == "get_appointment_status":
+
+            role = context.get("role", "patient")
+            appointment_id = plan_result.get("appointment_id")
+
+            if not appointment_id:
+                return {
+                    "success": False,
+                    "data": None,
+                    "error": "missing_appointment_id",
+                    "intent": intent
+                }
+
+            if role == "patient" and not context.get("patient_id"):
+                return {
+                    "success": False,
+                    "data": None,
+                    "error": "missing_patient_id",
+                    "intent": intent
+                }
+
+            # The actual MCP call: this backend acting as an MCP client.
+            result = asyncio.run(
+                call_get_appointment(int(appointment_id))
+            )
+
+            if result.get("error") == "Appointment not found":
+                result = None
+
+            elif "error" in result:
+                return {
+                    "success": False,
+                    "data": None,
+                    "error": f"mcp_call_failed: {result['error']}",
+                    "intent": intent
+                }
+
+            elif (
+                role == "patient"
+                and str(result.get("patient_id"))
+                != str(context.get("patient_id"))
+            ):
+                # Patients may only view their own appointments. A wrong-owner
+                # lookup looks identical to "not found" so it doesn't reveal
+                # that the appointment exists.
+                result = None
+
+            return {
+                "success": True,
+                "data": result,
+                "error": None,
+                "intent": intent
+            }
+
         if intent == "find_patient_appointment":
 
             identifier = plan_result.get(
@@ -585,6 +747,22 @@ def act(plan_result, context):
                 "intent": intent
             }
 
+        # general_question: knowledge base (RAG) first, plain LLM as fallback
+        rag = call_rag_answer_question(plan_result["raw_message"])
+
+        if rag is not None:
+
+            return {
+                "success": True,
+                "data": rag.get("answer", ""),
+                "error": None,
+                "intent": intent,
+                "rag": {
+                    "confidence": rag.get("confidence_category"),
+                    "citations": rag.get("citations", [])
+                }
+            }
+
         reply = _llm_reply(
             "general_question_system_prompt.txt",
             plan_result["raw_message"]
@@ -641,6 +819,7 @@ LIST_RESULT_INTENTS = (
 
 SINGLE_RESULT_INTENTS = (
     "next_scheduled_appointment",
+    "get_appointment_status",
 )
 
 
@@ -662,6 +841,12 @@ def observe(action_result):
 
             flags.append(
                 "missing_patient_identifier"
+            )
+
+        elif error == "missing_appointment_id":
+
+            flags.append(
+                "missing_appointment_id"
             )
 
         else:
@@ -721,6 +906,13 @@ def adapt(
             "so I can look up their appointment."
         )
 
+    if "missing_appointment_id" in flags:
+
+        return (
+            "Please tell me the appointment ID, for example: "
+            "status of appointment 102."
+        )
+
     if "action_failed" in flags:
 
         return (
@@ -776,6 +968,13 @@ def adapt(
             return (
                 "There's no upcoming appointment "
                 "scheduled right now."
+            )
+
+        if intent == "get_appointment_status":
+
+            return (
+                "I couldn't find an appointment with that ID "
+                "for your account."
             )
 
     data = action_result.get("data")
@@ -842,6 +1041,14 @@ def adapt(
             f"at {appointment['time']}."
         )
 
+    if intent == "get_appointment_status":
+
+        return (
+            f"Appointment #{data['id']}: {data['doctor_name']} "
+            f"({data['doctor_specialty']}) on {data['date']} "
+            f"at {data['time']}. Status: {data['status']}."
+        )
+
     if intent == "appointments_today_count":
 
         return (
@@ -849,7 +1056,98 @@ def adapt(
             f"scheduled for {data['date']}."
         )
 
+    if intent == "general_question":
+
+        rag = action_result.get("rag")
+
+        if rag and str(rag.get("confidence") or "").lower() == "insufficient":
+
+            return (
+                "I don't have enough information in the knowledge base "
+                "to answer that confidently."
+            )
+
     return data
+
+
+# ---------- Confidence + sources ----------
+
+# Intents answered by free-text LLM output with nothing verifiable behind them.
+LLM_ONLY_INTENTS = (
+    "general_question",
+    "recommend_specialty",
+)
+
+
+INTENT_SOURCES = {
+    "get_appointment_status": ["MCP: appointments_get_appointment"],
+    "check_availability": ["appointments database"],
+    "list_my_appointments": ["appointments database"],
+    "find_patient_appointment": ["appointments database"],
+    "next_scheduled_appointment": ["appointments database"],
+    "appointments_today_count": ["appointments database"],
+}
+
+
+def score_confidence(action_result, observation):
+    """
+    HIGH / MEDIUM / LOW / INSUFFICIENT.
+    Knowledge-base answers use the RAG server's own category; database and
+    MCP answers are HIGH (straight from the source); free LLM text is LOW.
+    """
+
+    flags = observation["flags"]
+    intent = action_result["intent"]
+
+    if "action_failed" in flags or any(
+        flag.startswith("missing_") for flag in flags
+    ):
+        return "INSUFFICIENT"
+
+    if intent == "unsupported_action":
+        return "HIGH"
+
+    rag = action_result.get("rag")
+
+    if rag:
+        return str(rag.get("confidence") or "LOW").upper()
+
+    if intent in LLM_ONLY_INTENTS:
+        return "LOW"
+
+    if "no_results" in flags:
+        return "MEDIUM"
+
+    return "HIGH"
+
+
+def _sources_for(action_result):
+
+    if not action_result["success"]:
+        return []
+
+    rag = action_result.get("rag")
+
+    if rag:
+
+        # nothing to cite when the answer is "not enough information"
+        if str(rag.get("confidence") or "").lower() == "insufficient":
+            return []
+
+        seen = []
+
+        for citation in rag.get("citations", []):
+            source = (
+                str(citation.get("source_id", citation))
+                if isinstance(citation, dict)
+                else str(citation)
+            )
+            if source not in seen:
+                seen.append(source)
+
+        return seen
+
+    return INTENT_SOURCES.get(action_result["intent"], [])
 
 
 def run(
@@ -887,6 +1185,8 @@ def run(
 
     return {
         "reply": reply,
+        "confidence": score_confidence(action_result, observation),
+        "sources": _sources_for(action_result),
         "trace": {
             "plan": plan_result,
             "action": action_result,
