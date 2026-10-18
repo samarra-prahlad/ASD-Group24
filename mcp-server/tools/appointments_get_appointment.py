@@ -5,7 +5,7 @@ from mcp_instance import mcp
 # Same backend your Flask app talks to for appointment lookups.
 # Override via env var so this works both locally and from inside a container.
 APPOINTMENTS_BACKEND_URL = os.getenv(
-    "APPOINTMENTS_BACKEND_URL", "http://appointments-backend:5001"
+    "APPOINTMENTS_BACKEND_URL", "http://localhost:5001"
 )
 
 
