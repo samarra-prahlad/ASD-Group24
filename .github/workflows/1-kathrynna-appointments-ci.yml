@@ -54,6 +54,7 @@ jobs:
         run: python shared/backend/app.py &
         env:
           PORT: 5000
+          DATABASE_SERVICE_URL: http://localhost:6000
 
       - name: Start appointments database service
         run: python 1-kathrynna-appointments/database/app.py &
