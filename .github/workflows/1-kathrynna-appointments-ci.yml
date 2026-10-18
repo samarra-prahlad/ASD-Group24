@@ -5,10 +5,12 @@ on:
     branches: [main]
     paths:
       - "1-kathrynna-appointments/**"
+      - ".github/workflows/1-kathrynna-appointments-ci.yml"
   pull_request:
     branches: [main]
     paths:
       - "1-kathrynna-appointments/**"
+      - ".github/workflows/1-kathrynna-appointments-ci.yml"
 
 jobs:
   pytest-validation:
@@ -59,7 +61,7 @@ jobs:
         env:
           PORT: 5001
           MCP_RAG_ENABLED: "false"
-          # Your app.py defaults to Docker hostnames, so point it at localhost
+          # app.py defaults to Docker hostnames, so point it at localhost
           DATABASE_SERVICE_URL: http://localhost:6001
           SHARED_ACCESS_API_URL: http://localhost:5000
 
@@ -68,8 +70,10 @@ jobs:
           for port in 6000 5000 6001 5001; do
             echo "Waiting for service on port $port..."
             for i in $(seq 1 60); do
-              if curl -sf "http://localhost:$port/" > /dev/null 2>&1; then
-                echo "Port $port is ready."
+              # Any HTTP response (even 404) means the service is up; 000 means nothing answered
+              code=$(curl -s -o /dev/null -w "%{http_code}" "http://127.0.0.1:$port/" || true)
+              if [ "$code" != "000" ]; then
+                echo "Port $port is ready (HTTP $code)."
                 break
               fi
               if [ "$i" -eq 60 ]; then
