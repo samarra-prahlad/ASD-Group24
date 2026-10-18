@@ -3,7 +3,9 @@ import sqlite3
 
 app = Flask(__name__)
 
-DATABASE_NAME = "/app/data/appointments.db"
+import os
+DATA_DIR = os.getenv("DATA_DIR", "/app/data")
+DATABASE_NAME = os.path.join(DATA_DIR, "appointments.db")
 
 def get_db_connection():
     conn = sqlite3.connect(DATABASE_NAME)
