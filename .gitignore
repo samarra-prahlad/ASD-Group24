@@ -6,3 +6,4 @@ corpus/corpus.jsonl
 chroma/
 rag-audit.jsonl
 corpus/corpus.jsonl
+.venv/

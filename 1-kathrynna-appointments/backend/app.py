@@ -1,9 +1,11 @@
 from flask import Flask, jsonify, request
 from flask_cors import CORS
+from markupsafe import escape
 from datetime import datetime, timedelta
 import os
 import requests
 from routes.ai_mode import ai_mode_bp
+
 
 app = Flask(__name__)
 CORS(app)
@@ -13,6 +15,25 @@ SHARED_ACCESS_API_URL = os.getenv("SHARED_ACCESS_API_URL", "http://shared-access
 
 SLOT_MINUTES = 30
 DAY_ABBR = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+
+
+def valid_date(value):
+    """True only for a real YYYY-MM-DD date. A valid date can't contain
+    markup, so it is safe to place inside the HTML fragments below."""
+    try:
+        datetime.strptime(value or "", "%Y-%m-%d")
+        return True
+    except ValueError:
+        return False
+
+
+def valid_time(value):
+    """True only for a real HH:MM time."""
+    try:
+        datetime.strptime(value or "", "%H:%M")
+        return True
+    except ValueError:
+        return False
 
 
 def parse_availability(availability_str):
@@ -313,6 +334,9 @@ def update_appointment_htmx(appointment_id):
     if not date or not time:
         return "<p>Please choose both a date and a time.</p>", 400
 
+    if not valid_date(date) or not valid_time(time):
+        return "<p>Invalid date or time.</p>", 400
+
     try:
         existing = requests.get(f"{DATABASE_SERVICE_URL}/appointments/{appointment_id}", timeout=5)
         if existing.status_code != 200:
@@ -325,14 +349,14 @@ def update_appointment_htmx(appointment_id):
         )
 
         if response.status_code != 201:
-            return f"""<div class="availability-panel"><h3>Request not sent</h3><p>{response.json().get("error", "Unable to submit change request.")}</p></div>""", response.status_code
+            return f"""<div class="availability-panel"><h3>Request not sent</h3><p>{escape(response.json().get("error", "Unable to submit change request."))}</p></div>""", response.status_code
 
         updated = requests.get(f"{DATABASE_SERVICE_URL}/appointments/{appointment_id}", timeout=5).json()
         pending_change = {"requested_date": date, "requested_time": time}
         return render_appointment_card(updated, pending_change)
 
-    except requests.RequestException as exc:
-        return f"""<div class="availability-panel"><h3>Request failed</h3><p>Unable to connect: {exc}</p></div>""", 503
+    except requests.RequestException:
+        return """<div class="availability-panel"><h3>Request failed</h3><p>Unable to reach the appointments service. Please try again.</p></div>""", 503
 
 
 # Appointments by patient HTMX route
@@ -353,8 +377,8 @@ def get_appointments_by_patient_htmx(patient_id):
             for c in changes_resp.json():
                 pending_by_appt[c["appointment_id"]] = c
 
-    except requests.RequestException as exc:
-        return f"""<div class="availability-panel"><h3>Unable to load appointments</h3><p>{exc}</p></div>""", 503
+    except requests.RequestException:
+        return """<div class="availability-panel"><h3>Unable to load appointments</h3><p>The appointments service is unavailable. Please try again.</p></div>""", 503
 
     if not appointments:
         return """<div class="availability-panel"><p>No appointments found for this patient.</p></div>"""
@@ -369,12 +393,15 @@ def admin_appointments_by_date_htmx():
     if not date:
         return "<p>Select a date to view appointments.</p>", 400
 
+    if not valid_date(date):
+        return "<p>Invalid date.</p>", 400
+
     try:
         response = requests.get(f"{DATABASE_SERVICE_URL}/appointments/date/{date}", timeout=5)
         response.raise_for_status()
         appointments = response.json()
-    except requests.RequestException as exc:
-        return f"<p>Unable to load appointments: {exc}</p>", 503
+    except requests.RequestException:
+        return "<p>Unable to load appointments. Please try again.</p>", 503
 
     if not appointments:
         return f"<div class='availability-panel'><p>No appointments scheduled for {date}.</p></div>"
@@ -400,8 +427,8 @@ def admin_pending_changes_htmx():
         response = requests.get(f"{DATABASE_SERVICE_URL}/appointment-changes", params={"status": "pending"}, timeout=5)
         response.raise_for_status()
         changes = response.json()
-    except requests.RequestException as exc:
-        return f"<p>Unable to load change requests: {exc}</p>", 503
+    except requests.RequestException:
+        return "<p>Unable to load change requests. Please try again.</p>", 503
 
     if not changes:
         return "<div class='availability-panel'><p>No pending change requests.</p></div>"
@@ -440,10 +467,10 @@ def admin_review_change_htmx(change_id):
         response = requests.put(f"{DATABASE_SERVICE_URL}/appointment-changes/{change_id}",
                                  json={"status": status}, timeout=5)
         if response.status_code != 200:
-            return f"""<div class="availability-panel"><p>{response.json().get("error", "Could not update request.")}</p></div>""", response.status_code
+            return f"""<div class="availability-panel"><p>{escape(response.json().get("error", "Could not update request."))}</p></div>""", response.status_code
         return f"""<div class="availability-panel confirmation"><p>Request {status}.</p></div>"""
-    except requests.RequestException as exc:
-        return f"<p>Unable to connect: {exc}</p>", 503
+    except requests.RequestException:
+        return "<p>Unable to reach the appointments service. Please try again.</p>", 503
 
 @app.delete("/appointments/<int:appointment_id>")
 def delete_appointment(appointment_id):
@@ -535,8 +562,8 @@ def get_doctors_htmx():
     try:
         response = requests.get(f"{DATABASE_SERVICE_URL}/doctors", timeout=5)
         response.raise_for_status()
-    except requests.RequestException as exc:
-        return f"<p>Unable to load doctors: {exc}</p>", 503
+    except requests.RequestException:
+        return "<p>Unable to load doctors. Please try again.</p>", 503
 
     doctors = response.json()
 
@@ -561,6 +588,9 @@ def get_availability_htmx():
     if not specialty or not date:
         return "<p>Please select an appointment type and date.</p>", 400
 
+    if not valid_date(date):
+        return "<p>Invalid date.</p>", 400
+
     try:
         response = requests.get(
             f"{DATABASE_SERVICE_URL}/availability",
@@ -582,7 +612,7 @@ def get_availability_htmx():
         return f"""
             <div class="availability-panel">
                 <h3>No doctors available</h3>
-                <p>No {specialty} doctors are available for {date}.</p>
+                <p>No {escape(specialty)} doctors are available for {date}.</p>
             </div>
         """
 
@@ -673,6 +703,14 @@ def create_appointment_htmx():
             </div>
         """, 400
 
+    if not valid_date(date) or not valid_time(time):
+        return """
+            <div class="availability-panel">
+                <h3>Invalid input</h3>
+                <p>The date or time is not valid.</p>
+            </div>
+        """, 400
+
     patient_result, patient_status = validate_patient(patient_id_int)
 
     if patient_status != 200:
@@ -743,18 +781,18 @@ def create_appointment_htmx():
                     at <strong>{time}</strong>.
                 </p>
                 <p>Confirmation reference: #{result["appointment_id"]}</p>
-                <a
+                <a>
                     class="nav-link"
                     href="appointments.html?patient_id={patient_id_int}"
                 >View my appointments →</a>
             </div>
         """
 
-    except requests.RequestException as exc:
-        return f"""
+    except requests.RequestException:
+        return """
             <div class="availability-panel">
                 <h3>Booking failed</h3>
-                <p>Unable to connect to the appointments database: {exc}</p>
+                <p>Unable to reach the appointments service. Please try again.</p>
             </div>
         """, 503
 
@@ -779,17 +817,44 @@ def delete_appointment_htmx(appointment_id):
 
         return "", 200
 
-    except requests.RequestException as exc:
-        return f"""
+    except requests.RequestException:
+        return """
             <div class="availability-panel">
                 <h3>Delete failed</h3>
-                <p>Unable to connect to the appointments database: {exc}</p>
+                <p>Unable to reach the appointments service. Please try again.</p>
             </div>
         """, 503
+
+
+MCP_RAG_ENABLED = os.getenv("MCP_RAG_ENABLED", "true").lower() == "true"
+
+
+@app.get("/appointments/<int:appointment_id>/via-mcp")
+def get_appointment_via_mcp(appointment_id):
+    """Round-trips this backend as an MCP client, calling the shared
+    MCP server's appointments_get_appointment tool instead of hitting
+    the database service directly. Disabled in CI via MCP_RAG_ENABLED."""
+    if not MCP_RAG_ENABLED:
+        return jsonify({"error": "MCP disabled"}), 503
+
+    import asyncio
+    from mcp_client import call_get_appointment
+
+    try:
+        result = asyncio.run(call_get_appointment(appointment_id))
+    except Exception as exc:
+        return jsonify({"error": "MCP call failed", "detail": str(exc)}), 502
+
+    if "error" in result:
+        status = 404 if result["error"] == "Appointment not found" else 502
+        return jsonify(result), status
+
+    return jsonify(result)
+
 
 if __name__ == "__main__":
     app.run(
         host="0.0.0.0",
         port=5001,
-        debug=True
+        debug=os.getenv("FLASK_DEBUG") == "1"
     )
