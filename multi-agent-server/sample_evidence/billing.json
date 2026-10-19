@@ -1,0 +1,5 @@
+[
+  {"invoice_id": 101, "patient_id": 1, "insurance_provider": "Medibank", "total_amount": 250.00, "amount_covered": 200.00, "amount_owed": 50.00, "status": "pending"},
+  {"invoice_id": 102, "patient_id": 1, "insurance_provider": "Medibank", "total_amount": 480.00, "amount_covered": 0.00, "amount_owed": 480.00, "status": "overdue"},
+  {"invoice_id": 103, "patient_id": 1, "insurance_provider": "Medibank", "total_amount": 120.00, "amount_covered": 120.00, "amount_owed": 0.00, "status": "paid"}
+]
