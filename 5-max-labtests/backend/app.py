@@ -23,6 +23,10 @@ RAG_SERVER_URL = os.getenv("RAG_SERVER_URL", "http://host.docker.internal:7001/m
 # work without AI. Set to "true" in docker-compose for local demos.
 MCP_RAG_ENABLED = os.getenv("MCP_RAG_ENABLED", "false").lower() == "true"
 
+# Multi-Agent Server integration. Off by default, so cloud deployments and CI
+# never depend on it. Set MULTI_AGENT_ENABLED=true and MULTI_AGENT_URL to use it.
+MULTI_AGENT_ENABLED = os.getenv("MULTI_AGENT_ENABLED", "false").lower() == "true"
+MULTI_AGENT_URL = os.getenv("MULTI_AGENT_URL", "http://host.docker.internal:7002")
 
 async def _call_tool(server_url, tool_name, arguments):
     """Generic MCP-protocol tool call, used for both the shared MCP server
@@ -232,6 +236,25 @@ def get_my_results():
     my_results = [r for r in all_results_resp.json() if r["order_id"] in my_order_ids]
 
     return jsonify(my_results)
+
+@app.post("/multi-agent/analyze")
+def multi_agent_analyze():
+    """Ask the shared Multi-Agent Server to analyse a lab order.
+    Disabled unless MULTI_AGENT_ENABLED=true."""
+    if not MULTI_AGENT_ENABLED:
+        return jsonify({"status": "disabled",
+                        "error": "Multi-Agent integration disabled in this environment"}), 503
+    data = request.get_json(silent=True) or {}
+    order_id = data.get("order_id")
+    if not isinstance(order_id, int):
+        return jsonify({"error": "order_id (integer) is required"}), 400
+    try:
+        # TODO: confirm the path and payload with the Multi-Agent Server owner.
+        r = requests.post(f"{MULTI_AGENT_URL}/analyze", json={"order_id": order_id}, timeout=30)
+        return jsonify(r.json()), r.status_code
+    except Exception as exc:
+        return jsonify({"status": "error", "error": "Multi-Agent server unreachable",
+                        "detail": str(exc)}), 503
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5005, debug=os.getenv("FLASK_DEBUG", "false").lower() == "true")  # noqa: S104 - container must listen on all interfaces
