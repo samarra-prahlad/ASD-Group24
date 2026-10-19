@@ -44,8 +44,14 @@ if [ -z "$EXISTING_PULL" ]; then
   sleep 60
 fi
 
-# Container Apps URLs are predictable from the environment's default domain.
-internal_url() { echo "https://$1.internal.$DOMAIN"; }
+# Internal apps: use the FQDN Azure actually assigned (format differs between
+# environment types), so dependencies must be deployed before their callers.
+internal_url() {
+  local f
+  f=$(az containerapp show --name "$1" --resource-group "$RESOURCE_GROUP" --query properties.configuration.ingress.fqdn -o tsv 2>/dev/null)
+  if [ -z "$f" ]; then echo "ERROR: no FQDN for $1 (deploy it first)" >&2; fi
+  echo "https://$f"
+}
 public_url()   { echo "https://$1.$DOMAIN"; }
 
 AI_FLAGS=(AI_INTEGRATIONS_ENABLED=false AI_MODE_ENABLED=false MCP_ENABLED=false RAG_ENABLED=false MULTI_AGENT_ENABLED=false)

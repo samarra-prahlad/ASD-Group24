@@ -15,8 +15,10 @@ if az containerapp env show --name "$ENV_NAME" --resource-group "$RESOURCE_GROUP
   echo "Environment $ENV_NAME already exists."
 else
   echo "Creating Container Apps environment $ENV_NAME (takes a few minutes)..."
+  # Standard (workload profiles) environment. The CLI default on this subscription
+  # created an "express" environment, which blocks app-to-app calls inside the env.
   az containerapp env create --name "$ENV_NAME" --resource-group "$RESOURCE_GROUP" \
-    --location "$LOCATION" -o none
+    --location "$LOCATION" --environment-mode WorkloadProfiles -o none
 fi
 
 echo "Default domain: $(az containerapp env show --name "$ENV_NAME" --resource-group "$RESOURCE_GROUP" --query properties.defaultDomain -o tsv)"
