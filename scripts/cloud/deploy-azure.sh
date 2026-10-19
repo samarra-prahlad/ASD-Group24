@@ -11,12 +11,18 @@ set -e
 
 REPO_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 cd "$REPO_ROOT"
+EXPLICIT_TAG="${IMAGE_TAG:-}"
 source scripts/cloud/services.sh
 
 az extension add --name containerapp --upgrade --yes --only-show-errors
 
 REGISTRY_NAME=$(az group show --name "$RESOURCE_GROUP" --query "tags.registryName" -o tsv)
 ENV_NAME=$(az group show --name "$RESOURCE_GROUP" --query "tags.envName" -o tsv)
+# Use the tag of the last complete build (recorded by build-images.sh) unless IMAGE_TAG was given.
+if [ -z "$EXPLICIT_TAG" ]; then
+  BUILT_TAG=$(az group show --name "$RESOURCE_GROUP" --query "tags.imageTag" -o tsv 2>/dev/null)
+  [ -n "$BUILT_TAG" ] && IMAGE_TAG="$BUILT_TAG"
+fi
 LOGIN_SERVER=$(az acr show --name "$REGISTRY_NAME" --resource-group "$RESOURCE_GROUP" --query loginServer -o tsv)
 REGISTRY_ID=$(az acr show --name "$REGISTRY_NAME" --resource-group "$RESOURCE_GROUP" --query id -o tsv)
 DOMAIN=$(az containerapp env show --name "$ENV_NAME" --resource-group "$RESOURCE_GROUP" --query properties.defaultDomain -o tsv)
@@ -97,7 +103,12 @@ for entry in "${SERVICES[@]}"; do
   case "$TIER" in
     database)
       # SQLite lives in the container: exactly one replica, always on.
-      deploy_app "$NAME" "$PORT" internal 1 0.25 0.5Gi
+      DB_ENV=()
+      if [ "$NAME" = "pharmacy-database" ]; then
+        # Image never creates /app/data (locally a compose volume does), so use /tmp in the cloud.
+        DB_ENV=(DATABASE_PATH=/tmp/pharmacy.db)
+      fi
+      deploy_app "$NAME" "$PORT" internal 1 0.25 0.5Gi ${DB_ENV[@]+"${DB_ENV[@]}"}
       ;;
     backend)
       ENV=(DATABASE_SERVICE_URL="$(internal_url "$BASE-database")" "${AI_FLAGS[@]}")
@@ -106,6 +117,10 @@ for entry in "${SERVICES[@]}"; do
       else
         MIN=0
         ENV+=(SHARED_ACCESS_API_URL="$(internal_url shared-backend)")
+      fi
+      if [ "$BASE" = "ehr" ]; then
+        # EHR's /patients reads the shared database directly via SHARED_DB_URL.
+        ENV+=(SHARED_DB_URL="$(internal_url shared-database)")
       fi
       if [ "$BASE" = "billing" ]; then
         ENV+=(APPOINTMENTS_DATABASE_API_URL="$(internal_url appointments-backend)"

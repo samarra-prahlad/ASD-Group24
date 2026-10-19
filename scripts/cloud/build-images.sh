@@ -55,4 +55,11 @@ for entry in "${SERVICES[@]}"; do
   BUILT=$((BUILT + 1))
 done
 
+# Record the tag of the last complete build so deploys use images that actually exist,
+# even if script-only commits have moved HEAD since. Partial (ONLY=...) builds don't update it.
+if [ -z "${ONLY:-}" ]; then
+  az group update --name "$RESOURCE_GROUP" --set tags.imageTag="$IMAGE_TAG" -o none
+  echo "Recorded imageTag=$IMAGE_TAG on $RESOURCE_GROUP"
+fi
+
 echo "=== Built and pushed $BUILT image(s) to $LOGIN_SERVER with tag $IMAGE_TAG ==="
