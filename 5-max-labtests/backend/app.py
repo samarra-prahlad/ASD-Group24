@@ -18,10 +18,10 @@ OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "qwen2.5:0.5b")
 MCP_SERVER_URL = os.getenv("MCP_SERVER_URL", "http://host.docker.internal:7000/mcp")
 RAG_SERVER_URL = os.getenv("RAG_SERVER_URL", "http://host.docker.internal:7001/mcp")
 
-# MCP/RAG integration is retained in code but disabled during CI, since the
-# shared MCP/RAG servers aren't running on GitHub's runner. Set to "false" in
-# student-x.yml; defaults to "true" for local/Docker use.
-MCP_RAG_ENABLED = os.getenv("MCP_RAG_ENABLED", "true").lower() == "true"
+# MCP/RAG integration is retained in code but disabled by default, so cloud
+# deployments (where the shared MCP/RAG servers and Ollama are not running)
+# work without AI. Set to "true" in docker-compose for local demos.
+MCP_RAG_ENABLED = os.getenv("MCP_RAG_ENABLED", "false").lower() == "true"
 
 
 async def _call_tool(server_url, tool_name, arguments):
@@ -234,4 +234,4 @@ def get_my_results():
     return jsonify(my_results)
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5005, debug=True)
+    app.run(host="0.0.0.0", port=5005, debug=os.getenv("FLASK_DEBUG", "false").lower() == "true")  # noqa: S104 - container must listen on all interfaces
