@@ -5,10 +5,12 @@ on:
     branches: [main]
     paths:
       - '5-max-labtests/**'
+      - '.github/workflows/5-max-labtests-ci.yml'
   pull_request:
     branches: [main]
     paths:
       - '5-max-labtests/**'
+      - '.github/workflows/5-max-labtests-ci.yml'
 
 jobs:
   pytest-validation:
