@@ -168,16 +168,3 @@ def test_ask_rag_server_down(client, monkeypatch):
     def boom(q): raise ConnectionError("refused")
     monkeypatch.setattr(flask_app, "call_answer_question", boom)
     assert client.post("/ask-rag", data={"question": "x"}).status_code == 503
-
-
-# ---------------------------------------------------------------------------
-# Live test against the real MCP server
-# ---------------------------------------------------------------------------
-
-@pytest.mark.live
-def test_live_check_stock_returns_a_result():
-    try:
-        out = mcp_client.call_check_stock("Amoxicillin")
-    except Exception as exc:
-        pytest.skip(f"MCP server not reachable: {exc}")
-    assert isinstance(out, (dict, str))

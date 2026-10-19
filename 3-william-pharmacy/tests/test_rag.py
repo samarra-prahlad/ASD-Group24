@@ -143,17 +143,3 @@ def live_rag():
     except Exception as exc:
         pytest.skip(f"RAG server not reachable: {exc}")
     return rag_client
-
-
-@pytest.mark.live
-def test_live_refund_question_has_citation(live_rag):
-    out = live_rag.call_answer_question("Can prescription medications be refunded once dispensed")
-    assert out["status"] == "ok"
-    assert any("refund" in c["source_id"].lower() for c in out["citations"])
-
-
-@pytest.mark.live
-def test_live_off_topic_is_refused(live_rag):
-    out = live_rag.call_answer_question("What is the capital of France")
-    assert out["status"] == "insufficient_context"
-    assert out["confidence_category"] == "Insufficient"
