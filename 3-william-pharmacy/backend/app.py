@@ -151,6 +151,87 @@ def find_medication_in_question(question: str) -> str | None:
 
     return None
 
+@app.route("/ask", methods=["POST"])
+def ask_local_agent():
+    question = request.form.get("question", "").strip()
+
+    if not question:
+        return "<p>Question is required.</p>", 400
+
+    try:
+        response = client.chat.completions.create(
+            model=OLLAMA_MODEL,
+            messages=[
+                {
+                    "role": "system",
+                    "content": (
+                        "You are a concise software engineering assistant. "
+                        "Answer in one short paragraph unless asked otherwise."
+                    )
+                },
+                {
+                    "role": "user",
+                    "content": question
+                }
+            ],
+            max_tokens=200,
+            temperature=0.2,
+        )
+
+        answer = response.choices[0].message.content
+
+        return f"<p>{answer}</p>"
+
+    except Exception as exc:
+        return (
+            "<p>Local AI agent request failed. "
+            "Check that Ollama is running and that qwen2.5:0.5b is installed.</p>"
+            f"<pre>{exc}</pre>",
+            503,
+        )
+
+
+@app.route("/ask-with-context", methods=["POST"])
+def ask_with_context():
+    question = request.form.get("question", "").strip()
+
+    if not question:
+        return "<p>Question is required.</p>", 400
+
+    loaded_system_prompt = load_prompt("implementation_system_prompt.txt")
+    loaded_task_prompt = load_prompt("context_qa_task_prompt.txt")
+
+    final_prompt = loaded_task_prompt + "\n\n" + question
+
+    try:
+        response = client.chat.completions.create(
+            model=OLLAMA_MODEL,
+            messages=[
+                {
+                    "role": "system",
+                    "content": loaded_system_prompt
+                },
+                {
+                    "role": "user",
+                    "content": final_prompt
+                }
+            ],
+            max_tokens=300,
+            temperature=0.0,
+        )
+
+        answer = response.choices[0].message.content
+        return f"<p>{answer}</p>"
+    
+    except Exception as exc:
+        return (
+            "<p>Context-aware request failed. "
+            "Check that Ollama is running and that qwen2.5:0.5b is installed.</p>"
+            f"<pre>{exc}</pre>",
+            503,
+        )
+
+
 
 @app.route("/ask-mcp", methods=["POST"])
 def ask_mcp():

@@ -5,10 +5,12 @@ on:
     branches: [main]
     paths:
       - '3-william-pharmacy/**'
+      - '.github/workflows/3-william-pharmacy-ci.yml'
   pull_request:
     branches: [main]
     paths:
       - '3-william-pharmacy/**'
+      - '.github/workflows/3-william-pharmacy-ci.yml'
 
 jobs:
   pytest-validation:
@@ -31,8 +33,36 @@ jobs:
         run: |
           pip install -r 3-william-pharmacy/database/requirements.txt
 
+      - name: Initialise shared database
+        run: python shared/database/init_db.py
+
+
+      - name: Wait for all services to be ready
+        run: |
+          for port in 6000 5000 6005 5005; do
+            echo "Waiting for service on port $port..."
+            for i in $(seq 1 60); do
+              code=$(curl -s -o /dev/null -w "%{http_code}" "http://127.0.0.1:$port/" || true)
+              if [ "$code" != "000" ]; then
+                echo "Port $port is ready."
+                break
+              fi
+              if [ "$i" -eq 60 ]; then
+                echo "Service on port $port did not become ready in time."
+                for f in shared-database.log shared-backend.log labtests-database.log labtests-backend.log; do
+                  echo "===== $f ====="
+                  cat "$f" 2>/dev/null || echo "(no log)"
+                done
+                exit 1
+              fi
+              sleep 1
+            done
+          done
+          
       - name: Run pytest
         run: pytest 3-william-pharmacy/tests/ -v
+        env:
+          PYTHONPATH: 3-william-pharmacy/backend
 
   ai-assisted-testing:
     name: Post-commit AI-assisted unit testing
@@ -40,6 +70,5 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
       - name: Placeholder for AI-assisted test step
         run: echo "AI-assisted unit testing step — to be implemented"
