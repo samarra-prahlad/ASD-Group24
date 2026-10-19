@@ -13,7 +13,7 @@ on:
 jobs:
   pytest-validation:
     name: Pre-commit pytest validation
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
 
@@ -40,18 +40,18 @@ jobs:
         run: python 5-max-labtests/database/init_db.py
 
       - name: Start shared database service
-        run: python shared/database/app.py &
+        run: nohup python shared/database/app.py > shared-database.log 2>&1 &
 
       - name: Start shared backend service
-        run: python shared/backend/app.py &
+        run: nohup python shared/backend/app.py > shared-backend.log 2>&1 &
         env:
           DATABASE_SERVICE_URL: http://localhost:6000
 
       - name: Start lab tests database service
-        run: python 5-max-labtests/database/app.py &
+        run: nohup python 5-max-labtests/database/app.py > labtests-database.log 2>&1 &
 
       - name: Start lab tests backend service
-        run: python 5-max-labtests/backend/app.py &
+        run: nohup python 5-max-labtests/backend/app.py > labtests-backend.log 2>&1 &
         env:
           DATABASE_SERVICE_URL: http://localhost:6005
           SHARED_ACCESS_API_URL: http://localhost:5000
@@ -63,13 +63,17 @@ jobs:
           for port in 6000 5000 6005 5005; do
             echo "Waiting for service on port $port..."
             for i in $(seq 1 60); do
-              code=$(curl -s -o /dev/null -w "%{http_code}" "http://localhost:$port/" || true)
+              code=$(curl -s -o /dev/null -w "%{http_code}" "http://127.0.0.1:$port/" || true)
               if [ "$code" != "000" ]; then
                 echo "Port $port is ready."
                 break
               fi
               if [ "$i" -eq 60 ]; then
                 echo "Service on port $port did not become ready in time."
+                for f in shared-database.log shared-backend.log labtests-database.log labtests-backend.log; do
+                  echo "===== $f ====="
+                  cat "$f" 2>/dev/null || echo "(no log)"
+                done
                 exit 1
               fi
               sleep 1
