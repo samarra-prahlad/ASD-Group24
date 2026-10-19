@@ -2,9 +2,9 @@
 
 - **Platform:** Azure Container Apps (standard environment, newzealandnorth)
 - **Entry point:** https://shared-frontend.lemonbay-2af38055.newzealandnorth.azurecontainerapps.io
-- **Commit / image tag:** cc1a0b4
-- **Tested at (UTC):** 2026-10-19T01:38:53Z
-- **Result:** 20/22 checks passed
+- **Commit / image tag:** 3dd0095
+- **Tested at (UTC):** 2026-10-19T03:07:47Z
+- **Result:** 22/22 checks passed
 
 | Check | Method | Path | Expected | Actual | Result |
 |---|---|---|---|---|---|
@@ -19,8 +19,8 @@
 | Billing: read invoices | GET | `/invoices` | 200 | 200 | PASS |
 | Billing: create invoice | POST | `/invoices/generate` | 201 | 201 | PASS |
 | Appointments: read | GET | `/appointments` | 200 | 200 | PASS |
-| EHR: read patients | GET | `/patients` | 200 | 503 | FAIL |
-| Pharmacy: read medications | GET | `/medications` | 200 | 502 | FAIL |
+| EHR: read patients | GET | `/patients` | 200 | 200 | PASS |
+| Pharmacy: read medications | GET | `/medications` | 200 | 200 | PASS |
 | Lab Tests: read orders | GET | `/orders` | 200 | 200 | PASS |
 | Ward & Bed: read ward | GET | `/wards/1` | 200 | 200 | PASS |
 | shared-backend AI services | ENV | `*_ENABLED` | disabled | disabled | PASS |
