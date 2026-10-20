@@ -67,9 +67,12 @@ def test_lower_authority_tier_reduces_confidence():
     assert rag.confidence_from_results([chunk(tier="tier_3")], "refund policy") == "Low"
 
 
-def test_only_top_result_is_scored():
+def test_relevant_lower_ranked_result_is_scored():
     good, bad = chunk(), chunk(text="storage disposal contractor")
-    assert rag.confidence_from_results([bad, good], "refund policy") == "Insufficient"
+
+    assert rag.confidence_from_results(
+        [bad, good], "refund policy"
+    ) == "High"
 
 
 
