@@ -8,7 +8,7 @@ REVIEWER_MODEL = os.getenv("REVIEWER_MODEL", "llama3.1:8b")
 LLM_TIMEOUT = int(os.getenv("LLM_TIMEOUT", "180"))  # seconds per agent call
 
 DATA_DIR = os.getenv("MULTI_AGENT_DATA_DIR", os.path.dirname(os.path.abspath(__file__)))
-HOST = os.getenv("MULTI_AGENT_HOST", "127.0.0.1")
+HOST = os.getenv("MULTI_AGENT_HOST", "0.0.0.0")
 PORT = int(os.getenv("MULTI_AGENT_PORT", "7002"))
 
 MAX_EVIDENCE_RECORDS = 20

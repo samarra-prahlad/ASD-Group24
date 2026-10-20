@@ -63,6 +63,8 @@ services:
       OLLAMA_MODEL: qwen2.5:0.5b
       MCP_SERVER_URL: http://host.docker.internal:7000/mcp
       RAG_SERVER_URL: http://host.docker.internal:7001/mcp
+      MULTI_AGENT_ENABLED: "true"
+      MULTI_AGENT_SERVER_URL: http://host.docker.internal:7002
     extra_hosts:
       - "host.docker.internal:host-gateway"
     depends_on:
@@ -112,6 +114,8 @@ services:
       OLLAMA_MODEL: qwen2.5:0.5b
       MCP_SERVER_URL: http://host.docker.internal:7000/mcp
       RAG_SERVER_URL: http://host.docker.internal:7001/mcp
+      MULTI_AGENT_ENABLED: "true"
+      MULTI_AGENT_SERVER_URL: http://host.docker.internal:7002
     extra_hosts:
       - "host.docker.internal:host-gateway"
     depends_on:
@@ -159,6 +163,8 @@ services:
       OLLAMA_MODEL: qwen2.5:0.5b
       MCP_SERVER_URL: http://host.docker.internal:7000/mcp
       RAG_SERVER_URL: http://host.docker.internal:7001/mcp
+      MULTI_AGENT_ENABLED: "true"
+      MULTI_AGENT_SERVER_URL: http://host.docker.internal:7002
     extra_hosts:
       - "host.docker.internal:host-gateway"
     depends_on:
@@ -209,6 +215,8 @@ services:
       OLLAMA_MODEL: qwen2.5:0.5b
       MCP_SERVER_URL: http://host.docker.internal:7000/mcp
       RAG_SERVER_URL: http://host.docker.internal:7001/mcp
+      MULTI_AGENT_ENABLED: "true"
+      MULTI_AGENT_SERVER_URL: http://host.docker.internal:7002
     extra_hosts:
       - "host.docker.internal:host-gateway"
     depends_on:
@@ -259,6 +267,8 @@ services:
       OLLAMA_MODEL: qwen2.5:0.5b
       MCP_SERVER_URL: http://host.docker.internal:7000/mcp
       RAG_SERVER_URL: http://host.docker.internal:7001/mcp
+      MULTI_AGENT_ENABLED: "true"
+      MULTI_AGENT_SERVER_URL: http://host.docker.internal:7002
     extra_hosts:
       - "host.docker.internal:host-gateway"
     depends_on:
@@ -311,6 +321,8 @@ services:
 
        RAG_ENABLED: "true"
        RAG_SERVER_URL: http://host.docker.internal:7001/mcp
+       MULTI_AGENT_ENABLED: "true"
+       MULTI_AGENT_SERVER_URL: http://host.docker.internal:7002
      extra_hosts:
        - "host.docker.internal:host-gateway"
      depends_on:

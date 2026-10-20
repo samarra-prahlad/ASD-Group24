@@ -1,9 +1,7 @@
 name: Cloud Deployment
 
 on:
-  workflow_dispatch:
-  push:
-    branches: [main]
+  workflow_dispatch:   # manual only until release; was: push to main
 
 permissions:
   id-token: write   # OIDC login to Azure (no stored credentials)
