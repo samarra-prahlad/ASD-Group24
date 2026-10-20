@@ -39,9 +39,50 @@ jobs:
           pip install -r 6-brian-wardbed/backend/requirements.txt
           pip install -r 6-brian-wardbed/database/requirements.txt
           pip install pytest requests
+      
+      - name: Initialise shared database
+        run: python shared/database/init_db.py
+
+      - name: Start shared database service
+        run: python shared/database/app.py &
+        env:
+          PORT: 6000
+
+      - name: Start shared backend service
+        run: python shared/backend/app.py &
+        env:
+          PORT: 5000
+      
+      - name: Initialise ward bed database
+        run: |
+          mkdir -p 6-brian-wardbed/database/data
+          python 6-brian-wardbed/database/init_db.py
+
+      - name: Start ward bed database service
+        run: nohup python 6-brian-wardbed/database/app.py > wardbed-database.log 2>&1 &
+        env:
+          PORT: 6006
+
+      - name: Wait for ward bed database
+        run: |
+          for i in $(seq 1 60); do
+            code=$(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:6006/ || true)
+            if [ "$code" != "000" ]; then echo "Database ready"; exit 0; fi
+            sleep 1
+          done
+          cat wardbed-database.log
+          exit 1
+      
+      - name: Start ward bed backend service
+        run: python 6-brian-wardbed/backend/app.py &
+        env:
+          PORT: 5006      
 
       - name: Run pytest
         run: python -m pytest 6-brian-wardbed/tests/ -v
+        env:
+          PYTHONPATH: 6-brian-wardbed/backend
+          DATABASE_SERVICE_URL: http://localhost:6006  
 
   ai-assisted-testing:
     name: Post-commit AI-assisted unit testing
