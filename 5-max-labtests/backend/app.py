@@ -24,9 +24,11 @@ RAG_SERVER_URL = os.getenv("RAG_SERVER_URL", "http://host.docker.internal:7001/m
 MCP_RAG_ENABLED = os.getenv("MCP_RAG_ENABLED", "false").lower() == "true"
 
 # Multi-Agent Server integration. Off by default, so cloud deployments and CI
-# never depend on it. Set MULTI_AGENT_ENABLED=true and MULTI_AGENT_URL to use it.
+# never depend on it. Set MULTI_AGENT_ENABLED=true to use it.
 MULTI_AGENT_ENABLED = os.getenv("MULTI_AGENT_ENABLED", "false").lower() == "true"
-MULTI_AGENT_URL = os.getenv("MULTI_AGENT_URL", "http://host.docker.internal:7002")
+MULTI_AGENT_SERVER_URL = os.getenv("MULTI_AGENT_SERVER_URL", "http://host.docker.internal:7002")
+MULTI_AGENT_DECISIONS = ("approve", "partially_accept", "correct", "reject")
+
 
 async def _call_tool(server_url, tool_name, arguments):
     """Generic MCP-protocol tool call, used for both the shared MCP server
@@ -237,24 +239,99 @@ def get_my_results():
 
     return jsonify(my_results)
 
-@app.post("/multi-agent/analyze")
-def multi_agent_analyze():
-    """Ask the shared Multi-Agent Server to analyse a lab order.
-    Disabled unless MULTI_AGENT_ENABLED=true."""
+def _patient_lab_evidence(patient_id):
+    """Collect one patient's lab results and orders as evidence records for the agents."""
+    orders = requests.get(f"{DATABASE_SERVICE_URL}/orders", timeout=5).json()
+    my_orders = [o for o in orders if o["patient_id"] == patient_id]
+    order_ids = {o["order_id"] for o in my_orders}
+    results = requests.get(f"{DATABASE_SERVICE_URL}/results", timeout=5).json()
+
+    evidence = []
+    for r in results:
+        if r["order_id"] in order_ids:
+            evidence.append({
+                "id": f"result-{r['result_id']}",
+                "type": "lab_result",
+                "order_id": r["order_id"],
+                "result_value": r["result_value"],
+                "reference_range": r["reference_range"],
+                "flagged": bool(r["flagged"]),
+            })
+    for o in my_orders:
+        evidence.append({
+            "id": f"order-{o['order_id']}",
+            "type": "lab_order",
+            "test_type": o["test_type"],
+            "status": o["status"],
+            "ordered_by": o["ordered_by"],
+        })
+    return evidence
+
+
+@app.post("/multi-agent/workflow")
+def multi_agent_workflow():
+    """Run the shared Multi-Agent Server (Planner, Worker, Reviewer) over one
+    patient's lab records. Disabled unless MULTI_AGENT_ENABLED=true."""
     if not MULTI_AGENT_ENABLED:
         return jsonify({"status": "disabled",
                         "error": "Multi-Agent integration disabled in this environment"}), 503
     data = request.get_json(silent=True) or {}
-    order_id = data.get("order_id")
-    if not isinstance(order_id, int):
-        return jsonify({"error": "order_id (integer) is required"}), 400
+    patient_id = data.get("patient_id")
+    if not isinstance(patient_id, int) or isinstance(patient_id, bool):
+        return jsonify({"error": "patient_id (integer) is required"}), 400
+    user_request = str(data.get("user_request") or
+                       "Summarise this patient's lab results and flag anything unusual")[:500]
     try:
-        # TODO: confirm the path and payload with the Multi-Agent Server owner.
-        r = requests.post(f"{MULTI_AGENT_URL}/analyze", json={"order_id": order_id}, timeout=30)
+        evidence = _patient_lab_evidence(patient_id)
+        if not evidence:
+            return jsonify({"error": "No lab orders or results found for this patient"}), 404
+        r = requests.post(
+            f"{MULTI_AGENT_SERVER_URL}/workflow",
+            json={
+                "feature": "labtests",
+                "user_request": f"{user_request} (Patient ID: {patient_id})",
+                "evidence": evidence,
+                "requested_by": "labtests-staff",
+            },
+            timeout=300,
+        )
         return jsonify(r.json()), r.status_code
-    except Exception as exc:
+    except (requests.RequestException, ValueError) as exc:
         return jsonify({"status": "error", "error": "Multi-Agent server unreachable",
                         "detail": str(exc)}), 503
+
+
+@app.post("/multi-agent/workflow/<workflow_id>/review")
+def multi_agent_review(workflow_id):
+    """Send the human decision (approve / partially_accept / correct / reject)
+    to the Multi-Agent Server. Disabled unless MULTI_AGENT_ENABLED=true."""
+    if not MULTI_AGENT_ENABLED:
+        return jsonify({"status": "disabled",
+                        "error": "Multi-Agent integration disabled in this environment"}), 503
+    if not re.fullmatch(r"wf-[0-9a-f]+", workflow_id):
+        return jsonify({"error": "Invalid workflow id"}), 400
+    data = request.get_json(silent=True) or {}
+    decision = data.get("decision")
+    if decision not in MULTI_AGENT_DECISIONS:
+        return jsonify({"error": f"decision must be one of {', '.join(MULTI_AGENT_DECISIONS)}"}), 400
+    body = {
+        "decision": decision,
+        "reviewer": str(data.get("reviewer") or "labtests-staff")[:100],
+        "notes": str(data.get("notes") or "")[:1000],
+    }
+    if decision == "correct":
+        correction = str(data.get("correction") or "").strip()
+        if not correction:
+            return jsonify({"error": "correction text is required for 'correct'"}), 400
+        body["correction"] = correction
+    try:
+        r = requests.post(f"{MULTI_AGENT_SERVER_URL}/workflow/{workflow_id}/review",
+                          json=body, timeout=10)
+        return jsonify(r.json()), r.status_code
+    except (requests.RequestException, ValueError) as exc:
+        return jsonify({"status": "error", "error": "Multi-Agent server unreachable",
+                        "detail": str(exc)}), 503
+
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5005, debug=os.getenv("FLASK_DEBUG", "false").lower() == "true")  # noqa: S104 - container must listen on all interfaces
