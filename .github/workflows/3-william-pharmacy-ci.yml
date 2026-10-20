@@ -32,6 +32,11 @@ jobs:
       - name: Install database dependencies
         run: |
           pip install -r 3-william-pharmacy/database/requirements.txt
+      
+      - name: Install test dependencies
+        run: |
+          pip install -r 3-william-pharmacy/tests/requirements.txt
+          pip install pytest
 
       - name: Initialise shared database
         run: python shared/database/init_db.py
