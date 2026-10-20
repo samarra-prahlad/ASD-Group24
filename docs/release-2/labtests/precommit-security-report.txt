@@ -1,0 +1,30 @@
+Feature 5 (Lab Tests & Diagnostics) - pre-commit security scan report
+Generated : 2026-10-18 01:40:10 AEDT
+Commit    : fa403b1 on branch r2/maximilian/labtests
+Tools     : ruff 0.17.1, detect-secrets 1.5.0, pip-audit 2.10.1
+
+=== Hooks (pre-commit, all files under 5-max-labtests/) ===
+Ruff security rules (flake8-bandit S)....................................Passed
+- hook id: ruff-check
+- duration: 0.04s
+
+All checks passed!
+
+detect-secrets (hard-coded credentials)..................................Passed
+- hook id: detect-secrets
+- duration: 0.53s
+pip-audit (known vulnerable dependencies)................................Passed
+- hook id: pip-audit
+- duration: 8.74s
+
+No known vulnerabilities found
+
+
+=== Ruff security rule summary (flake8-bandit S) ===
+No security findings.
+
+=== pip-audit (backend and database requirements) ===
+No known vulnerabilities found
+
+=== detect-secrets baseline ===
+Baseline file: 5-max-labtests/.secrets.baseline (0 secrets recorded)

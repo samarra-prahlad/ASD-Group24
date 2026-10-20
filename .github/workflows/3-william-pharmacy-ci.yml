@@ -5,10 +5,12 @@ on:
     branches: [main]
     paths:
       - '3-william-pharmacy/**'
+      - '.github/workflows/3-william-pharmacy-ci.yml'
   pull_request:
     branches: [main]
     paths:
       - '3-william-pharmacy/**'
+      - '.github/workflows/3-william-pharmacy-ci.yml'
 
 jobs:
   pytest-validation:
@@ -30,7 +32,15 @@ jobs:
       - name: Install database dependencies
         run: |
           pip install -r 3-william-pharmacy/database/requirements.txt
+      
+      - name: Install test dependencies
+        run: |
+          pip install -r 3-william-pharmacy/tests/requirements.txt
+          pip install pytest
 
+      - name: Initialise shared database
+        run: python shared/database/init_db.py
+          
       - name: Run pytest
         run: pytest 3-william-pharmacy/tests/ -v
         env:
@@ -42,6 +52,5 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
       - name: Placeholder for AI-assisted test step
         run: echo "AI-assisted unit testing step — to be implemented"
