@@ -5,10 +5,12 @@ on:
     branches: [main]
     paths:
       - '6-brian-wardbed/**'
+      - '.github/workflows/6-brian-wardbed-ci.yml'
   pull_request:
     branches: [main]
     paths:
       - '6-brian-wardbed/**'
+      - '.github/workflows/6-brian-wardbed-ci.yml'
 
 jobs:
   pytest-validation:
@@ -38,51 +40,8 @@ jobs:
           pip install -r 6-brian-wardbed/database/requirements.txt
           pip install pytest requests
 
-      - name: Initialise shared database
-        run: python shared/database/init_db.py
-
-      - name: Initialise ward bed database
-        run: python 6-brian-wardbed/database/init_db.py
-
-      - name: Start shared database service
-        run: python shared/database/app.py &
-        env:
-          PORT: 6000
-
-      - name: Start shared backend service
-        run: python shared/backend/app.py &
-        env:
-          PORT: 5000
-
-      - name: Start ward bed database service
-        run: python 6-brian-wardbed/database/app.py &
-        env:
-          PORT: 6006
-
-      - name: Start ward bed backend service
-        run: python 6-brian-wardbed/backend/app.py &
-        env:
-          PORT: 5006
-
-      - name: Wait for all services to be ready
-        run: |
-          for port in 6000 5000 6006 5006; do
-            echo "Waiting for service on port $port..."
-            for i in $(seq 1 30); do
-              if curl -sf "http://localhost:$port/" > /dev/null 2>&1; then
-                echo "Port $port is ready."
-                break
-              fi
-              if [ "$i" -eq 30 ]; then
-                echo "Service on port $port did not become ready in time."
-                exit 1
-              fi
-              sleep 1
-            done
-          done
-
       - name: Run pytest
-        run: pytest 6-brian-wardbed/tests/ -v
+        run: python -m pytest 6-brian-wardbed/tests/ -v
 
   ai-assisted-testing:
     name: Post-commit AI-assisted unit testing
@@ -91,4 +50,4 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Placeholder for AI-assisted test step
-        run: echo "AI-assisted unit testing step — to be implemented"
+        run: echo "AI-assisted unit testing step - to be implemented"
