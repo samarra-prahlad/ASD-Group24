@@ -219,3 +219,42 @@ textarea {
     margin: 0;
     padding-left: 1.2rem;
 }
+
+/* Multi-Agent Lab Review */
+.ma-form {
+    display: flex;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+    align-items: flex-end;
+}
+
+.ma-form input[type="number"] {
+    width: 9rem;
+}
+
+.ma-form input[type="text"] {
+    flex: 1;
+    min-width: 16rem;
+}
+
+.ma-pre {
+    white-space: pre-wrap;
+    background: #f5f5f5;
+    border-radius: 6px;
+    padding: 0.75rem 1rem;
+    max-height: 16rem;
+    overflow: auto;
+    font-family: inherit;
+}
+
+.ma-risk {
+    font-weight: 600;
+}
+
+.ma-risk-low { color: #1a7f37; }
+.ma-risk-medium { color: #9a6700; }
+.ma-risk-high { color: #cf222e; }
+
+.ma-decisions button {
+    margin-right: 0.5rem;
+}

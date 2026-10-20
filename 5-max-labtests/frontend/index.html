@@ -76,6 +76,17 @@
         </section>
 
         <section>
+            <h2>Multi-Agent Lab Review</h2>
+            <p class="hint">Planner, Worker and Reviewer agents analyse this patient's lab orders and results. Nothing is used until you approve, partially accept, correct or reject it.</p>
+            <div class="ma-form">
+                <input type="number" id="ma-patient-id" placeholder="Patient ID">
+                <input type="text" id="ma-request" value="Summarise this patient's lab results and flag anything unusual">
+                <button id="ma-run">Run agents</button>
+            </div>
+            <div id="ma-output"></div>
+        </section>
+
+        <section>
             <h2>Ask the Lab Assistant</h2>
             <textarea id="chat-input" rows="3" placeholder="Ask about a result, a test, or anything lab-related..."></textarea>
             <button id="chat-send">Send</button>
@@ -254,6 +265,104 @@
                 ${renderCitations(data.citations)}
             `;
         });
+
+        // ---------- Multi-Agent Lab Review ----------
+        function maAddText(parent, tag, text, className) {
+            const el = document.createElement(tag);
+            el.textContent = text;   // textContent, so agent output is never treated as HTML
+            if (className) el.className = className;
+            parent.appendChild(el);
+            return el;
+        }
+
+        function maShowMessage(text) {
+            const out = document.getElementById("ma-output");
+            out.textContent = "";
+            maAddText(out, "p", text);
+        }
+
+        function maShowWorkflow(workflow) {
+            const out = document.getElementById("ma-output");
+            out.textContent = "";
+            const steps = workflow.steps || {};
+            maAddText(out, "p", `Workflow ${workflow.workflow_id} · status: ${workflow.status}`, "hint");
+
+            maAddText(out, "h3", "Planner");
+            maAddText(out, "pre", (steps.planner && steps.planner.output) || "(no output)", "ma-pre");
+            maAddText(out, "h3", "Worker");
+            maAddText(out, "pre", (steps.worker && steps.worker.output) || "(no output)", "ma-pre");
+            maAddText(out, "h3", "Reviewer");
+            maAddText(out, "pre", (steps.reviewer && steps.reviewer.output) || "(no output)", "ma-pre");
+
+            const risk = (steps.reviewer && steps.reviewer.risk_level) || "UNKNOWN";
+            maAddText(out, "p", `Risk: ${risk}`, `ma-risk ma-risk-${String(risk).toLowerCase().replace(/[^a-z]/g, "")}`);
+
+            if (workflow.final_output) {
+                maAddText(out, "h3", "Final output");
+                maAddText(out, "pre", workflow.final_output, "ma-pre");
+                return;
+            }
+
+            const buttons = maAddText(out, "div", "", "ma-decisions");
+            [["approve", "Approve"], ["partially_accept", "Partially accept"],
+             ["correct", "Correct"], ["reject", "Reject"]].forEach(([decision, label]) => {
+                const btn = maAddText(buttons, "button", label);
+                btn.addEventListener("click", () => maReview(workflow.workflow_id, decision));
+            });
+        }
+
+        async function maRequest(path, payload) {
+            const res = await fetch(`${BACKEND}${path}`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(payload),
+            });
+            const data = await res.json();
+            return { ok: res.ok, status: res.status, data };
+        }
+
+        function maErrorText(result) {
+            if (result.data && result.data.status === "disabled") {
+                return "The Multi-Agent integration is switched off in this environment.";
+            }
+            return (result.data && (result.data.error || result.data.detail)) || "Something went wrong.";
+        }
+
+        async function maRun() {
+            const patientId = parseInt(document.getElementById("ma-patient-id").value, 10);
+            if (Number.isNaN(patientId)) { maShowMessage("Enter a patient ID first."); return; }
+            const runBtn = document.getElementById("ma-run");
+            runBtn.disabled = true;
+            maShowMessage("Running the agents... this takes about a minute.");
+            try {
+                const result = await maRequest("/multi-agent/workflow", {
+                    patient_id: patientId,
+                    user_request: document.getElementById("ma-request").value,
+                });
+                if (result.ok) { maShowWorkflow(result.data); } else { maShowMessage(maErrorText(result)); }
+            } catch (err) {
+                maShowMessage("Could not reach the lab tests backend.");
+            } finally {
+                runBtn.disabled = false;
+            }
+        }
+
+        async function maReview(workflowId, decision) {
+            const payload = { decision, reviewer: "labtests-staff" };
+            if (decision === "correct") {
+                const correction = prompt("Enter the corrected output:");
+                if (!correction || !correction.trim()) return;
+                payload.correction = correction;
+            }
+            try {
+                const result = await maRequest(`/multi-agent/workflow/${encodeURIComponent(workflowId)}/review`, payload);
+                if (result.ok) { maShowWorkflow(result.data); } else { maShowMessage(maErrorText(result)); }
+            } catch (err) {
+                maShowMessage("Could not reach the lab tests backend.");
+            }
+        }
+
+        document.getElementById("ma-run").addEventListener("click", maRun);
 
         loadOrders();
         loadResults();
