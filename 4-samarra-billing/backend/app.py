@@ -6,6 +6,7 @@ from markupsafe import escape
 import asyncio
 import json
 import re
+from urllib.parse import quote
 
 from mcp import ClientSession
 from mcp.client.streamable_http import streamablehttp_client
@@ -1019,6 +1020,271 @@ def ask_rag_html():
         )
 
     return f"{user_bubble}{bot_bubble}"
+
+
+# ---------------------------------------------------------------------------
+# Multi-agent invoice review (Release 2)
+#
+# Billing gathers invoice records as evidence and sends them to the shared
+# multi-agent server (Planner -> Worker -> Reviewer). The agents' output is
+# never used until an admin approves, partially accepts, corrects or rejects
+# it. Admin-only: patients cannot start or review workflows.
+# ---------------------------------------------------------------------------
+
+MULTI_AGENT_SERVER_URL = os.environ.get("MULTI_AGENT_SERVER_URL", "http://host.docker.internal:7002")
+MULTI_AGENT_ENABLED = os.environ.get("MULTI_AGENT_ENABLED", "true").lower() == "true"
+MULTI_AGENT_TIMEOUT = int(os.environ.get("MULTI_AGENT_TIMEOUT", "300"))  # three LLM calls in a row
+MULTI_AGENT_DECISIONS = {
+    "approve": "Approve",
+    "partially_accept": "Partially accept",
+    "correct": "Correct",
+    "reject": "Reject",
+}
+RISK_BADGE_CLASSES = {"LOW": "confidence-high", "MEDIUM": "confidence-medium", "HIGH": "confidence-low"}
+WORKFLOW_ID_PATTERN = re.compile(r"wf-[0-9a-f]{6,32}")
+
+
+def html_error(message, status):
+    return f"<div class='chat-msg chat-error'>{escape(message)}</div>", status
+
+
+def require_admin_html(token):
+    """Returns (session, None) for an admin, otherwise (None, html_error_response)."""
+    session, error = verify_session(token)
+    if session is None:
+        if error == "unreachable":
+            return None, html_error("Shared access service is unreachable.", 503)
+        return None, html_error("Invalid or missing session token.", 401)
+    if session.get("role") != "admin":
+        return None, html_error("Only admins can run multi-agent workflows.", 403)
+    return session, None
+
+
+def invoice_evidence(invoices):
+    """Keeps only the invoice fields the agents need (no free-text or contact details)."""
+    return [
+        {
+            "invoice_id": inv.get("id"),
+            "patient_id": inv.get("patient_id"),
+            "insurance_provider": inv.get("insurance_provider_name") or "Self-pay",
+            "total_amount": inv.get("total_amount"),
+            "insurance_covered_amount": inv.get("insurance_covered_amount"),
+            "patient_owed_amount": inv.get("patient_owed_amount"),
+            "status": inv.get("status"),
+        }
+        for inv in invoices
+        if isinstance(inv, dict)
+    ]
+
+
+def gather_invoice_evidence(patient_id=None):
+    """Returns a list of evidence records, or None if billing-database could not be read."""
+    if patient_id is None:
+        url = f"{DATABASE_SERVICE_URL}/invoices"
+    else:
+        url = f"{DATABASE_SERVICE_URL}/invoices/patient/{patient_id}"
+    body, status = proxy_get(url)
+    if status == 404:
+        return []
+    if status != 200 or not isinstance(body, list):
+        return None
+    return invoice_evidence(body)
+
+
+def multi_agent_post(path, payload, timeout):
+    """POST to the multi-agent server. Returns (json_body, status) or (None, 503) if unreachable."""
+    try:
+        response = requests.post(f"{MULTI_AGENT_SERVER_URL}{path}", json=payload, timeout=timeout)
+        return response.json(), response.status_code
+    except (requests.exceptions.RequestException, ValueError):
+        return None, 503
+
+
+def render_agent_step(title, step):
+    if not step:
+        return ""
+    model = escape(step.get("model") or "")
+    if step.get("status") != "completed":
+        body = f"<p class='agent-step-error'>Failed: {escape(step.get('error') or 'unknown error')}</p>"
+    else:
+        body = f"<pre class='agent-output'>{escape(step.get('output') or '')}</pre>"
+    return f"<div class='agent-step'><h3>{escape(title)} <small>{model}</small></h3>{body}</div>"
+
+
+def render_risk(reviewer_step):
+    risk = (reviewer_step or {}).get("risk_level") or "UNKNOWN"
+    recommendation = (reviewer_step or {}).get("recommendation") or "UNKNOWN"
+    badge_class = RISK_BADGE_CLASSES.get(risk, "confidence-medium")
+    notes = "".join(
+        f"<li>{escape(note)}</li>" for note in (reviewer_step or {}).get("governance_notes", [])
+    )
+    notes_html = f"<ul class='agent-governance'>{notes}</ul>" if notes else ""
+    return (
+        f"<p class='agent-risk'>Risk: <span class='confidence-badge {badge_class}'>{escape(risk)}</span>"
+        f" Reviewer recommends: <strong>{escape(recommendation)}</strong></p>{notes_html}"
+    )
+
+
+def render_review_form(workflow_id, token):
+    buttons = "".join(
+        f"<button type='submit' name='decision' value='{value}'>{label}</button>"
+        for value, label in MULTI_AGENT_DECISIONS.items()
+    )
+    return f"""<form id="agent-review-{workflow_id}" class="agent-review-form"
+            hx-post="/multi-agent/workflow/{workflow_id}/review/html?token={quote(token or '')}"
+            hx-target="#agent-decision-{workflow_id}" hx-swap="innerHTML">
+        <label>Reviewer notes (optional)<textarea name="notes" rows="2"></textarea></label>
+        <label>Corrected output (required for Correct)<textarea name="correction" rows="3"></textarea></label>
+        <div class="agent-review-buttons">{buttons}</div>
+    </form>
+    <div id="agent-decision-{workflow_id}"></div>"""
+
+
+def render_workflow(workflow, token):
+    workflow_id = workflow.get("workflow_id", "")
+    steps = workflow.get("steps", {})
+    status = workflow.get("status", "unknown")
+    parts = [
+        f"<div class='agent-workflow' id='workflow-{escape(workflow_id)}'>",
+        f"<p class='agent-meta'>Workflow <code>{escape(workflow_id)}</code> · "
+        f"{escape(str(workflow.get('evidence_count', 0)))} invoice record(s) · status <strong>{escape(status)}</strong></p>",
+        render_agent_step("Planner", steps.get("planner")),
+        render_agent_step("Worker", steps.get("worker")),
+        render_agent_step("Reviewer", steps.get("reviewer")),
+    ]
+    if status == "awaiting_human_review" and WORKFLOW_ID_PATTERN.fullmatch(workflow_id):
+        parts.append(render_risk(steps.get("reviewer")))
+        parts.append(render_review_form(workflow_id, token))
+    parts.append("</div>")
+    return "".join(parts)
+
+
+@app.post("/multi-agent/workflow/html")
+def multi_agent_workflow_html():
+    token = request.args.get("token") or request.form.get("token")
+    session, error_response = require_admin_html(token)
+    if session is None:
+        return error_response
+    if not MULTI_AGENT_ENABLED:
+        return html_error("Multi-agent workflows are disabled in this environment.", 503)
+
+    user_request = request.form.get("user_request", "").strip()
+    if not user_request:
+        return html_error("Enter a request for the agents.", 400)
+
+    patient_id_raw = request.form.get("patient_id", "").strip()
+    patient_id = None
+    if patient_id_raw:
+        try:
+            patient_id = int(patient_id_raw)
+        except ValueError:
+            return html_error("Patient ID must be a number.", 400)
+
+    evidence = gather_invoice_evidence(patient_id)
+    if evidence is None:
+        return html_error("Could not load invoice evidence from billing-database.", 503)
+
+    if patient_id is not None:
+        user_request = f"{user_request} (Patient ID: {patient_id})"
+
+    workflow, status = multi_agent_post("/workflow", {
+        "feature": "billing",
+        "user_request": user_request,
+        "evidence": evidence,
+        "requested_by": f"{session.get('first_name', 'admin')} (admin)",
+    }, MULTI_AGENT_TIMEOUT)
+
+    if workflow is None:
+        return html_error("Multi-agent server is unavailable.", 503)
+    if "workflow_id" not in workflow:
+        return html_error(workflow.get("error", "Multi-agent server rejected the request."), status)
+
+    http_status = 200 if status == 201 else 503
+    return render_workflow(workflow, token), http_status, {"HX-Trigger": "multiAgentChanged"}
+
+
+@app.post("/multi-agent/workflow/<workflow_id>/review/html")
+def multi_agent_review_html(workflow_id):
+    token = request.args.get("token") or request.form.get("token")
+    session, error_response = require_admin_html(token)
+    if session is None:
+        return error_response
+    if not WORKFLOW_ID_PATTERN.fullmatch(workflow_id):
+        return html_error("Invalid workflow ID.", 400)
+
+    decision = request.form.get("decision", "")
+    if decision not in MULTI_AGENT_DECISIONS:
+        return html_error("Choose approve, partially accept, correct or reject.", 400)
+    correction = request.form.get("correction", "").strip()
+    if decision == "correct" and not correction:
+        return html_error("Enter the corrected output before choosing Correct.", 400)
+
+    reviewer = f"{session.get('first_name', 'admin')} (admin)"
+    workflow, status = multi_agent_post(f"/workflow/{workflow_id}/review", {
+        "decision": decision,
+        "reviewer": reviewer,
+        "notes": request.form.get("notes", "").strip(),
+        "correction": correction or None,
+    }, REQUEST_TIMEOUT * 3)
+
+    if workflow is None:
+        return html_error("Multi-agent server is unavailable.", 503)
+    if status != 200:
+        return html_error(workflow.get("error", "Review was not accepted."), status)
+
+    final_output = workflow.get("final_output")
+    final_html = (
+        f"<pre class='agent-output'>{escape(final_output)}</pre>"
+        if final_output else "<p>No output released (rejected).</p>"
+    )
+    html = (
+        f"<div class='agent-decision'>Decision recorded: <strong>{escape(MULTI_AGENT_DECISIONS[decision])}</strong>"
+        f" by {escape(reviewer)} → status <strong>{escape(workflow.get('status', ''))}</strong>"
+        f"<h3>Final output</h3>{final_html}</div>"
+        # Remove the decision buttons so the same workflow cannot be reviewed twice.
+        f"<div id='agent-review-{workflow_id}' hx-swap-oob='true'></div>"
+    )
+    return html, 200, {"HX-Trigger": "multiAgentChanged"}
+
+
+@app.get("/multi-agent/history/html")
+def multi_agent_history_html():
+    session, error_response = require_admin_html(request.args.get("token"))
+    if session is None:
+        return error_response
+
+    try:
+        response = requests.get(
+            f"{MULTI_AGENT_SERVER_URL}/workflows",
+            params={"feature": "billing", "limit": 5},
+            timeout=REQUEST_TIMEOUT,
+        )
+        workflows = response.json().get("workflows", [])
+    except (requests.exceptions.RequestException, ValueError, AttributeError):
+        return "<p class='agent-meta'>Multi-agent server is unavailable.</p>", 200
+
+    if not workflows:
+        return "<p class='agent-meta'>No workflows yet.</p>", 200
+
+    rows = []
+    for wf in workflows:
+        reviewer_step = wf.get("steps", {}).get("reviewer") or {}
+        human = wf.get("human_review") or {}
+        request_text = wf.get("user_request", "")
+        if len(request_text) > 70:
+            request_text = request_text[:70] + "…"
+        rows.append(
+            f"<tr><td><code>{escape(wf.get('workflow_id', ''))}</code></td>"
+            f"<td>{escape(request_text)}</td>"
+            f"<td>{escape(reviewer_step.get('risk_level') or '-')}</td>"
+            f"<td>{escape(wf.get('status', ''))}</td>"
+            f"<td>{escape(human.get('reviewer') or '-')}</td></tr>"
+        )
+    return (
+        "<table class='agent-history'><thead><tr><th>Workflow</th><th>Request</th>"
+        "<th>Risk</th><th>Status</th><th>Reviewed by</th></tr></thead>"
+        f"<tbody>{''.join(rows)}</tbody></table>"
+    ), 200
 
 
 # run application
