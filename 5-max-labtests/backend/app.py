@@ -239,33 +239,41 @@ def get_my_results():
 
     return jsonify(my_results)
 
+MAX_EVIDENCE = 6
+
+
 def _patient_lab_evidence(patient_id):
-    """Collect one patient's lab results and orders as evidence records for the agents."""
+    """Collect a short, compact evidence list for one patient: their newest lab
+    results first, then orders that have no result yet. Kept small because the
+    agents use small models that struggle with long inputs."""
     orders = requests.get(f"{DATABASE_SERVICE_URL}/orders", timeout=5).json()
-    my_orders = [o for o in orders if o["patient_id"] == patient_id]
-    order_ids = {o["order_id"] for o in my_orders}
+    my_orders = {o["order_id"]: o for o in orders if o["patient_id"] == patient_id}
     results = requests.get(f"{DATABASE_SERVICE_URL}/results", timeout=5).json()
+    my_results = sorted(
+        (r for r in results if r["order_id"] in my_orders),
+        key=lambda r: r["result_id"],
+        reverse=True,
+    )
 
     evidence = []
-    for r in results:
-        if r["order_id"] in order_ids:
-            evidence.append({
-                "id": f"result-{r['result_id']}",
-                "type": "lab_result",
-                "order_id": r["order_id"],
-                "result_value": r["result_value"],
-                "reference_range": r["reference_range"],
-                "flagged": bool(r["flagged"]),
-            })
-    for o in my_orders:
+    for r in my_results:
         evidence.append({
-            "id": f"order-{o['order_id']}",
-            "type": "lab_order",
-            "test_type": o["test_type"],
-            "status": o["status"],
-            "ordered_by": o["ordered_by"],
+            "id": f"result-{r['result_id']}",
+            "test": my_orders[r["order_id"]]["test_type"],
+            "value": r["result_value"],
+            "reference_range": r["reference_range"],
+            "flagged": bool(r["flagged"]),
         })
-    return evidence
+
+    resulted_orders = {r["order_id"] for r in my_results}
+    for order_id in sorted(my_orders, reverse=True):
+        if order_id not in resulted_orders:
+            evidence.append({
+                "id": f"order-{order_id}",
+                "test": my_orders[order_id]["test_type"],
+                "status": my_orders[order_id]["status"],
+            })
+    return evidence[:MAX_EVIDENCE]
 
 
 @app.post("/multi-agent/workflow")

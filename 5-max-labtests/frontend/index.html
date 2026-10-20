@@ -325,6 +325,9 @@
             if (result.data && result.data.status === "disabled") {
                 return "The Multi-Agent integration is switched off in this environment.";
             }
+            if (result.data && result.data.status === "failed") {
+                return "The Multi-Agent Server could not finish (an agent failed or timed out). Check the server window and try again.";
+            }
             return (result.data && (result.data.error || result.data.detail)) || "Something went wrong.";
         }
 
