@@ -78,12 +78,20 @@
 
         <br>
 
-        <button onclick="askAgent()">
+         <button onclick="askAgent()">
             Ask Agent
         </button>
 
         <button onclick="askWithContext()">
             Ask With Context
+        </button>
+
+        <button onclick="askMcp()">
+            Ask MCP (Stock)
+        </button>
+
+        <button onclick="askRag()">
+            Ask RAG (Knowledge Base)
         </button>
 
         <div id="ai-error" class="error"></div>
@@ -380,6 +388,121 @@
             }
         }
 
+
+        // -------------------------
+        // MCP AI AGENT
+        // -------------------------
+
+        async function askMcp() {
+
+            const question =
+                document.getElementById("question").value.trim();
+
+            const result =
+                document.getElementById("ai-result");
+
+            const error =
+                document.getElementById("ai-error");
+
+            error.textContent = "";
+
+            if (!question) {
+                error.textContent =
+                    "Please enter a question.";
+                return;
+            }
+
+            result.textContent =
+                "Checking stock via MCP...";
+
+            try {
+
+                const formData = new FormData();
+
+                formData.append("question", question);
+
+                const response =
+                    await fetch(`${API_URL}/ask-mcp`, {
+                        method: "POST",
+                        body: formData
+                    });
+
+                const text = await response.text();
+
+                if (!response.ok) {
+                    throw new Error(text);
+                }
+
+                result.innerHTML = text;
+
+            } catch (error) {
+
+                result.textContent = "";
+
+                document.getElementById("ai-error").textContent =
+                    "Failed to contact the MCP-backed AI agent.";
+
+                console.error(error);
+            }
+        }
+
+
+        // -------------------------
+        // RAG AI AGENT
+        // -------------------------
+
+        async function askRag() {
+
+            const question =
+                document.getElementById("question").value.trim();
+
+            const result =
+                document.getElementById("ai-result");
+
+            const error =
+                document.getElementById("ai-error");
+
+            error.textContent = "";
+
+            if (!question) {
+                error.textContent =
+                    "Please enter a question.";
+                return;
+            }
+
+            result.textContent =
+                "Searching knowledge base...";
+
+            try {
+
+                const formData = new FormData();
+
+                formData.append("question", question);
+
+                const response =
+                    await fetch(`${API_URL}/ask-rag`, {
+                        method: "POST",
+                        body: formData
+                    });
+
+                const text = await response.text();
+
+                if (!response.ok) {
+                    throw new Error(text);
+                }
+
+                result.innerHTML = text;
+
+            } catch (error) {
+
+                result.textContent = "";
+
+                document.getElementById("ai-error").textContent =
+                    "Failed to contact the RAG-backed AI agent.";
+
+                console.error(error);
+            }
+        }
 
         // Load medications when page opens
 

@@ -209,6 +209,18 @@ def retrieve_context(query: str, top_k: int = 5) -> dict:
 # before computing overlap.
 # ---------------------------------------------------------------------------
 
+# FIX (2026-10-01): confidence was computed from results[0] only - the
+# top-ranked chunk by vector "score". Since embed_texts() is a noisy hash,
+# not a real embedding, the top-ranked chunk is not reliably the most
+# relevant one - confirmed empirically: querying the exact billing FAQ
+# heading "What do I do if my invoice is marked pending?" put an unrelated
+# labtests/reference_ranges.md chunk at rank 0 (score -0.30) ahead of the
+# exact-match billing/billing_faq.md chunk at rank 1 (score -0.42), so the
+# real answer was discarded before answer_question()'s own relevant_results
+# filtering (which already scans all results) ever ran. Confidence is now
+# based on the BEST-overlapping chunk across all retrieved results, not
+# just the top-ranked one - matching the filtering answer_question already
+# does further down this file.
 def confidence_from_results(results: list[dict], query: str = "") -> str:
     if not results:
         return "Insufficient"
@@ -217,24 +229,27 @@ def confidence_from_results(results: list[dict], query: str = "") -> str:
     if not query_tokens:
         return "Insufficient"
 
-    top_text_tokens = tokenize(results[0].get("text", "")) - STOPWORDS
-    overlap = query_tokens & top_text_tokens
+    best_weighted_ratio = 0.0
+    found_overlap = False
 
-    if not overlap:
+    for result in results:
+        text_tokens = tokenize(result.get("text", "")) - STOPWORDS
+        overlap = query_tokens & text_tokens
+        if not overlap:
+            continue
+        found_overlap = True
+        overlap_ratio = len(overlap) / len(query_tokens)
+        weight = AUTHORITY_TIER_WEIGHTS.get(result.get("authority_tier"), 0.4)
+        weighted_ratio = overlap_ratio * weight
+        if weighted_ratio > best_weighted_ratio:
+            best_weighted_ratio = weighted_ratio
+
+    if not found_overlap:
         return "Insufficient"
 
-    # embed_texts() isn't a real semantic embedding, so the vector "score" is
-    # noise and can't be graded against a fixed threshold (see FIX comment
-    # above retrieve_context). Confidence is instead based on how much of the
-    # query's own (non-stopword) tokens are present in the top matched chunk -
-    # a near-exact phrase match scores high, a loosely related one scores low.
-    overlap_ratio = len(overlap) / len(query_tokens)
-    weight = AUTHORITY_TIER_WEIGHTS.get(results[0].get("authority_tier"), 0.4)
-    weighted_ratio = overlap_ratio * weight
-
-    if weighted_ratio >= 0.75:
+    if best_weighted_ratio >= 0.75:
         return "High"
-    elif weighted_ratio >= 0.45:
+    elif best_weighted_ratio >= 0.45:
         return "Medium"
     else:
         return "Low"

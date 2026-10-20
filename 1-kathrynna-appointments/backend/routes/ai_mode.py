@@ -62,7 +62,9 @@ def ai_chat():
         )
 
         return jsonify({
-            "reply": result["reply"]
+            "reply": result["reply"],
+            "confidence": result["confidence"],
+            "sources": result["sources"]
         }), 200
 
     except Exception as exc:

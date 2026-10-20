@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Billing - Patient View</title>
+    <link rel="stylesheet" href="http://localhost:3000/css/theme.css">
+    <link rel="stylesheet" href="/css/styles.css">
+    <script src="https://unpkg.com/htmx.org@1.9.12"></script>
+</head>
+<body>
+<nav class="top-nav">
+    <div class="top-nav-left">
+        <a href="http://localhost:5000/home" class="top-nav-home">&larr; Home</a>
+    </div>
+</nav>
+
+<div class="app-shell">
+    <header class="app-header">
+        <h1>Billing &amp; Insurance</h1>
+    </header>
+
+    <div class="card">
+        <h2>My Invoices</h2>
+        <table class="invoice-table">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Patient</th>
+                    <th>Insurance</th>
+                    <th>Total</th>
+                    <th>Covered</th>
+                    <th>Owed</th>
+                    <th>Status</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody
+                id="invoice-table-body"
+                hx-trigger="load, invoicesChanged from:body"
+                hx-swap="innerHTML"
+            >
+                <tr><td colspan="8">Loading your invoices...</td></tr>
+            </tbody>
+        </table>
+    </div>
+
+    <div class="card">
+        <h2>Check Invoice Status (MCP)</h2>
+        <div id="mcp-result" class="chat-log"></div>
+        <form
+            id="mcp-form"
+            class="chat-form"
+            hx-post="/ask-mcp/html"
+            hx-target="#mcp-result"
+            hx-swap="beforeend"
+            hx-on::after-request="this.reset()"
+        >
+            <input type="hidden" name="token" id="mcp-token-field">
+            <input type="number" name="invoice_id" placeholder="e.g. 1" required>
+            <button type="submit">Ask MCP</button>
+        </form>
+    </div>
+
+    <div class="card">
+        <h2>Ask the Knowledge Base (RAG)</h2>
+        <div id="rag-result" class="chat-log"></div>
+        <form
+            id="rag-form"
+            class="chat-form"
+            hx-post="/ask-rag/html"
+            hx-target="#rag-result"
+            hx-swap="beforeend"
+            hx-on::after-request="this.reset()"
+        >
+            <input type="hidden" name="token" id="rag-token-field">
+            <input type="text" name="question" placeholder="e.g. What insurance providers do you accept?" required>
+            <button type="submit">Ask RAG</button>
+        </form>
+    </div>
+</div>
+
+<script>
+    const token = new URLSearchParams(window.location.search).get("token");
+
+    if (!token) {
+        window.location.href = "http://localhost:5000/login";
+    }
+
+    document.getElementById("mcp-token-field").value = token;
+    document.getElementById("rag-token-field").value = token;
+
+    const invoiceTableBody = document.getElementById("invoice-table-body");
+    invoiceTableBody.setAttribute("hx-get", "/invoices/html?token=" + encodeURIComponent(token));
+    htmx.process(invoiceTableBody);
+    htmx.trigger(invoiceTableBody, "load");
+</script>
+</body>
+</html>

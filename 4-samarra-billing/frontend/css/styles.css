@@ -433,3 +433,21 @@ body {
 .top-nav-home {
     color: var(--color-dark) !important;
 }
+.confidence-badge {
+    display: inline-block;
+    margin-left: 0.5rem;
+    padding: 0.15rem 0.55rem;
+    border-radius: 999px;
+    font-size: 0.7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+    vertical-align: middle;
+}
+.confidence-badge.confidence-high { background: var(--color-accent); color: #ffffff; }
+.confidence-badge.confidence-medium { background: #fff3cd; color: #8a6100; border: 1px solid #ffe69c; }
+.confidence-badge.confidence-low { background: #fde8d0; color: #9a5b00; border: 1px solid #f7c98e; }
+.confidence-badge.confidence-insufficient { background: #eeeeee; color: #555555; border: 1px solid #cccccc; }
+.citation-list { margin: 0.5rem 0 0; padding-left: 1.2rem; font-size: 0.8rem; color: var(--color-muted); }
+.citation-list li { margin-bottom: 0.15rem; }
+.chat-msg.chat-insufficient { background: var(--color-bg); border: 1px dashed var(--color-mid); color: var(--color-muted); font-style: italic; }

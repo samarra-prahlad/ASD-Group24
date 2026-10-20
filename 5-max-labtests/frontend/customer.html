@@ -8,7 +8,7 @@
 <body>
     <header>
         <h1>Lab Results</h1>
-        <a href="http://localhost:3000/home">← Back to Home</a>
+        <a href="http://localhost:5000/home">← Back to Home</a>
     </header>
 
     <main>
@@ -67,18 +67,45 @@
                 : `<tr><td colspan="5">No results found.</td></tr>`;
         }
 
+        function renderConfidenceBadge(category) {
+            const cls = `confidence-${(category || "insufficient").toLowerCase()}`;
+            return `<span class="confidence-badge ${cls}">Confidence: ${category || "Insufficient"}</span>`;
+        }
+
+        function renderCitations(citations) {
+            if (!citations || citations.length === 0) return "";
+            const items = citations.map(c => `<li>${c.source_id} (chunk ${c.chunk_id})</li>`).join("");
+            return `
+                <div class="citations-list">
+                    <span class="citations-label">Sources</span>
+                    <ul>${items}</ul>
+                </div>
+            `;
+        }
+
         document.getElementById("chat-send").addEventListener("click", async () => {
             const message = document.getElementById("chat-input").value;
             if (!message.trim()) return;
             const answerEl = document.getElementById("chat-answer");
-            answerEl.textContent = "Thinking...";
+            answerEl.classList.remove("insufficient-context");
+            answerEl.innerHTML = "Thinking...";
+
             const res = await fetch(`${BACKEND}/chat`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ message }),
             });
             const data = await res.json();
-            answerEl.textContent = data.reply;
+
+            if (data.status === "insufficient_context" || data.status === "error") {
+                answerEl.classList.add("insufficient-context");
+            }
+
+            answerEl.innerHTML = `
+                ${renderConfidenceBadge(data.confidence_category)}
+                <div>${data.reply}</div>
+                ${renderCitations(data.citations)}
+            `;
         });
 
         loadResults();
