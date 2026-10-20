@@ -1,17 +1,105 @@
 name: Cloud Deployment
 
-# Manual trigger only - AWS deployment is planned for a later release,
-# not required for this one. Change back to push/pull_request triggers
-# once deployment is actually implemented and tested.
 on:
-  workflow_dispatch:
+  workflow_dispatch:   # manual only until release; was: push to main
+
+permissions:
+  id-token: write   # OIDC login to Azure (no stored credentials)
+  contents: read
+
+concurrency:
+  group: cloud-deployment
+  cancel-in-progress: false
 
 jobs:
-  deploy:
+  validate:
+    name: CI/CD validation (Docker Compose build + smoke test)
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Placeholder - deployment not yet implemented
-        run: echo "Cloud deployment pipeline is scaffolded but not yet active. See scripts/lab11/deploy-aws.sh for the planned approach."
+      - name: Validate docker-compose.yml
+        run: docker compose config -q
+
+      - name: Build all service images
+        run: docker compose build
+
+      - name: Start the integrated application
+        run: docker compose up -d
+
+      - name: Smoke test every frontend and backend
+        run: |
+          failed=0
+          for port in 3000 3001 3002 3003 3004 3005 3006 5000 5001 5002 5003 5004 5005 5006; do
+            code=000
+            for i in $(seq 1 30); do
+              code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 "http://localhost:$port/" || true)
+              code=${code:-000}
+              if [ "$code" != "000" ] && [ "$code" -lt 500 ]; then break; fi
+              sleep 2
+            done
+            if [ "$code" != "000" ] && [ "$code" -lt 500 ]; then
+              echo "OK   localhost:$port -> $code"
+            else
+              echo "FAIL localhost:$port -> $code"; failed=1
+            fi
+          done
+          exit $failed
+
+      - name: Stop the application
+        if: always()
+        run: docker compose down -v
+
+  deploy:
+    name: Deploy to Azure Container Apps
+    needs: [validate]
+    runs-on: ubuntu-latest
+    env:
+      CLOUD_TEST_EMAIL: ${{ secrets.CLOUD_TEST_EMAIL }}
+      CLOUD_TEST_PASSWORD: ${{ secrets.CLOUD_TEST_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Azure login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Environment setup (resource group + tags)
+        run: bash scripts/cloud/env-setup.sh
+
+      - name: Build and push images to ACR
+        run: bash scripts/cloud/build-images.sh
+
+      # The OIDC token is short-lived; refresh before long steps.
+      - name: Azure login (refresh)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Create Container Apps environment (if missing)
+        run: bash scripts/cloud/deploy-azure-env.sh
+
+      - name: Azure login (refresh again)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Deploy all services (AI services disabled)
+        run: bash scripts/cloud/deploy-azure.sh
+
+      - name: Deployment testing
+        run: bash scripts/cloud/deployment-testing.sh
+
+      - name: Upload deployment evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cloud-deployment-evidence
+          path: reports/cloud/deployment-results.md
