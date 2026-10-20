@@ -1,6 +1,33 @@
 import requests
 
 BASE_URL = "http://localhost:5001"
+DB_URL = "http://localhost:6001"
+
+
+# ---------- helpers ----------
+
+def get_existing_appointment_id():
+    """Return the id of any appointment that exists, instead of
+    hard-coding one that may have been deleted."""
+    response = requests.get(f"{BASE_URL}/appointments")
+    assert response.status_code == 200
+    appointments = response.json()
+    assert len(appointments) > 0, "No appointments seeded in the database"
+    return appointments[0]["id"]
+
+
+def clear_slot(doctor_id, date, time):
+    """Delete any appointment left in this slot by an earlier test run,
+    so create tests don't fail with 409."""
+    response = requests.get(f"{DB_URL}/appointments/doctor/{doctor_id}")
+    if response.status_code != 200:
+        return
+    for appt in response.json():
+        if appt["date"] == date and appt["time"] == time:
+            requests.delete(f"{DB_URL}/appointments/{appt['id']}")
+
+
+# ---------- tests ----------
 
 def test_health():
     response = requests.get(f"{BASE_URL}/")
@@ -21,13 +48,15 @@ def test_get_all_appointments():
 
 # testing getting a specific appointment 
 def test_get_appointment():
-    response = requests.get(f"{BASE_URL}/appointments/101")
+    appointment_id = get_existing_appointment_id()
+
+    response = requests.get(f"{BASE_URL}/appointments/{appointment_id}")
 
     assert response.status_code == 200
 
     data = response.json()
 
-    assert data["id"] == 101
+    assert data["id"] == appointment_id
     assert "patient_id" in data
     assert "doctor_id" in data
     assert "date" in data
@@ -93,7 +122,7 @@ def test_get_single_doctor():
     assert "specialty" in data
     assert "availability" in data
 
-# Testing for invali doctor
+# Testing for invalid doctor
 def test_get_invalid_doctor():
     response = requests.get(f"{BASE_URL}/doctors/99999")
 
@@ -108,6 +137,7 @@ def test_create_appointment():
         "time": "09:00",
         "status": "scheduled"
     }
+    clear_slot(206, "2026-11-01", "09:00")
 
     response = requests.post(
         f"{BASE_URL}/appointments",
@@ -117,19 +147,21 @@ def test_create_appointment():
     assert response.status_code in [200, 201]
 
     data = response.json()
+    appointment_id = data.get("appointment_id")
 
-    assert "appointment_id" in data
-    assert "message" in data
-    appointment_id = data["appointment_id"]
+    try:
+        assert "appointment_id" in data
+        assert "message" in data
 
-    check_response = requests.get(
-        f"{BASE_URL}/appointments/{appointment_id}"
-    )
+        check_response = requests.get(
+            f"{BASE_URL}/appointments/{appointment_id}"
+        )
 
-    assert check_response.status_code == 200
-
-    # Clean up so this test can be re-run without colliding with itself
-    requests.delete(f"{BASE_URL}/appointments/{appointment_id}")
+        assert check_response.status_code == 200
+    finally:
+        # Always clean up, even if an assert above fails
+        if appointment_id:
+            requests.delete(f"{BASE_URL}/appointments/{appointment_id}")
 
 # Creating an appointment but patient is invalid 
 def test_create_appointment_invalid_patient():
@@ -175,7 +207,7 @@ def test_create_appointment_invalid_doctor():
     assert "error" in data
     assert "Doctor" in data["error"]
 
-# CReating an appointment with a missing field
+# Creating an appointment with a missing field
 def test_create_appointment_missing_field():
     appointment = {
         "patient_id": 3,
@@ -197,13 +229,15 @@ def test_create_appointment_missing_field():
 
 # Testing updating an appointment
 def test_update_appointment():
-    appointment ={
+    appointment = {
         "patient_id": 3,
         "doctor_id": 206,
         "date": "2026-11-01",
         "time": "11:30",
         "status": "scheduled"
     }
+    clear_slot(206, "2026-11-01", "11:30")
+    clear_slot(206, "2026-12-15", "14:00")
 
     create_response = requests.post(
         f"{BASE_URL}/appointments",
@@ -213,30 +247,30 @@ def test_update_appointment():
     assert create_response.status_code in [200, 201]
     appointment_id = create_response.json()["appointment_id"]
 
-    update_data = {
-        "date": "2026-12-15",
-        "time": "14:00",
-        "status": "rescheduled"
-    }
+    try:
+        update_data = {
+            "date": "2026-12-15",
+            "time": "14:00",
+            "status": "rescheduled"
+        }
 
-    response = requests.put(
-        f"{BASE_URL}/appointments/{appointment_id}",
-        json=update_data
-    )
+        response = requests.put(
+            f"{BASE_URL}/appointments/{appointment_id}",
+            json=update_data
+        )
 
-    assert response.status_code in [200, 201]
-    check_response = requests.get(
-        f"{BASE_URL}/appointments/{appointment_id}"
-    )
+        assert response.status_code in [200, 201]
+        check_response = requests.get(
+            f"{BASE_URL}/appointments/{appointment_id}"
+        )
 
-    assert check_response.status_code == 200
-    data = check_response.json()
+        assert check_response.status_code == 200
+        data = check_response.json()
 
-    assert data["date"] == "2026-12-15"
-    assert data["time"] == "14:00"
-
-    # Clean up so this test can be re-run without colliding with itself
-    requests.delete(f"{BASE_URL}/appointments/{appointment_id}")
+        assert data["date"] == "2026-12-15"
+        assert data["time"] == "14:00"
+    finally:
+        requests.delete(f"{BASE_URL}/appointments/{appointment_id}")
 
 # Testing updating invalid appointment 
 def test_update_appointment_invalid():
@@ -258,7 +292,7 @@ def test_update_appointment_invalid():
     assert "error" in data
     assert "Appointment" in data["error"]
 
-# testing appoinment deletion 
+# testing appointment deletion 
 def test_delete_appointment():
     appointment = {
         "patient_id": 3,
@@ -267,6 +301,7 @@ def test_delete_appointment():
         "time": "12:30",
         "status": "scheduled"
     }
+    clear_slot(206, "2026-11-01", "12:30")
 
     create_response = requests.post(
         f"{BASE_URL}/appointments",
@@ -304,6 +339,7 @@ def test_create_appointment_double_booking():
         "time": "09:00",
         "status": "scheduled"
     }
+    clear_slot(206, "2026-11-05", "09:00")
 
     first_response = requests.post(
         f"{BASE_URL}/appointments",
@@ -313,23 +349,23 @@ def test_create_appointment_double_booking():
     assert first_response.status_code in [200, 201]
     appointment_id = first_response.json()["appointment_id"]
 
-    duplicate_appointment = {
-        "patient_id": 4,
-        "doctor_id": 206,
-        "date": "2026-11-05",
-        "time": "09:00",
-        "status": "scheduled"
-    }
+    try:
+        duplicate_appointment = {
+            "patient_id": 4,
+            "doctor_id": 206,
+            "date": "2026-11-05",
+            "time": "09:00",
+            "status": "scheduled"
+        }
 
-    second_response = requests.post(
-        f"{BASE_URL}/appointments",
-        json=duplicate_appointment
-    )
+        second_response = requests.post(
+            f"{BASE_URL}/appointments",
+            json=duplicate_appointment
+        )
 
-    assert second_response.status_code == 409
+        assert second_response.status_code == 409
 
-    data = second_response.json()
-    assert "error" in data
-
-    # Clean up
-    requests.delete(f"{BASE_URL}/appointments/{appointment_id}")
+        data = second_response.json()
+        assert "error" in data
+    finally:
+        requests.delete(f"{BASE_URL}/appointments/{appointment_id}")

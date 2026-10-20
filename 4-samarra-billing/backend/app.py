@@ -3,7 +3,12 @@ import requests
 from flask import Flask, jsonify, request
 from flask_cors import CORS
 from markupsafe import escape
+import asyncio
+import json
+import re
 
+from mcp import ClientSession
+from mcp.client.streamable_http import streamablehttp_client
 app = Flask(__name__)
 CORS(app)
 
@@ -13,18 +18,85 @@ PHARMACY_DATABASE_API_URL = os.environ.get("PHARMACY_DATABASE_API_URL", "http://
 WARDBED_DATABASE_API_URL = os.environ.get("WARDBED_DATABASE_API_URL", "http://wardbed-backend:5006")
 SHARED_ACCESS_API_URL = os.environ.get("SHARED_ACCESS_API_URL", "http://shared-backend:5000")
 OLLAMA_BASE_URL = os.environ.get("OLLAMA_BASE_URL", "http://host.docker.internal:11434/v1")
-OLLAMA_MODEL = os.environ.get("OLLAMA_MODEL", "qwen2.5:0.5b")
-
+OLLAMA_MODEL = os.environ.get("OLLAMA_MODEL", "llama3.1:8b")
+MCP_SERVER_URL = os.environ.get("MCP_SERVER_URL", "http://host.docker.internal:7000/mcp")
 AI_TIMEOUT = 30  # seconds - LLM responses are slower than normal service calls
 REQUEST_TIMEOUT = 3  # seconds - fail fast to mock rather than hang if a teammate's service is down
+RAG_SERVER_URL = os.environ.get("RAG_SERVER_URL", "http://host.docker.internal:7001/mcp")
 
 AI_SYSTEM_PROMPT = (
-    "You are a helpful billing assistant for a healthcare application. "
-    "Answer questions about invoices, insurance coverage, and billing status "
-    "concisely and in plain language. If you don't have enough information "
-    "to answer, say so rather than guessing."
+    "You are a billing assistant for a healthcare application. "
+    "When invoice data is provided in the user's message, answer directly from "
+    "those exact numbers — never say you lack information if data was given. "
+    "If no data was provided and the question needs it, say so plainly. "
+    "Be concise and use plain language, not JSON."
 )
 
+# ---------------------------------------------------------------------------
+# MCP tool grounding for AI chat
+#
+# The shared MCP server exposes billing_get_invoice_status. When a chat
+# message mentions a specific invoice, we call the real tool and feed its
+# result into the prompt so Ollama answers from actual data instead of
+# guessing. If the invoice ID can't be extracted, or the tool/server is
+# unreachable, we fall back to answering without grounding rather than
+# failing the whole request.
+# ---------------------------------------------------------------------------
+
+INVOICE_ID_PATTERN = re.compile(r"invoice\s*#?\s*(\d+)", re.IGNORECASE)
+
+
+def extract_invoice_id(message):
+    """Pulls an invoice ID out of a message like 'invoice 5' or 'invoice #12'."""
+    if not message:
+        return None
+    match = INVOICE_ID_PATTERN.search(message)
+    if not match:
+        return None
+    return int(match.group(1))
+
+
+async def _call_invoice_status_tool_async(invoice_id):
+    async with streamablehttp_client(MCP_SERVER_URL) as (read_stream, write_stream, _):
+        async with ClientSession(read_stream, write_stream) as session:
+            await session.initialize()
+            return await session.call_tool(
+                "billing_get_invoice_status", {"invoice_id": invoice_id}
+            )
+
+
+def call_invoice_status_tool(invoice_id):
+    """
+    Calls the shared MCP server's billing_get_invoice_status tool.
+    Returns a dict on success, or None if the server is unreachable or the
+    response can't be parsed - callers should treat None as "no grounding
+    available" and still answer without it, rather than fail the request.
+    """
+    try:
+        result = asyncio.run(_call_invoice_status_tool_async(invoice_id))
+    except Exception:
+        return None
+
+    if getattr(result, "isError", False):
+        return None
+
+    try:
+        text = result.content[0].text
+        return json.loads(text)
+    except (IndexError, AttributeError, TypeError, json.JSONDecodeError):
+        return None
+
+
+def build_grounded_prompt(user_message, invoice_data):
+    if invoice_data is None:
+        return user_message
+
+    return (
+        f"{user_message}\n\n"
+        "Here is the actual invoice record. Answer using ONLY these values, "
+        "in plain sentences (not JSON), and do not ask for more information:\n"
+        f"{json.dumps(invoice_data, indent=2)}"
+    )
 
 def proxy_get(url):
     """
@@ -691,6 +763,27 @@ def call_ollama(user_message):
 
     return reply, None
 
+def humanize_field_label(key):
+    words = key.split("_")
+    return " ".join("ID" if w.lower() == "id" else w.capitalize() for w in words)
+
+
+def render_confidence_badge(confidence_category):
+    if not confidence_category:
+        return ""
+    css_class = f"confidence-badge confidence-{confidence_category.lower()}"
+    return f" <span class='{css_class}'>{escape(confidence_category)}</span>"
+
+def render_citations(citations):
+    if not citations:
+        return ""
+    seen = []
+    for c in citations:
+        source = str(c.get('source_id', c))
+        if source not in seen:
+            seen.append(source)
+    items = "".join(f"<li>{escape(s)}</li>" for s in seen)
+    return f"<ul class='citation-list'>{items}</ul>"
 
 @app.post("/ai/chat")
 def ai_chat():
@@ -699,33 +792,232 @@ def ai_chat():
     if not data or "message" not in data or not data["message"].strip():
         return jsonify({"error": "message is required"}), 400
 
-    reply, error = call_ollama(data["message"])
+    user_message = data["message"]
+    invoice_id = extract_invoice_id(user_message)
+
+    if invoice_id is not None:
+        invoice_data = call_invoice_status_tool(invoice_id)
+        prompt = build_grounded_prompt(user_message, invoice_data)
+        reply, error = call_ollama(prompt)
+
+        if error:
+            return jsonify({"error": error}), 503
+
+        response_body = {"reply": reply}
+        if invoice_data is not None:
+            response_body["tool_used"] = "billing_get_invoice_status"
+            response_body["tool_result"] = invoice_data
+
+        return jsonify(response_body)
+
+    rag_result = call_rag_answer_question(user_message)
+
+    if rag_result is not None:
+        return jsonify({
+            "reply": rag_result["answer"],
+            "citations": rag_result.get("citations", []),
+            "confidence_category": rag_result.get("confidence_category"),
+        })
+
+    reply, error = call_ollama(user_message)
 
     if error:
         return jsonify({"error": error}), 503
 
     return jsonify({"reply": reply})
 
-
 @app.post("/ai/chat/html")
 def ai_chat_html():
     """
     HTML fragment version for the HTMX chat widget. Appends a user bubble and
-    an assistant bubble to the chat log on each request.
+    an assistant bubble to the chat log on each request. Grounds invoice
+    questions in real data via billing_get_invoice_status (MCP), and falls
+    back to the RAG server for everything else - surfacing its citations and
+    confidence category, with a distinct style when confidence is
+    "Insufficient".
     """
     user_message = request.form.get("message", "").strip()
 
     if not user_message:
         return "<div class='chat-msg chat-error'>Please enter a message.</div>", 400
 
-    reply, error = call_ollama(user_message)
-
     user_bubble = f"<div class='chat-msg chat-user'><strong>You:</strong> {escape(user_message)}</div>"
+    invoice_id = extract_invoice_id(user_message)
+
+    if invoice_id is not None:
+        invoice_data = call_invoice_status_tool(invoice_id)
+        prompt = build_grounded_prompt(user_message, invoice_data)
+        reply, error = call_ollama(prompt)
+
+        if error:
+            return f"{user_bubble}<div class='chat-msg chat-error'>{escape(error)}</div>", 503
+
+        bot_bubble = f"<div class='chat-msg chat-bot'><strong>Assistant:</strong> {escape(reply)}</div>"
+        return f"{user_bubble}{bot_bubble}"
+
+    rag_result = call_rag_answer_question(user_message)
+
+    if rag_result is not None:
+        confidence_category = rag_result.get("confidence_category")
+        citations = rag_result.get("citations", [])
+        reply = rag_result["answer"]
+
+        if confidence_category == "Insufficient":
+            bot_bubble = (
+                f"<div class='chat-msg chat-bot chat-insufficient'>"
+                f"<strong>Assistant:</strong> I don't have enough information in the "
+                f"knowledge base to answer that confidently. {escape(reply)}"
+                f"{render_confidence_badge(confidence_category)}"
+                f"</div>"
+            )
+        else:
+            bot_bubble = (
+                f"<div class='chat-msg chat-bot'>"
+                f"<strong>Assistant:</strong> {escape(reply)}"
+                f"{render_confidence_badge(confidence_category)}"
+                f"{render_citations(citations)}"
+                f"</div>"
+            )
+
+        return f"{user_bubble}{bot_bubble}"
+
+    reply, error = call_ollama(user_message)
 
     if error:
         return f"{user_bubble}<div class='chat-msg chat-error'>{escape(error)}</div>", 503
 
     bot_bubble = f"<div class='chat-msg chat-bot'><strong>Assistant:</strong> {escape(reply)}</div>"
+    return f"{user_bubble}{bot_bubble}"
+
+async def _call_rag_answer_question_async(query, top_k=5):
+    async with streamablehttp_client(RAG_SERVER_URL) as (read_stream, write_stream, _):
+        async with ClientSession(read_stream, write_stream) as session:
+            await session.initialize()
+            return await session.call_tool("answer_question", {"query": query, "top_k": top_k})
+
+def call_rag_answer_question(query, top_k=5):
+    try:
+        result = asyncio.run(_call_rag_answer_question_async(query, top_k))
+    except Exception:
+        return None
+    if getattr(result, "isError", False):
+        return None
+    try:
+        text = result.content[0].text
+        return json.loads(text)
+    except (IndexError, AttributeError, TypeError, json.JSONDecodeError):
+        return None
+
+
+@app.post("/ask-mcp")
+def ask_mcp():
+    data = request.get_json(silent=True) or request.form
+    invoice_id = data.get("invoice_id")
+
+    if invoice_id is None:
+        return jsonify({"error": "invoice_id is required"}), 400
+
+    try:
+        invoice_id = int(invoice_id)
+    except (TypeError, ValueError):
+        return jsonify({"error": "invoice_id must be a number"}), 400
+
+    invoice_data = call_invoice_status_tool(invoice_id)
+
+    if invoice_data is None:
+        return jsonify({"error": "MCP tool unavailable or invoice not found"}), 503
+
+    return jsonify({
+        "tool_used": "billing_get_invoice_status",
+        "result": invoice_data,
+    })
+
+
+@app.post("/ask-rag")
+def ask_rag():
+    data = request.get_json(silent=True) or request.form
+    question = (data.get("question") or "").strip()
+
+    if not question:
+        return jsonify({"error": "question is required"}), 400
+
+    rag_result = call_rag_answer_question(question)
+
+    if rag_result is None:
+        return jsonify({"error": "RAG server unavailable"}), 503
+
+    return jsonify({
+        "answer": rag_result.get("answer"),
+        "citations": rag_result.get("citations", []),
+        "confidence_category": rag_result.get("confidence_category"),
+    })
+
+
+@app.post("/ask-mcp/html")
+def ask_mcp_html():
+    invoice_id = request.form.get("invoice_id", "").strip()
+    user_bubble = f"<div class='chat-msg chat-user'><strong>You:</strong> Invoice #{escape(invoice_id)}</div>"
+
+    if not invoice_id:
+        return "<div class='chat-msg chat-error'>Invoice ID is required.</div>", 400
+
+    try:
+        invoice_id_int = int(invoice_id)
+    except (TypeError, ValueError):
+        return f"{user_bubble}<div class='chat-msg chat-error'>Invoice ID must be a number.</div>", 400
+
+    invoice_data = call_invoice_status_tool(invoice_id_int)
+
+    if invoice_data is None:
+        return f"{user_bubble}<div class='chat-msg chat-error'>MCP tool unavailable or invoice not found.</div>", 503
+
+    rows = "".join(
+        f"<tr><td>{escape(humanize_field_label(key))}:</td><td>{escape(str(value))}</td></tr>"
+        for key, value in invoice_data.items()
+    )
+    bot_bubble = (
+        f"<div class='chat-msg chat-bot'>"
+        f"<strong>Assistant:</strong> <em>Tool used: billing_get_invoice_status</em>"
+        f"<table>{rows}</table>"
+        f"</div>"
+    )
+    return f"{user_bubble}{bot_bubble}"
+
+
+@app.post("/ask-rag/html")
+def ask_rag_html():
+    question = request.form.get("question", "").strip()
+    user_bubble = f"<div class='chat-msg chat-user'><strong>You:</strong> {escape(question)}</div>"
+
+    if not question:
+        return "<div class='chat-msg chat-error'>Question is required.</div>", 400
+
+    rag_result = call_rag_answer_question(question)
+
+    if rag_result is None:
+        return f"{user_bubble}<div class='chat-msg chat-error'>RAG server unavailable.</div>", 503
+
+    confidence_category = rag_result.get("confidence_category")
+    citations = rag_result.get("citations", [])
+    answer = rag_result.get("answer", "")
+
+    if confidence_category == "Insufficient":
+        bot_bubble = (
+            f"<div class='chat-msg chat-bot chat-insufficient'>"
+            f"<strong>Assistant:</strong> I don't have enough information in the "
+            f"knowledge base to answer that confidently. {escape(answer)}"
+            f"{render_confidence_badge(confidence_category)}"
+            f"</div>"
+        )
+    else:
+        bot_bubble = (
+            f"<div class='chat-msg chat-bot'>"
+            f"<strong>Assistant:</strong> {escape(answer)}"
+            f"{render_confidence_badge(confidence_category)}"
+            f"{render_citations(citations)}"
+            f"</div>"
+        )
+
     return f"{user_bubble}{bot_bubble}"
 
 

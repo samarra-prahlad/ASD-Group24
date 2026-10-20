@@ -98,6 +98,24 @@
     </div>
   </div>
 
+  <div id="ai-assistant-section" class="ehr-card">
+    <h2>AI Assistant</h2>
+
+    <h3>Change Request Status (MCP)</h3>
+    <div class="search-row">
+      <input id="mcp-request-id" type="number" placeholder="Change request ID">
+      <button onclick="checkChangeRequestStatus()">Check Status</button>
+    </div>
+    <div id="mcp-result" class="chat-result"></div>
+
+    <h3>Ask About Policies (RAG)</h3>
+    <div class="search-row">
+      <input id="rag-question" type="text" placeholder="e.g. How long do change requests take?">
+      <button onclick="askKnowledgeBase()">Ask</button>
+    </div>
+    <div id="rag-result" class="chat-result"></div>
+  </div>
+
 </div>
 
 <script src="app.js"></script>

@@ -301,4 +301,77 @@ async function summarizeHistory() {
   box.textContent = data.reply || data.error || "Something went wrong.";
 }
 
-   start();
+   async function checkChangeRequestStatus() {
+  const requestId = document.getElementById("mcp-request-id").value.trim();
+  const box = document.getElementById("mcp-result");
+
+  if (!requestId) {
+    box.textContent = "Enter a request ID.";
+    return;
+  }
+
+  box.textContent = "Checking via MCP...";
+
+  const resp = await fetch(`${API_URL}/change_requests/mcp-status/${requestId}?token=${token}`);
+  const data = await resp.json();
+
+  if (!resp.ok) {
+    box.textContent = "Error: " + (data.error || "unknown");
+    return;
+  }
+
+  box.innerHTML = `
+    Request #${data.request_id} - <strong>${data.status}</strong><br>
+    Type: ${data.request_type}
+  `;
+}
+
+function escapeHtml(text) {
+  const div = document.createElement("div");
+  div.textContent = text == null ? "" : String(text);
+  return div.innerHTML;
+}
+
+async function askKnowledgeBase() {
+  const question = document.getElementById("rag-question").value.trim();
+  const box = document.getElementById("rag-result");
+
+  if (!question) {
+    box.textContent = "Enter a question.";
+    return;
+  }
+
+  box.textContent = "Searching knowledge base...";
+
+  const resp = await fetch(`${API_URL}/ask-rag`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ token: token, question: question })
+  });
+
+  const data = await resp.json();
+
+  if (!resp.ok) {
+    box.textContent = "Error: " + (data.error || "unknown");
+    return;
+  }
+
+  const confidence = data.confidence_category || "";
+  const badge = confidence
+    ? ` <span class="confidence-badge confidence-${confidence.toLowerCase()}">${escapeHtml(confidence)}</span>`
+    : "";
+
+  if (confidence === "Insufficient" || data.status === "insufficient_context") {
+        box.innerHTML = `<div class="chat-msg chat-insufficient">${escapeHtml(data.answer)}${badge}</div>`;
+    return;
+  }
+
+  const sources = [...new Set((data.citations || []).map(c => c.source_id))];
+  const sourceList = sources.length
+    ? `<ul class="citation-list">${sources.map(s => `<li>${escapeHtml(s)}</li>`).join("")}</ul>`
+    : "";
+
+  box.innerHTML = `<div class="chat-msg chat-bot">${escapeHtml(data.answer)}${badge}${sourceList}</div>`;
+}
+
+start();

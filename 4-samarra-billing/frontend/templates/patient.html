@@ -45,19 +45,36 @@
     </div>
 
     <div class="card">
-        <h2>Ask About Your Bill</h2>
-        <div id="chat-log" class="chat-log"></div>
+        <h2>Check Invoice Status (MCP)</h2>
+        <div id="mcp-result" class="chat-log"></div>
         <form
-            id="chat-form"
+            id="mcp-form"
             class="chat-form"
-            hx-post="/ai/chat/html"
-            hx-target="#chat-log"
+            hx-post="/ask-mcp/html"
+            hx-target="#mcp-result"
             hx-swap="beforeend"
             hx-on::after-request="this.reset()"
         >
-            <input type="hidden" name="token" id="chat-token-field">
-            <input type="text" name="message" placeholder="e.g. What do I owe on my latest invoice?" required>
-            <button type="submit">Send</button>
+            <input type="hidden" name="token" id="mcp-token-field">
+            <input type="number" name="invoice_id" placeholder="e.g. 1" required>
+            <button type="submit">Ask MCP</button>
+        </form>
+    </div>
+
+    <div class="card">
+        <h2>Ask the Knowledge Base (RAG)</h2>
+        <div id="rag-result" class="chat-log"></div>
+        <form
+            id="rag-form"
+            class="chat-form"
+            hx-post="/ask-rag/html"
+            hx-target="#rag-result"
+            hx-swap="beforeend"
+            hx-on::after-request="this.reset()"
+        >
+            <input type="hidden" name="token" id="rag-token-field">
+            <input type="text" name="question" placeholder="e.g. What insurance providers do you accept?" required>
+            <button type="submit">Ask RAG</button>
         </form>
     </div>
 </div>
@@ -69,7 +86,8 @@
         window.location.href = "http://localhost:5000/login";
     }
 
-    document.getElementById("chat-token-field").value = token;
+    document.getElementById("mcp-token-field").value = token;
+    document.getElementById("rag-token-field").value = token;
 
     const invoiceTableBody = document.getElementById("invoice-table-body");
     invoiceTableBody.setAttribute("hx-get", "/invoices/html?token=" + encodeURIComponent(token));

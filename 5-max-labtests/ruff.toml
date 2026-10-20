@@ -1,0 +1,11 @@
+# Ruff security configuration for Feature 5 (Lab Tests).
+# "S" = flake8-bandit security rules.
+target-version = "py311"
+
+[lint]
+select = ["S"]
+
+[lint.per-file-ignores]
+# pytest relies on bare assert (S101) and the tests call local services
+# on localhost, so a request timeout (S113) is not a security concern there.
+"**/tests/**" = ["S101", "S113"]
