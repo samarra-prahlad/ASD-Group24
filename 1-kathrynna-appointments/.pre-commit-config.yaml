@@ -1,0 +1,48 @@
+# Pre-commit security scans for Student 1 (Appointments).
+#
+# Scoped to this folder so it never blocks teammates' commits.
+# Install once from the repo root:
+#   pip install pre-commit
+#   pre-commit install --config 1-kathrynna-appointments/.pre-commit-config.yaml
+# Run manually (and save the output as evidence):
+#   pre-commit run --config 1-kathrynna-appointments/.pre-commit-config.yaml --all-files
+
+files: ^1-kathrynna-appointments/
+
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.6.0
+    hooks:
+      - id: detect-private-key
+      - id: check-added-large-files
+        args: ["--maxkb=1000"]
+      - id: check-merge-conflict
+      - id: check-yaml
+      - id: check-json
+
+  # Secrets: API keys, tokens, passwords committed by mistake
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.18.4
+    hooks:
+      - id: gitleaks
+
+  # Python static security analysis (blocks on MEDIUM and above; see SECURITY_FINDINGS.md)
+  - repo: https://github.com/PyCQA/bandit
+    rev: 1.7.9
+    hooks:
+      - id: bandit
+        args: ["--severity-level", "medium", "--confidence-level", "medium"]
+        exclude: ^1-kathrynna-appointments/tests/
+
+  # Known-vulnerable dependencies
+  - repo: https://github.com/pypa/pip-audit
+    rev: v2.7.3
+    hooks:
+      - id: pip-audit
+        args:
+          [
+            "-r",
+            "1-kathrynna-appointments/backend/requirements.txt",
+            "-r",
+            "1-kathrynna-appointments/database/requirements.txt",
+          ]
