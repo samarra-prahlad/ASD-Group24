@@ -211,3 +211,10 @@ td.actions {
     border: 1px solid var(--color-border);
     border-radius: 12px;
 }
+
+pre {
+    white-space: pre-wrap;    
+    overflow-wrap: anywhere; 
+    max-width: 100%;
+    margin: 0 0 1rem;
+}

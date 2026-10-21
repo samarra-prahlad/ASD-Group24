@@ -122,14 +122,151 @@
             </tbody>
         </table>
     </section>
+    <section id="multi-agent-section">
+    <h2>Multi-Agent Review</h2>
+    <p id="ma-disabled" class="error" style="display:none;"></p>
 
+    <div id="ma-controls">
+        <input type="text" id="ma-request" placeholder="e.g. Summarise this patient's active prescriptions">
+        <input type="number" id="ma-patient-id" placeholder="Patient ID (optional)">
+        <button id="ma-run-btn" onclick="runWorkflow()">Run Workflow</button>
+        <p id="ma-error" class="error"></p>
+
+        <div id="ma-result" class="result" style="display:none;">
+            <h3>Planner</h3><pre id="ma-planner" style="white-space: pre-wrap; overflow-wrap: anywhere; max-width: 100%;"></pre>
+            <h3>Worker</h3><pre id="ma-worker" style="white-space: pre-wrap; overflow-wrap: anywhere; max-width: 100%;"></pre>
+            <h3>Reviewer</h3><pre id="ma-reviewer" style="white-space: pre-wrap; overflow-wrap: anywhere; max-width: 100%;"></pre>
+            <p>Risk level: <strong id="ma-risk"></strong></p>
+
+            <textarea id="ma-notes" placeholder="Notes"></textarea>
+            <textarea id="ma-correction" placeholder="Correction (required for Correct)"></textarea>
+
+            <button onclick="reviewWorkflow('approve')">Approve</button>
+            <button class="secondary" onclick="reviewWorkflow('partially_accept')">Partially accept</button>
+            <button class="secondary" onclick="reviewWorkflow('correct')">Correct</button>
+            <button class="danger" onclick="reviewWorkflow('reject')">Reject</button>
+            <p id="ma-decision"></p>
+        </div>
+    </div>
+    </section>
 
     <script>
+
+        // -------------------------
+        // MULTI-AGENT (admin only)
+        // -------------------------
+
+        const sessionToken = new URLSearchParams(window.location.search).get("token") || "";
+        let currentWorkflowId = null;
+
+        function maHeaders() {
+            return { "Content-Type": "application/json", "X-Session-Token": sessionToken };
+        }
+
+        function showMultiAgentDisabled(message) {
+            document.getElementById("ma-controls").style.display = "none";
+            const note = document.getElementById("ma-disabled");
+            note.textContent = message;
+            note.style.display = "block";
+        }
+
+        async function initMultiAgent() {
+            try {
+                const res = await fetch(`${API_URL}/multi-agent/config`);
+                const cfg = await res.json();
+                if (!cfg.enabled) {
+                    showMultiAgentDisabled("Multi-agent review is disabled in this deployment.");
+                }
+            } catch (err) {
+                showMultiAgentDisabled("Multi-agent review is unavailable.");
+                console.error(err);
+            }
+        }
+
+        async function runWorkflow() {
+            const error = document.getElementById("ma-error");
+            const button = document.getElementById("ma-run-btn");
+            const userRequest = document.getElementById("ma-request").value.trim();
+            const patientId = document.getElementById("ma-patient-id").value.trim();
+
+            error.textContent = "";
+            document.getElementById("ma-decision").textContent = "";
+            if (!userRequest) {
+                error.textContent = "Please enter a request.";
+                return;
+            }
+
+            button.disabled = true;
+            button.textContent = "Running (up to 60s)...";
+
+            try {
+                const response = await fetch(`${API_URL}/multi-agent/workflow`, {
+                    method: "POST",
+                    headers: maHeaders(),
+                    body: JSON.stringify({ user_request: userRequest, patient_id: patientId || null })
+                });
+                const body = await response.json().catch(() => ({}));
+                if (!response.ok) {
+                    throw new Error(body.error || `HTTP ${response.status}`);
+                }
+
+                currentWorkflowId = body.workflow_id;
+                const steps = body.steps || {};
+                document.getElementById("ma-planner").textContent = (steps.planner || {}).output || "";
+                document.getElementById("ma-worker").textContent = (steps.worker || {}).output || "";
+                document.getElementById("ma-reviewer").textContent = (steps.reviewer || {}).output || "";
+                document.getElementById("ma-risk").textContent = (steps.reviewer || {}).risk_level || "UNKNOWN";
+                document.getElementById("ma-result").style.display = "block";
+            } catch (err) {
+                error.textContent = err.message || "Workflow failed.";
+                console.error(err);
+            } finally {
+                button.disabled = false;
+                button.textContent = "Run Workflow";
+            }
+        }
+
+        async function reviewWorkflow(decision) {
+            const error = document.getElementById("ma-error");
+            error.textContent = "";
+            if (!currentWorkflowId) return;
+
+            const correction = document.getElementById("ma-correction").value.trim();
+            if (decision === "correct" && !correction) {
+                error.textContent = "A correction is required for Correct.";
+                return;
+            }
+
+            try {
+                const response = await fetch(
+                    `${API_URL}/multi-agent/workflow/${encodeURIComponent(currentWorkflowId)}/review`,
+                    {
+                        method: "POST",
+                        headers: maHeaders(),
+                        body: JSON.stringify({
+                            decision,
+                            notes: document.getElementById("ma-notes").value.trim(),
+                            correction: correction || null
+                        })
+                    }
+                );
+                const body = await response.json().catch(() => ({}));
+                if (!response.ok) {
+                    throw new Error(body.error || `HTTP ${response.status}`);
+                }
+                document.getElementById("ma-decision").textContent = `Decision recorded: ${decision}`;
+                currentWorkflowId = null;
+            } catch (err) {
+                error.textContent = err.message || "Failed to record decision.";
+                console.error(err);
+            }
+        }
+
 
         const API_URL = "http://localhost:5003";
 
         let medicationsCache = [];
-
+        
 
         // -------------------------
         // MEDICATIONS
@@ -472,6 +609,7 @@
         // Load medications when page opens (also populates the prescription dropdown)
 
         loadMedications();
+        initMultiAgent();
 
     </script>
 
