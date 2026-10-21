@@ -6,3 +6,14 @@ corpus/corpus.jsonl
 chroma/
 rag-audit.jsonl
 corpus/corpus.jsonl
+.venv/
+
+# local-only files
+.lsp/
+**/database/data/
+run_local_logs/
+run_all_local.sh
+4-samarra-billing/frontend/nginx.local.conf
+multi-agent-server/.venv/
+multi-agent-server/workflow_history.jsonl
+multi-agent-server/coordination_audit.jsonl

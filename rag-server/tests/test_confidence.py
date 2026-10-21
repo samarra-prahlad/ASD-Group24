@@ -55,17 +55,27 @@ class TestConfidenceFromResults:
         results = [_result("invoice status pending payment owed", 0.8)]
         assert confidence_from_results(results, "what does pending invoice status mean") == "High"
 
-    def test_some_token_overlap_with_medium_score_is_medium(self):
-        results = [_result("invoice status pending payment owed", 0.5)]
-        assert confidence_from_results(results, "what does pending invoice status mean") == "Medium"
+    def test_vector_score_does_not_change_confidence(self):
+        # embed_texts() is hash-based, so the vector score is noise and must not
+        # affect the grade. Same text at any score -> same confidence.
+        query = "what does pending invoice status mean"
+        text = "invoice status pending payment owed"
+        grades = {s: confidence_from_results([_result(text, s)], query) for s in (0.9, 0.5, 0.2, -0.25)}
+        assert len(set(grades.values())) == 1, grades
+        assert grades[0.9] != "Insufficient"
 
-    def test_some_token_overlap_with_low_score_is_low(self):
-        results = [_result("invoice status pending payment owed", 0.2)]
-        assert confidence_from_results(results, "what does pending invoice status mean") == "Low"
+    def test_partial_overlap_never_scores_above_full_overlap(self):
+        order = {"Insufficient": 0, "Low": 1, "Medium": 2, "High": 3}
+        query = "what does pending invoice status mean"
+        full = confidence_from_results([_result("pending invoice status meaning explained", 0.5)], query)
+        partial = confidence_from_results([_result("invoice payment owed", 0.5)], query)
+        assert order[partial] <= order[full], (partial, full)
 
-    def test_negative_score_with_overlap_is_still_low_not_insufficient(self):
-        results = [_result("invoice status pending", -0.25)]
-        assert confidence_from_results(results, "what does pending invoice status mean") == "Low"
+    def test_weak_token_overlap_is_low(self):
+        # Only 1 of 6 query tokens appears in the top chunk -> low weighted ratio.
+        query = "invoice refund dispute escalation timeline procedure"
+        results = [_result("invoice status pending payment owed", 0.9)]
+        assert confidence_from_results(results, query) == "Low"
 
     def test_authority_tier_weighting_still_applies(self):
         results = [_result("invoice status pending", 0.9, authority_tier="tier_3")]

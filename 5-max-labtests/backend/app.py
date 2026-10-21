@@ -18,10 +18,16 @@ OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "qwen2.5:0.5b")
 MCP_SERVER_URL = os.getenv("MCP_SERVER_URL", "http://host.docker.internal:7000/mcp")
 RAG_SERVER_URL = os.getenv("RAG_SERVER_URL", "http://host.docker.internal:7001/mcp")
 
-# MCP/RAG integration is retained in code but disabled during CI, since the
-# shared MCP/RAG servers aren't running on GitHub's runner. Set to "false" in
-# student-x.yml; defaults to "true" for local/Docker use.
-MCP_RAG_ENABLED = os.getenv("MCP_RAG_ENABLED", "true").lower() == "true"
+# MCP/RAG integration is retained in code but disabled by default, so cloud
+# deployments (where the shared MCP/RAG servers and Ollama are not running)
+# work without AI. Set to "true" in docker-compose for local demos.
+MCP_RAG_ENABLED = os.getenv("MCP_RAG_ENABLED", "false").lower() == "true"
+
+# Multi-Agent Server integration. Off by default, so cloud deployments and CI
+# never depend on it. Set MULTI_AGENT_ENABLED=true to use it.
+MULTI_AGENT_ENABLED = os.getenv("MULTI_AGENT_ENABLED", "false").lower() == "true"
+MULTI_AGENT_SERVER_URL = os.getenv("MULTI_AGENT_SERVER_URL", "http://host.docker.internal:7002")
+MULTI_AGENT_DECISIONS = ("approve", "partially_accept", "correct", "reject")
 
 
 async def _call_tool(server_url, tool_name, arguments):
@@ -233,5 +239,107 @@ def get_my_results():
 
     return jsonify(my_results)
 
+MAX_EVIDENCE = 6
+
+
+def _patient_lab_evidence(patient_id):
+    """Collect a short, compact evidence list for one patient: their newest lab
+    results first, then orders that have no result yet. Kept small because the
+    agents use small models that struggle with long inputs."""
+    orders = requests.get(f"{DATABASE_SERVICE_URL}/orders", timeout=5).json()
+    my_orders = {o["order_id"]: o for o in orders if o["patient_id"] == patient_id}
+    results = requests.get(f"{DATABASE_SERVICE_URL}/results", timeout=5).json()
+    my_results = sorted(
+        (r for r in results if r["order_id"] in my_orders),
+        key=lambda r: r["result_id"],
+        reverse=True,
+    )
+
+    evidence = []
+    for r in my_results:
+        evidence.append({
+            "id": f"result-{r['result_id']}",
+            "test": my_orders[r["order_id"]]["test_type"],
+            "value": r["result_value"],
+            "reference_range": r["reference_range"],
+            "flagged": bool(r["flagged"]),
+        })
+
+    resulted_orders = {r["order_id"] for r in my_results}
+    for order_id in sorted(my_orders, reverse=True):
+        if order_id not in resulted_orders:
+            evidence.append({
+                "id": f"order-{order_id}",
+                "test": my_orders[order_id]["test_type"],
+                "status": my_orders[order_id]["status"],
+            })
+    return evidence[:MAX_EVIDENCE]
+
+
+@app.post("/multi-agent/workflow")
+def multi_agent_workflow():
+    """Run the shared Multi-Agent Server (Planner, Worker, Reviewer) over one
+    patient's lab records. Disabled unless MULTI_AGENT_ENABLED=true."""
+    if not MULTI_AGENT_ENABLED:
+        return jsonify({"status": "disabled",
+                        "error": "Multi-Agent integration disabled in this environment"}), 503
+    data = request.get_json(silent=True) or {}
+    patient_id = data.get("patient_id")
+    if not isinstance(patient_id, int) or isinstance(patient_id, bool):
+        return jsonify({"error": "patient_id (integer) is required"}), 400
+    user_request = str(data.get("user_request") or
+                       "Summarise this patient's lab results and flag anything unusual")[:500]
+    try:
+        evidence = _patient_lab_evidence(patient_id)
+        if not evidence:
+            return jsonify({"error": "No lab orders or results found for this patient"}), 404
+        r = requests.post(
+            f"{MULTI_AGENT_SERVER_URL}/workflow",
+            json={
+                "feature": "labtests",
+                "user_request": f"{user_request} (Patient ID: {patient_id})",
+                "evidence": evidence,
+                "requested_by": "labtests-staff",
+            },
+            timeout=300,
+        )
+        return jsonify(r.json()), r.status_code
+    except (requests.RequestException, ValueError) as exc:
+        return jsonify({"status": "error", "error": "Multi-Agent server unreachable",
+                        "detail": str(exc)}), 503
+
+
+@app.post("/multi-agent/workflow/<workflow_id>/review")
+def multi_agent_review(workflow_id):
+    """Send the human decision (approve / partially_accept / correct / reject)
+    to the Multi-Agent Server. Disabled unless MULTI_AGENT_ENABLED=true."""
+    if not MULTI_AGENT_ENABLED:
+        return jsonify({"status": "disabled",
+                        "error": "Multi-Agent integration disabled in this environment"}), 503
+    if not re.fullmatch(r"wf-[0-9a-f]+", workflow_id):
+        return jsonify({"error": "Invalid workflow id"}), 400
+    data = request.get_json(silent=True) or {}
+    decision = data.get("decision")
+    if decision not in MULTI_AGENT_DECISIONS:
+        return jsonify({"error": f"decision must be one of {', '.join(MULTI_AGENT_DECISIONS)}"}), 400
+    body = {
+        "decision": decision,
+        "reviewer": str(data.get("reviewer") or "labtests-staff")[:100],
+        "notes": str(data.get("notes") or "")[:1000],
+    }
+    if decision == "correct":
+        correction = str(data.get("correction") or "").strip()
+        if not correction:
+            return jsonify({"error": "correction text is required for 'correct'"}), 400
+        body["correction"] = correction
+    try:
+        r = requests.post(f"{MULTI_AGENT_SERVER_URL}/workflow/{workflow_id}/review",
+                          json=body, timeout=10)
+        return jsonify(r.json()), r.status_code
+    except (requests.RequestException, ValueError) as exc:
+        return jsonify({"status": "error", "error": "Multi-Agent server unreachable",
+                        "detail": str(exc)}), 503
+
+
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5005, debug=True)
+    app.run(host="0.0.0.0", port=5005, debug=os.getenv("FLASK_DEBUG", "false").lower() == "true")  # noqa: S104 - container must listen on all interfaces
