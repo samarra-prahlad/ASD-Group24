@@ -173,6 +173,26 @@
             <button type="submit">Ask RAG</button>
         </form>
     </div>
+    <div class="card">
+        <h2>Multi-Agent Invoice Review</h2>
+        <p class="agent-help">Planner, Worker and Reviewer agents analyse the invoice records. Nothing is used until you approve, partially accept, correct or reject it.</p>
+        <form
+            id="multi-agent-form"
+            class="agent-form"
+            hx-target="#multi-agent-result"
+            hx-swap="innerHTML"
+            hx-indicator="#multi-agent-loading"
+            hx-disabled-elt="find button"
+        >
+            <input type="number" name="patient_id" placeholder="Patient ID (blank = all invoices)">
+            <input type="text" name="user_request" placeholder="e.g. Summarise outstanding invoices and flag anything unusual" required>
+            <button type="submit">Run agents</button>
+        </form>
+        <div id="multi-agent-loading" class="htmx-indicator agent-meta">Agents working... this can take a minute.</div>
+        <div id="multi-agent-result"></div>
+        <h3>Recent workflows</h3>
+        <div id="multi-agent-history" hx-trigger="load, multiAgentChanged from:body" hx-swap="innerHTML"></div>
+    </div>
 </div>
 
 <script>
@@ -203,8 +223,23 @@
     const invoiceTableBody = document.getElementById("invoice-table-body");
     invoiceTableBody.setAttribute("hx-get", "/invoices/html?token=" + encodeURIComponent(token));
 
+    document.getElementById("multi-agent-form").setAttribute(
+        "hx-post", "/multi-agent/workflow/html?token=" + encodeURIComponent(token)
+    );
+    const multiAgentHistory = document.getElementById("multi-agent-history");
+    multiAgentHistory.setAttribute("hx-get", "/multi-agent/history/html?token=" + encodeURIComponent(token));
+
+    // Show error responses (4xx/5xx HTML) instead of silently dropping them.
+    document.body.addEventListener("htmx:beforeSwap", function(event) {
+        if (event.detail.xhr.status >= 400) {
+            event.detail.shouldSwap = true;
+            event.detail.isError = false;
+        }
+    });
+
     htmx.process(document.body);
     htmx.trigger(invoiceTableBody, "load");
+    htmx.trigger(multiAgentHistory, "load");
 
     function toggleEditInvoice(invoiceId) {
         const editRow = document.getElementById("invoice-edit-" + invoiceId);

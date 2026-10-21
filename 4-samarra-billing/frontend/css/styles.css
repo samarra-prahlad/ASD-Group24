@@ -451,3 +451,20 @@ body {
 .citation-list { margin: 0.5rem 0 0; padding-left: 1.2rem; font-size: 0.8rem; color: var(--color-muted); }
 .citation-list li { margin-bottom: 0.15rem; }
 .chat-msg.chat-insufficient { background: var(--color-bg); border: 1px dashed var(--color-mid); color: var(--color-muted); font-style: italic; }
+
+/* Multi-agent invoice review (Release 2) */
+.agent-help, .agent-meta { color: #555; font-size: 0.9rem; }
+.agent-form { display: flex; gap: 8px; flex-wrap: wrap; margin: 12px 0; }
+.agent-form input[type="number"] { width: 210px; }
+.agent-form input[type="text"] { flex: 1; min-width: 240px; }
+.agent-workflow { border-top: 1px solid #eee; margin-top: 12px; padding-top: 8px; }
+.agent-step h3 { margin: 12px 0 4px; font-size: 1rem; }
+.agent-step h3 small { color: #888; font-weight: 400; }
+.agent-output { white-space: pre-wrap; background: #f7f7f9; border-radius: 8px; padding: 10px; font-size: 0.85rem; max-height: 260px; overflow: auto; }
+.agent-step-error { color: #b00020; }
+.agent-governance { color: #8a6100; font-size: 0.85rem; }
+.agent-review-form { display: grid; gap: 8px; margin-top: 8px; }
+.agent-review-form label { display: grid; gap: 4px; font-size: 0.85rem; }
+.agent-review-buttons { display: flex; gap: 8px; flex-wrap: wrap; }
+.agent-decision { margin-top: 10px; padding: 10px; border-radius: 8px; background: #eef7ee; }
+.agent-history { width: 100%; font-size: 0.85rem; }
