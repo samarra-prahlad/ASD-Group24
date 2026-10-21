@@ -44,6 +44,9 @@ jobs:
       - name: Run pytest
         run: pytest 3-william-pharmacy/tests/ -v
         env:
+          AI_MODE_ENABLED: "true"
+          MCP_ENABLED: "true"
+          RAG_ENABLED: "true"
           PYTHONPATH: 3-william-pharmacy/backend
 
   ai-assisted-testing:
