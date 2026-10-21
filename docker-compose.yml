@@ -165,6 +165,7 @@ services:
       RAG_SERVER_URL: http://host.docker.internal:7001/mcp
       MULTI_AGENT_ENABLED: "true"
       MULTI_AGENT_SERVER_URL: http://host.docker.internal:7002
+      FLASK_DEBUG: "true"
     extra_hosts:
       - "host.docker.internal:host-gateway"
     depends_on:

@@ -187,4 +187,5 @@ def delete_prescription(prescription_id):
     return jsonify({"deleted": deleted})
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=6003, debug=True)
+    debug_mode = os.getenv("FLASK_DEBUG", "false").lower() == "true"
+    app.run(host="0.0.0.0", port=6003, debug=debug_mode) # noqa: S104 - container must listen on all interfaces

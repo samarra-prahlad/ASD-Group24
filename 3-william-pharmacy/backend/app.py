@@ -7,6 +7,9 @@ import requests
 from mcp_client import call_check_stock
 from rag_client import call_answer_question
 import difflib
+from multi_agent_client import MULTI_AGENT_ENABLED, run_workflow, submit_review
+from urllib.parse import quote
+
 
 DATABASE_URL = os.environ.get("DATABASE_SERVICE_URL", "http://localhost:6003")
 OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434/v1")
@@ -315,5 +318,109 @@ def ask_rag():
     )
 
 
+# --- multi-agent (admin only) ------------------------------------------
+
+def require_admin():
+    """Verify the session token server-side and require the admin role.
+    Returns (user, None) on success or (None, error_response) on failure."""
+    token = request.headers.get("X-Session-Token", "")
+    if not token:
+        return None, (jsonify({"error": "token is required"}), 401)
+    try:
+        resp = requests.post(
+            f"{SHARED_ACCESS_API_URL}/session/verify",
+            json={"token": token},
+            timeout=5,
+        )
+    except requests.RequestException:
+        return None, (jsonify({"error": "auth service unavailable"}), 502)
+    if resp.status_code != 200:
+        return None, (jsonify({"error": "invalid session"}), 401)
+    user = resp.json()
+    if user.get("role") != "admin":
+        return None, (jsonify({"error": "admin only"}), 403)
+    return user, None
+
+
+def gather_evidence(patient_id):
+    """Build the evidence list (max 20) from pharmacy-database records."""
+    meds_resp = requests.get(f"{DATABASE_URL}/medications", timeout=5)
+    meds_resp.raise_for_status()
+    meds = meds_resp.json()
+
+    if not patient_id:
+        return [
+            {"id": f"med-{m['id']}", "type": "medication", "name": m.get("name"),
+             "stock": m.get("stock"), "unit_price": m.get("unit_price")}
+            for m in meds[:20]
+        ]
+
+    rx_resp = requests.get(f"{DATABASE_URL}/prescriptions/{quote(str(patient_id), safe='')}", timeout=5)
+    rx_resp.raise_for_status()
+    names = {m["id"]: m.get("name") for m in meds}
+    return [
+        {"id": f"rx-{p['id']}", "type": "prescription", "patient_id": p.get("patient_id"),
+         "medication": names.get(p.get("medication_id"), "unknown"),
+         "dosage": p.get("dosage"), "prescribing_doctor": p.get("prescribing_doctor"),
+         "status": p.get("status")}
+        for p in rx_resp.json()[:20]
+    ]
+
+
+@app.get("/multi-agent/config")
+def multi_agent_config():
+    return jsonify({"enabled": MULTI_AGENT_ENABLED})
+
+
+@app.post("/multi-agent/workflow")
+def multi_agent_workflow():
+    if not MULTI_AGENT_ENABLED:
+        return jsonify({"error": "Multi-agent review is disabled in this deployment."}), 403
+    user, err = require_admin()
+    if err:
+        return err
+
+    data = request.get_json(silent=True) or {}
+    user_request = (data.get("user_request") or "").strip()
+    if not user_request:
+        return jsonify({"error": "user_request is required"}), 400
+
+    try:
+        evidence = gather_evidence(data.get("patient_id"))
+    except requests.RequestException:
+        return jsonify({"error": "database service unavailable"}), 502
+    if not evidence:
+        return jsonify({"error": "No records found to use as evidence."}), 404
+
+    try:
+        body, status = run_workflow(user_request, evidence, user.get("first_name", "admin"))
+    except requests.RequestException:
+        return jsonify({"error": "multi-agent server unavailable. Is it running on port 7002?"}), 503
+    return jsonify(body), status
+
+
+@app.post("/multi-agent/workflow/<workflow_id>/review")
+def multi_agent_review(workflow_id):
+    if not MULTI_AGENT_ENABLED:
+        return jsonify({"error": "Multi-agent review is disabled in this deployment."}), 403
+    user, err = require_admin()
+    if err:
+        return err
+
+    data = request.get_json(silent=True) or {}
+    try:
+        body, status = submit_review(
+            workflow_id,
+            data.get("decision", ""),
+            user.get("first_name", "admin"),
+            data.get("notes", ""),
+            data.get("correction"),
+        )
+    except requests.RequestException:
+        return jsonify({"error": "multi-agent server unavailable"}), 503
+    return jsonify(body), status
+
+
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5003, debug=True)
+    debug_mode = os.getenv("FLASK_DEBUG", "false").lower() == "true"
+    app.run(host="0.0.0.0", port=5003, debug=debug_mode) # noqa: S104 - container must listen on all interfaces

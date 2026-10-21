@@ -10,6 +10,7 @@ COPY app.py .
 COPY prompts ./prompts
 COPY mcp_client.py .
 COPY rag_client.py .
+COPY multi_agent_client.py .
 
 EXPOSE 5003
 

@@ -31,7 +31,3 @@ async def _call_tool(tool_name: str, arguments: dict):
 def call_answer_question(query: str, top_k: int = 5) -> dict:
     """Synchronous wrapper so a Flask route can call this directly."""
     return asyncio.run(_call_tool("answer_question", {"query": query, "top_k": top_k}))
-
-
-if __name__ == "__main__":
-    print(call_answer_question("what is the pharmacy refund policy?"))
