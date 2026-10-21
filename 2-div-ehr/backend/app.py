@@ -26,7 +26,7 @@ MULTI_AGENT_TIMEOUT_SECONDS = int(os.environ.get("MULTI_AGENT_TIMEOUT_SECONDS", 
 
 client = OpenAI(
     base_url=OLLAMA_BASE_URL,
-    api_key="ollama"
+    api_key="ollama"  # pragma: allowlist secret - placeholder required by the OpenAI client for local Ollama
 )
 
 
@@ -383,7 +383,7 @@ def ask_rag():
 
     return jsonify(result), 200
 
-#---Multi-Agent record review---
+#---Multi-Agent record review (Release 2)---
 
 WORKFLOW_ID_PATTERN = re.compile(r"^wf-[0-9a-f]{12}$")
 REVIEW_DECISIONS = ("approve", "partially_accept", "correct", "reject")
@@ -521,4 +521,4 @@ def multi_agent_history():
 
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5002, debug=True)
+    app.run(host="0.0.0.0", port=5002, debug=os.getenv("FLASK_DEBUG", "false").lower() == "true")  # noqa: S104 - container must listen on all interfaces

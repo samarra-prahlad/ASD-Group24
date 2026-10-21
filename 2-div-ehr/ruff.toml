@@ -1,0 +1,12 @@
+# Ruff security configuration for Feature 2 (EHR).
+# "S" = flake8-bandit security rules.
+target-version = "py311"
+
+[lint]
+select = ["S"]
+
+[lint.per-file-ignores]
+# pytest relies on bare assert (S101); the tests call local services on localhost,
+# so a request timeout (S113) is not a security concern there. S603: the tests run
+# this project's own init script with subprocess (no untrusted input).
+"**/tests/**" = ["S101", "S113", "S603"]
