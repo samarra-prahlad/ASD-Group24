@@ -36,7 +36,7 @@ RAG_ENABLED = os.getenv("RAG_ENABLED", "true").strip().lower() in ("1", "true", 
 
 client = OpenAI(
     base_url=OLLAMA_BASE_URL,
-    api_key="ollama"
+    api_key="ollama"  # pragma: allowlist secret
 )
 
 
@@ -454,4 +454,4 @@ def health():
     return jsonify({"status": "backend running"}), 200
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5006, debug=True)
+    app.run(host="0.0.0.0", port=5006, debug=os.getenv("FLASK_DEBUG") == "1") # noqa: S104

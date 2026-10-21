@@ -172,6 +172,10 @@
                                 Partially Accept
                             </button>
 
+                            <button type="button" onclick="submitHumanReview('correct')">
+                                Correct
+                            </button>
+
                             <button type="button" onclick="submitHumanReview('reject')">
                                 Reject
                             </button>
@@ -576,6 +580,11 @@
                     return;
                 }
 
+                if (decision === "correct" && !notes) {
+                    alert("Please enter the corrected final output in the notes box.");
+                    return;
+                }
+
                 const response = await fetch(
                     `http://localhost:5006/multi-agent/workflow/${currentWorkflowId}/review`,
                     {
@@ -586,7 +595,8 @@
                         body: JSON.stringify({
                             decision: decision,
                             reviewer: reviewer,
-                            notes: notes
+                            notes: notes,
+                            correction: decision === "correct" ? notes : null
                         })
                     }
                 );

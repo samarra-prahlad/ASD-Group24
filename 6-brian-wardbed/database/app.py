@@ -244,4 +244,4 @@ def get_patient_bed(patient_id):
     return jsonify(dict(bed))
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=6006, debug=True)
+    app.run(host="0.0.0.0", port=6006, debug=os.getenv("FLASK_DEBUG") == "1") # noqa: S104
