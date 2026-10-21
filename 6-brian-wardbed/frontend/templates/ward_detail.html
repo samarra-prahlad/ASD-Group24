@@ -482,9 +482,19 @@
                         bed_id: bed.bed_id,
                         bed_number: bed.bed_number,
                         patient_id: bed.patient_id,
-                        status: bed.status,
-                        date_assigned: bed.date_assigned
+                        status: bed.status
                     }));
+
+                    const evidenceSummary = evidence.map(item => {
+                        return `${item.evidence_id}: ` +
+                            `bed_number=${item.bed_number}, ` +
+                            `status=${item.status}, ` +
+                            `patient_id=${item.patient_id ?? "none"}`;
+                    }).join("\n");
+
+                    const plannerRequest =
+                        `${userRequest}\n\n` +
+                        `Current Ward/Bed evidence:\n${evidenceSummary}`;
 
                     const response = await fetch(
                         "http://localhost:5006/multi-agent/workflow",
@@ -494,7 +504,7 @@
                                 "Content-Type": "application/json"
                             },
                             body: JSON.stringify({
-                                user_request: userRequest,
+                                user_request: plannerRequest,
                                 evidence: evidence,
                                 requested_by: "wardbed-admin"
                             })
