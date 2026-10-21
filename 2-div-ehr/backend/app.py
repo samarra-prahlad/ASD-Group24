@@ -1,4 +1,5 @@
 import os
+import re
 from pathlib import Path
 from flask import Flask, jsonify, request
 from flask_cors import CORS
@@ -19,10 +20,13 @@ OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "qwen2.5:0.5b")
 PROMPT_DIR = Path(__file__).with_name("prompts")
 MCP_ENABLED = os.getenv("MCP_ENABLED", "true").strip().lower() in ("1", "true", "yes", "on")
 RAG_ENABLED = os.getenv("RAG_ENABLED", "true").strip().lower() in ("1", "true", "yes", "on")
+MULTI_AGENT_ENABLED = os.getenv("MULTI_AGENT_ENABLED", "true").strip().lower() in ("1", "true", "yes", "on")
+MULTI_AGENT_SERVER_URL = os.environ.get("MULTI_AGENT_SERVER_URL", "http://host.docker.internal:7002")
+MULTI_AGENT_TIMEOUT_SECONDS = int(os.environ.get("MULTI_AGENT_TIMEOUT_SECONDS", "300"))
 
 client = OpenAI(
     base_url=OLLAMA_BASE_URL,
-    api_key="ollama"
+    api_key="ollama"  # pragma: allowlist secret - placeholder required by the OpenAI client for local Ollama
 )
 
 
@@ -229,12 +233,13 @@ def get_change_request_status_via_mcp(request_id):
     try:
         result = call_get_change_request_status(request_id)
     except Exception as exc:
-        # network/connection failure to the MCP server itself
         return jsonify({"error": "MCP server unavailable", "details": str(exc)}), 503
 
     if "error" in result:
-        # tool ran fine, but reported a problem (e.g. request not found, ehr-database down)
         return jsonify(result), 404
+
+    if role == "patient" and result.get("patient_id") != caller_id:
+        return jsonify({"error": "Patients can only access their own change requests"}), 403
 
     return jsonify(result), 200
 
@@ -378,5 +383,142 @@ def ask_rag():
 
     return jsonify(result), 200
 
+#---Multi-Agent record review (Release 2)---
+
+WORKFLOW_ID_PATTERN = re.compile(r"^wf-[0-9a-f]{12}$")
+REVIEW_DECISIONS = ("approve", "partially_accept", "correct", "reject")
+REVIEWER_NAME = "EHR staff (admin)"
+
+
+def medical_record_evidence(records):
+    """Send the agents only the fields they need (no free-text notes, no patient_id)."""
+    return [
+        {
+            "record_id": r.get("id"),
+            "visit_date": r.get("visit_date"),
+            "diagnosis": r.get("diagnosis"),
+            "treatment": r.get("treatment"),
+            "doctor_name": r.get("doctor_name"),
+            "allergies": r.get("allergies") or "None recorded",
+        }
+        for r in records
+    ]
+
+
+def multi_agent_guard(token):
+    """Staff-only and flag check shared by every multi-agent route. Returns an error response or None."""
+    caller_id, role, err = check_session(token)
+    if err:
+        return err
+    if role != "admin":
+        return jsonify({"error": "Only staff can use the Multi-Agent review"}), 403
+    if not MULTI_AGENT_ENABLED:
+        return jsonify({"status": "disabled", "error": "Multi-Agent is disabled"}), 503
+    return None
+
+
+@app.post("/multi-agent/workflow")
+def multi_agent_workflow():
+    data = request.get_json(silent=True) or {}
+    guard = multi_agent_guard(data.get("token"))
+    if guard:
+        return guard
+
+    user_request = str(data.get("user_request") or "").strip()
+    if not user_request:
+        return jsonify({"error": "user_request is required"}), 400
+
+    try:
+        patient_id = int(data.get("patient_id"))
+    except (TypeError, ValueError):
+        return jsonify({"error": "patient_id must be a number"}), 400
+
+    try:
+        records_resp = requests.get(f"{DATABASE_SERVICE_URL}/records/{patient_id}", timeout=5)
+        records_resp.raise_for_status()
+    except requests.RequestException as exc:
+        return jsonify({"error": "EHR Database unavailable", "details": str(exc)}), 503
+
+    try:
+        resp = requests.post(
+            f"{MULTI_AGENT_SERVER_URL}/workflow",
+            json={
+                "feature": "ehr",
+                "user_request": f"{user_request}\n\nPatient ID: {patient_id}",
+                "evidence": medical_record_evidence(records_resp.json()),
+                "requested_by": "admin",
+            },
+            timeout=MULTI_AGENT_TIMEOUT_SECONDS,
+        )
+        workflow = resp.json()
+    except requests.RequestException as exc:
+        return jsonify({"error": "Multi-Agent Server unavailable", "details": str(exc)}), 503
+    except ValueError:
+        return jsonify({"error": "Multi-Agent Server returned an invalid response"}), 502
+
+    return jsonify(workflow), (200 if resp.status_code < 300 else resp.status_code)
+
+
+@app.post("/multi-agent/workflow/<workflow_id>/review")
+def multi_agent_review(workflow_id):
+    data = request.get_json(silent=True) or {}
+    guard = multi_agent_guard(data.get("token"))
+    if guard:
+        return guard
+
+    if not WORKFLOW_ID_PATTERN.match(workflow_id):
+        return jsonify({"error": "Invalid workflow id"}), 400
+
+    decision = str(data.get("decision") or "").strip()
+    if decision not in REVIEW_DECISIONS:
+        return jsonify({"error": f"decision must be one of: {', '.join(REVIEW_DECISIONS)}"}), 400
+
+    correction = None
+    if decision == "correct":
+        correction = str(data.get("correction") or "").strip()
+        if not correction:
+            return jsonify({"error": "A correction is required when the decision is 'correct'"}), 400
+
+    try:
+        resp = requests.post(
+            f"{MULTI_AGENT_SERVER_URL}/workflow/{workflow_id}/review",
+            json={
+                "decision": decision,
+                "reviewer": REVIEWER_NAME,
+                "notes": str(data.get("notes") or "").strip(),
+                "correction": correction,
+            },
+            timeout=10,
+        )
+        result = resp.json()
+    except requests.RequestException as exc:
+        return jsonify({"error": "Multi-Agent Server unavailable", "details": str(exc)}), 503
+    except ValueError:
+        return jsonify({"error": "Multi-Agent Server returned an invalid response"}), 502
+
+    return jsonify(result), resp.status_code
+
+
+@app.get("/multi-agent/history")
+def multi_agent_history():
+    guard = multi_agent_guard(request.args.get("token"))
+    if guard:
+        return guard
+
+    try:
+        resp = requests.get(
+            f"{MULTI_AGENT_SERVER_URL}/workflows",
+            params={"feature": "ehr", "limit": 5},
+            timeout=10,
+        )
+        result = resp.json()
+    except requests.RequestException as exc:
+        return jsonify({"error": "Multi-Agent Server unavailable", "details": str(exc), "workflows": []}), 503
+    except ValueError:
+        return jsonify({"error": "Multi-Agent Server returned an invalid response", "workflows": []}), 502
+
+    return jsonify(result), resp.status_code
+
+
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5002, debug=True)
+    app.run(host="0.0.0.0", port=5002, debug=os.getenv("FLASK_DEBUG", "false").lower() == "true")  # noqa: S104 - container must listen on all interfaces

@@ -49,6 +49,8 @@ async function start() {
 } else {
     document.getElementById("staff-section").style.display = "block";
     loadPatients();
+    document.getElementById("multiagent-section").style.display = "block";
+    loadMultiAgentHistory();
 }
 }
 
@@ -145,7 +147,7 @@ async function loadMyRequests() {
   const requests = await resp.json();
   const box = document.getElementById("patient-requests");
   box.innerHTML = requests.map(r => `
-    <div>${r.request_type} - ${r.request_details} - <strong>${r.status}</strong></div>
+    <div><strong>#${r.id}</strong> ${r.request_type} - ${r.request_details} - <strong>${r.status}</strong></div>
   `).join("") || "<p>No requests yet.</p>";
 }
 
@@ -207,6 +209,7 @@ function filterPatients() {
 
 async function viewPatient(patientId, patientName) {
   summaryPatientId = patientId;
+  document.getElementById("ma-patient-id").value = patientId;
   document.getElementById("assistant-target").textContent = `Summarizing: ${patientName}`;
   document.getElementById("patient-detail").style.display = "block";
   document.getElementById("detail-patient-name").textContent = patientName;
@@ -372,6 +375,206 @@ async function askKnowledgeBase() {
     : "";
 
   box.innerHTML = `<div class="chat-msg chat-bot">${escapeHtml(data.answer)}${badge}${sourceList}</div>`;
+}
+
+// ---------- Multi-Agent record review (staff only) ----------
+
+let currentWorkflow = null;
+
+function maStatusBadge(status) {
+  const cls = {
+    awaiting_human_review: "ma-pending",
+    approved: "ma-ok",
+    partially_approved: "ma-ok",
+    corrected: "ma-ok",
+    rejected: "ma-bad",
+    failed: "ma-bad"
+  }[status] || "ma-pending";
+  return `<span class="ma-badge ${cls}">${escapeHtml(String(status).replace(/_/g, " "))}</span>`;
+}
+
+function maRiskBadge(risk) {
+  const level = (risk || "UNKNOWN").toUpperCase();
+  const cls = { LOW: "ma-ok", MEDIUM: "ma-warn", HIGH: "ma-bad" }[level] || "ma-pending";
+  return `<span class="ma-badge ${cls}">Risk: ${escapeHtml(level)}</span>`;
+}
+
+function maAgentBlock(title, step) {
+  if (!step) return "";
+  const body = step.status === "completed"
+    ? escapeHtml(step.output)
+    : `<em>${escapeHtml(step.status)}${step.error ? ": " + step.error : ""}</em>`;
+  return `
+    <div class="ma-agent">
+      <h4>${escapeHtml(title)} <span class="ma-model">${escapeHtml(step.model || "")}</span></h4>
+      <div class="ma-output">${body}</div>
+    </div>`;
+}
+
+function renderWorkflow(wf) {
+  currentWorkflow = wf;
+  const box = document.getElementById("ma-result");
+  const steps = wf.steps || {};
+  const reviewer = steps.reviewer || {};
+  const decided = wf.status !== "awaiting_human_review";
+
+  let decisionHtml = "";
+  if (wf.status === "awaiting_human_review") {
+    decisionHtml = `
+      <h4>Your Decision</h4>
+      <input id="ma-notes" type="text" placeholder="Notes (optional)">
+      <textarea id="ma-correction" placeholder="Correction (required only for 'Correct')"></textarea>
+      <div class="button-row">
+        <button onclick="submitMultiAgentDecision('approve')">Approve</button>
+        <button onclick="submitMultiAgentDecision('partially_accept')">Partially accept</button>
+        <button onclick="submitMultiAgentDecision('correct')">Correct</button>
+        <button class="ma-reject" onclick="submitMultiAgentDecision('reject')">Reject</button>
+      </div>`;
+  } else if (wf.human_review) {
+    const hr = wf.human_review;
+    decisionHtml = `
+      <h4>Decision recorded</h4>
+      <div class="ma-output">
+        ${escapeHtml(String(hr.decision).replace(/_/g, " "))} by ${escapeHtml(hr.reviewer)}
+        ${hr.notes ? "<br>Notes: " + escapeHtml(hr.notes) : ""}
+        ${wf.final_output ? "<br><br><strong>Final output:</strong><br>" + escapeHtml(wf.final_output) : ""}
+      </div>`;
+  }
+
+  const governance = (reviewer.governance_notes || []).length
+    ? `<ul class="citation-list">${reviewer.governance_notes.map(n => `<li>${escapeHtml(n)}</li>`).join("")}</ul>`
+    : "";
+
+  box.innerHTML = `
+    <div class="ma-header">
+      <strong>${escapeHtml(wf.workflow_id)}</strong>
+      ${maStatusBadge(wf.status)}
+      ${reviewer.risk_level ? maRiskBadge(reviewer.risk_level) : ""}
+      <span class="ma-model">${escapeHtml(wf.evidence_count)} record(s) used as evidence</span>
+    </div>
+    ${maAgentBlock("Planner", steps.planner)}
+    ${maAgentBlock("Worker", steps.worker)}
+    ${maAgentBlock("Reviewer", steps.reviewer)}
+    ${reviewer.recommendation ? `<p><strong>Reviewer recommendation:</strong> ${escapeHtml(reviewer.recommendation)}</p>` : ""}
+    ${governance}
+    ${decided && !wf.human_review ? "" : decisionHtml}
+  `;
+  box.style.display = "block";
+}
+
+async function runMultiAgentWorkflow() {
+  const status = document.getElementById("ma-status");
+  const btn = document.getElementById("ma-run-btn");
+  const patientId = document.getElementById("ma-patient-id").value.trim();
+  const userRequest = document.getElementById("ma-request").value.trim();
+
+  if (!patientId) {
+    status.textContent = "Enter a patient ID (or click View on a patient).";
+    return;
+  }
+  if (!userRequest) {
+    status.textContent = "Enter a request for the agents.";
+    return;
+  }
+
+  btn.disabled = true;
+  status.textContent = "Running Planner, Worker and Reviewer... this can take up to a minute.";
+  document.getElementById("ma-result").style.display = "none";
+
+  try {
+    const resp = await fetch(`${API_URL}/multi-agent/workflow`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ token: token, patient_id: patientId, user_request: userRequest })
+    });
+    const data = await resp.json();
+
+    if (data.status === "disabled") {
+      status.textContent = "Multi-Agent is disabled on this deployment.";
+      return;
+    }
+    if (!resp.ok && !data.steps) {
+      status.textContent = "Error: " + (data.error || "unknown");
+      return;
+    }
+
+    status.textContent = data.status === "failed"
+      ? "The workflow failed before it could be reviewed."
+      : "";
+    renderWorkflow(data);
+    loadMultiAgentHistory();
+  } catch (err) {
+    status.textContent = "Could not reach the EHR backend.";
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+async function submitMultiAgentDecision(decision) {
+  const status = document.getElementById("ma-status");
+  if (!currentWorkflow) return;
+
+  const correction = document.getElementById("ma-correction").value.trim();
+  if (decision === "correct" && !correction) {
+    status.textContent = "Enter a correction before choosing 'Correct'.";
+    return;
+  }
+
+  status.textContent = "Recording decision...";
+  try {
+    const resp = await fetch(`${API_URL}/multi-agent/workflow/${currentWorkflow.workflow_id}/review`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        token: token,
+        decision: decision,
+        notes: document.getElementById("ma-notes").value.trim(),
+        correction: correction
+      })
+    });
+    const data = await resp.json();
+
+    if (!resp.ok) {
+      status.textContent = "Error: " + (data.error || "unknown");
+      return;
+    }
+
+    status.textContent = "Decision recorded.";
+    renderWorkflow(data);
+    loadMultiAgentHistory();
+  } catch (err) {
+    status.textContent = "Could not reach the EHR backend.";
+  }
+}
+
+async function loadMultiAgentHistory() {
+  const box = document.getElementById("ma-history");
+  try {
+    const resp = await fetch(`${API_URL}/multi-agent/history?token=${token}`);
+    const data = await resp.json();
+
+    if (data.status === "disabled") {
+      box.textContent = "Multi-Agent is disabled on this deployment.";
+      return;
+    }
+    if (!resp.ok) {
+      box.textContent = "History unavailable: " + (data.error || "unknown");
+      return;
+    }
+
+    const items = data.workflows || [];
+    box.innerHTML = items.length
+      ? items.map(w => `
+          <div class="ma-history-item">
+            <strong>${escapeHtml(w.workflow_id)}</strong> ${maStatusBadge(w.status)}
+            ${w.steps && w.steps.reviewer && w.steps.reviewer.risk_level ? maRiskBadge(w.steps.reviewer.risk_level) : ""}
+            <br>${escapeHtml(w.user_request || "")}
+            ${w.human_review ? `<br><span class="ma-model">Decided by ${escapeHtml(w.human_review.reviewer)}</span>` : ""}
+          </div>`).join("")
+      : "No reviews yet.";
+  } catch (err) {
+    box.textContent = "History unavailable.";
+  }
 }
 
 start();

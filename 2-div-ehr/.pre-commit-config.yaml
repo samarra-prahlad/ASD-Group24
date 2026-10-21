@@ -1,0 +1,29 @@
+# Pre-commit security scans for Feature 2 (EHR).
+# Install once with:
+#   pre-commit install -c 2-div-ehr/.pre-commit-config.yaml
+# Then these run automatically on every `git commit` that touches 2-div-ehr/.
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.15.0
+    hooks:
+      - id: ruff-check
+        name: Ruff security rules (flake8-bandit S)
+        args: ["--config=2-div-ehr/ruff.toml"]
+        files: ^2-div-ehr/.*\.py$
+
+  - repo: https://github.com/Yelp/detect-secrets
+    rev: v1.5.0
+    hooks:
+      - id: detect-secrets
+        name: detect-secrets (hard-coded credentials)
+        args: ["--baseline", "2-div-ehr/.secrets.baseline"]
+        files: ^2-div-ehr/
+
+  - repo: https://github.com/pypa/pip-audit
+    rev: v2.10.0
+    hooks:
+      - id: pip-audit
+        name: pip-audit (known vulnerable dependencies)
+        args: ["-r", "2-div-ehr/backend/requirements.txt", "-r", "2-div-ehr/database/requirements.txt"]
+        always_run: true
+        pass_filenames: false

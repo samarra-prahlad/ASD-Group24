@@ -5,14 +5,17 @@ name: Student 2 - EHR CI
     branches: [main]
     paths:
       - '2-div-ehr/**'
+      - '.github/workflows/2-div-ehr-ci.yml'
   pull_request:
     branches: [main]
     paths:
       - '2-div-ehr/**'
+      - '.github/workflows/2-div-ehr-ci.yml'
+  workflow_dispatch:
 
 jobs:
   pytest-validation:
-    name: Pre-commit pytest validation
+    name: Pre-commit pytest validation and Release 2 endpoint tests
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -22,17 +25,84 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Install backend dependencies
+      - name: Install shared service dependencies
+        run: |
+          pip install -r shared/database/requirements.txt
+          pip install -r shared/backend/requirements.txt
+
+      - name: Install EHR dependencies
         run: |
           pip install -r 2-div-ehr/backend/requirements.txt
-          pip install pytest
-
-      - name: Install database dependencies
-        run: |
           pip install -r 2-div-ehr/database/requirements.txt
+          pip install pytest requests
+
+      - name: Initialise shared database
+        run: python shared/database/init_db.py
+
+      - name: Initialise EHR database
+        run: python 2-div-ehr/database/init_db.py
+        env:
+          DATABASE_PATH: ${{ runner.temp }}/ehr.db
+
+      - name: Start shared database service
+        run: nohup python shared/database/app.py > shared-database.log 2>&1 &
+
+      - name: Start shared backend service
+        run: nohup python shared/backend/app.py > shared-backend.log 2>&1 &
+        env:
+          DATABASE_SERVICE_URL: http://localhost:6000
+
+      - name: Start EHR database service
+        run: nohup python 2-div-ehr/database/app.py > ehr-database.log 2>&1 &
+        env:
+          DATABASE_PATH: ${{ runner.temp }}/ehr.db
+
+      - name: Start EHR backend service
+        run: nohup python 2-div-ehr/backend/app.py > ehr-backend.log 2>&1 &
+        env:
+          DATABASE_SERVICE_URL: http://localhost:6002
+          SHARED_ACCESS_API_URL: http://localhost:5000
+          SHARED_DB_URL: http://localhost:6000
+          MCP_ENABLED: "false"
+          RAG_ENABLED: "false"
+          MULTI_AGENT_ENABLED: "false"
+
+      - name: Wait for all services to be ready
+        run: |
+          for port in 6000 5000 6002 5002; do
+            echo "Waiting for service on port $port..."
+            for i in $(seq 1 60); do
+              code=$(curl -s -o /dev/null -w "%{http_code}" "http://127.0.0.1:$port/" || true)
+              if [ "$code" != "000" ]; then
+                echo "Port $port is ready."
+                break
+              fi
+              if [ "$i" -eq 60 ]; then
+                echo "Service on port $port did not become ready in time."
+                for f in shared-database.log shared-backend.log ehr-database.log ehr-backend.log; do
+                  echo "===== $f ====="
+                  cat "$f" 2>/dev/null || echo "(no log)"
+                done
+                exit 1
+              fi
+              sleep 1
+            done
+          done
 
       - name: Run pytest
         run: pytest 2-div-ehr/tests/ -v
+
+      - name: Release 2 endpoint tests (POST /records and GET /records/patient_id)
+        run: pytest 2-div-ehr/tests/test_endpoints_release2.py -v --junitxml=ehr-endpoint-tests.xml
+        env:
+          EHR_ENDPOINT_TESTS_REQUIRED: "true"
+
+      - name: Upload endpoint test report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ehr-endpoint-test-report
+          path: ehr-endpoint-tests.xml
 
   ai-assisted-testing:
     name: Post-commit AI-assisted unit testing

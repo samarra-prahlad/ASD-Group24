@@ -87,6 +87,25 @@
     <p id="add-status" class="status-msg"></p>
   </div>
 
+  <!-- MULTI-AGENT RECORD REVIEW (staff only) -->
+  <div id="multiagent-section" class="ehr-card" style="display:none;">
+    <h2>Multi-Agent Record Review</h2>
+    <p class="status-msg">Planner, Worker and Reviewer agents analyse a patient's records. A staff member makes the final decision.</p>
+
+    <div class="form-grid">
+      <input id="ma-patient-id" type="number" placeholder="Patient ID">
+      <input id="ma-request" type="text" value="Summarise this patient's medical history, diagnoses and allergies.">
+    </div>
+    <button id="ma-run-btn" onclick="runMultiAgentWorkflow()">Run Multi-Agent Review</button>
+    <p id="ma-status" class="status-msg"></p>
+
+    <div id="ma-result" class="ma-result" style="display:none;"></div>
+
+    <h3>Recent Reviews</h3>
+    <button onclick="loadMultiAgentHistory()">Refresh History</button>
+    <div id="ma-history" class="chat-result"></div>
+  </div>
+
   <!-- AI SUMMARY -->
   <div id="assistant-section" class="ehr-card">
     <h2>Patient History Summary</h2>
