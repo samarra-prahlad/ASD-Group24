@@ -1,4 +1,4 @@
-/*Shared css*/
+/*Shared css for all ward/bed pages*/
 body {
     margin: 0;
     background-color: #f3f3f3;
@@ -290,10 +290,6 @@ main {
     color: #81c784;
 }
 
-/* ---------------------------------------------------------------------
-   Top nav (matches Appointments' and Billing's shared nav bar exactly)
---------------------------------------------------------------------- */
-
 .top-nav {
     display: flex;
     align-items: center;
@@ -535,4 +531,147 @@ main {
     .rag-section h2 {
         font-size: 26px;
     }
+}
+
+.multi-agent-section {
+    width: 90%;
+    max-width: 950px;
+    margin: 45px auto;
+    padding: 20px 0 40px;
+    text-align: center;
+}
+
+.multi-agent-section h2 {
+    margin: 0 0 20px;
+    font-size: 36px;
+    color: #2f7d1f;
+}
+
+.multi-agent-description {
+    margin-bottom: 30px;
+    font-size: 20px;
+}
+
+.multi-agent-input-row {
+    display: flex;
+    align-items: stretch;
+    gap: 20px;
+    width: 100%;
+    margin-bottom: 35px;
+}
+
+.multi-agent-input-row input {
+    flex: 1;
+    min-width: 0;
+    padding: 18px 24px;
+    border: 2px solid #c8e4b5;
+    border-radius: 16px;
+    font-size: 18px;
+    box-sizing: border-box;
+}
+
+.multi-agent-start-button {
+    padding: 0 38px;
+    border: none;
+    border-radius: 16px;
+    background: #378f2b;
+    color: white;
+    font-size: 18px;
+    font-weight: bold;
+    cursor: pointer;
+}
+
+.multi-agent-start-button:hover {
+    background: #2f7d25;
+}
+
+.multi-agent-response-box {
+    width: 100%;
+    min-height: 180px;
+    padding: 30px 36px;
+    background: #eef8df;
+    border-radius: 22px;
+    box-sizing: border-box;
+    text-align: left;
+}
+
+#multiAgentResult {
+    margin: 0;
+    font-size: 18px;
+    line-height: 1.6;
+    color: #1f3a16;
+}
+
+#multiAgentResult h4 {
+    margin-top: 24px;
+    margin-bottom: 8px;
+    font-size: 20px;
+    font-weight: 700;
+    color: #2f7f1f;
+    text-align: center;
+}
+
+#multiAgentResult p {
+    margin: 8px 0;
+}
+
+#humanReviewControls {
+    margin-top: 22px;
+    padding-top: 16px;
+    border-top: 1px solid #cfe0be;
+    text-align: center;
+    color: #2d4325;
+}
+
+#humanReviewControls h3 {
+    margin-top: 0;
+    margin-bottom: 18px;
+    font-size: 24px;
+    font-weight: 700;
+    color: #2f7f1f;
+}
+
+.human-review-fields {
+    display: flex;
+    gap: 15px;
+    justify-content: center;
+    align-items: stretch;
+    flex-wrap: wrap;
+}
+
+.human-review-fields input,
+.human-review-fields textarea {
+    padding: 12px 14px;
+    border: 1px solid #b8d9a4;
+    border-radius: 8px;
+    font-size: 15px;
+}
+
+.human-review-fields input {
+    min-width: 220px;
+}
+
+.human-review-fields textarea {
+    min-width: 320px;
+    min-height: 70px;
+    resize: vertical;
+}
+
+.human-review-buttons {
+    margin-top: 18px;
+}
+
+.human-review-buttons button {
+    padding: 11px 20px;
+    margin: 5px;
+    border: none;
+    border-radius: 8px;
+    background: #378f2b;
+    color: white;
+    font-weight: bold;
+    cursor: pointer;
+}
+
+.human-review-buttons button:hover {
+    background: #2f7d25;
 }

@@ -9,9 +9,17 @@ import re
 try:
     from .mcp_client import call_get_current_bed
     from .rag_client import call_answer_question, call_retrieve_context
+    from .multi_agent_client import (
+        start_multi_agent_workflow,
+        review_multi_agent_workflow,
+    )
 except ImportError:
     from mcp_client import call_get_current_bed
     from rag_client import call_answer_question, call_retrieve_context
+    from multi_agent_client import (
+        start_multi_agent_workflow,
+        review_multi_agent_workflow,
+    )
 load_dotenv()
 
 app = Flask(__name__)
@@ -372,6 +380,71 @@ def ask_rag():
 
         return jsonify({
             "error": "Could not reach RAG server",
+            "details": str(exc)
+        }), 503
+
+@app.route("/multi-agent/workflow", methods=["POST"])
+def start_wardbed_multi_agent_workflow():
+    data = request.get_json() or {}
+
+    user_request = (data.get("user_request") or "").strip()
+    evidence = data.get("evidence", [])
+    requested_by = data.get("requested_by")
+
+    if not user_request:
+        return jsonify({
+            "error": "user_request is required"
+        }), 400
+
+    if not isinstance(evidence, list):
+        return jsonify({
+            "error": "evidence must be a list"
+        }), 400
+
+    try:
+        result = start_multi_agent_workflow(
+            user_request=user_request,
+            evidence=evidence,
+            requested_by=requested_by
+        )
+
+        return jsonify(result), 201
+
+    except requests.RequestException as exc:
+        return jsonify({
+            "error": "Could not reach Multi-Agent Server",
+            "details": str(exc)
+        }), 503
+
+@app.route(
+    "/multi-agent/workflow/<workflow_id>/review",
+    methods=["POST"]
+)
+def review_wardbed_multi_agent_workflow(workflow_id):
+    data = request.get_json() or {}
+
+    decision = data.get("decision")
+    reviewer = (data.get("reviewer") or "").strip()
+
+    if not reviewer:
+        return jsonify({
+            "error": "reviewer is required"
+        }), 400
+
+    try:
+        result = review_multi_agent_workflow(
+            workflow_id=workflow_id,
+            decision=decision,
+            reviewer=reviewer,
+            notes=data.get("notes", ""),
+            correction=data.get("correction")
+        )
+
+        return jsonify(result), 200
+
+    except requests.RequestException as exc:
+        return jsonify({
+            "error": "Could not complete Multi-Agent human review",
             "details": str(exc)
         }), 503
 

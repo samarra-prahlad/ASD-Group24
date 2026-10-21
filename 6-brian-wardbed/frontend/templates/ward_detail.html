@@ -53,6 +53,7 @@
                     <p id="assignMessage"></p>
                 </div>
             </div>
+
             <button id="aiButton">AI assistant</button>
             <div id="aiChat" class="ai-chat">
                 <h3>Ward Assistant</h3>
@@ -66,6 +67,7 @@
                     <button id="aiSend">Send</button>
                 </div>
             </div>
+
             <div id="releaseModal" class="modal">
                 <div class="modal-box">
                     <h3>Release Patient</h3>
@@ -77,43 +79,106 @@
                     <p id="releaseMessage"></p>
                 </div>
             </div>
+
             <section class="rag-section">
-    <h2>Knowledge Assistant</h2>
+                <h2>Knowledge Assistant</h2>
 
-    <p class="rag-description">
-        Ask questions about Ward and Bed Management policies and procedures.
-    </p>
+                <p class="rag-description">
+                    Ask questions about Ward and Bed Management policies and procedures.
+                </p>
 
-    <div class="rag-input-row">
-        <input
-            type="text"
-            id="ragQuestion"
-            placeholder="e.g. How many active bed assignments may a patient have?"
-        >
+                <div class="rag-input-row">
+                    <input
+                        type="text"
+                        id="ragQuestion"
+                        placeholder="e.g. How many active bed assignments may a patient have?"
+                    >
 
-        <button type="button" onclick="askRag()">
-            Ask
-        </button>
-    </div>
+                    <button type="button" onclick="askRag()">
+                        Ask
+                    </button>
+                </div>
 
-    <div class="rag-response-box">
-        <p id="ragResult">
-            The response will appear here.
-        </p>
+                <div class="rag-response-box">
+                    <p id="ragResult">
+                        The response will appear here.
+                    </p>
 
-        <div id="ragDetails" style="display: none;">
-            <p>
-                <strong>Confidence:</strong>
-                <span id="ragConfidence"></span>
-            </p>
+                    <div id="ragDetails" style="display: none;">
+                        <p>
+                            <strong>Confidence:</strong>
+                            <span id="ragConfidence"></span>
+                        </p>
 
-            <p>
-                <strong>Source:</strong>
-                <span id="ragSource"></span>
-            </p>
-        </div>
-    </div>
-</section>
+                        <p>
+                            <strong>Source:</strong>
+                            <span id="ragSource"></span>
+                        </p>
+                    </div>
+                </div>
+            </section>
+
+            <section class="multi-agent-section">
+                <h2>Multi-Agent Review</h2>
+
+                <p class="multi-agent-description">
+                    Submit a Ward and Bed Management decision for Planner,
+                    Worker and Reviewer analysis.
+                </p>
+
+                <div class="multi-agent-input-row">
+                    <input
+                        type="text"
+                        id="multiAgentRequest"
+                        placeholder="e.g. Review whether patient 8 should be assigned to bed G03."
+                    >
+
+                    <button
+                        type="button"
+                        class="multi-agent-start-button"
+                        onclick="startMultiAgentWorkflow()"
+                    >
+                        Start Review
+                    </button>
+                </div>
+
+                <div class="multi-agent-response-box">
+                    <div id="multiAgentResult">
+                        The workflow response will appear here.
+                    </div>
+
+                    <div id="humanReviewControls" style="display: none;">
+                        <h3>Human Review</h3>
+
+                        <div class="human-review-fields">
+                            <input
+                                type="text"
+                                id="humanReviewer"
+                                placeholder="Reviewer name"
+                            >
+
+                            <textarea
+                                id="humanReviewNotes"
+                                placeholder="Review notes"
+                            ></textarea>
+                        </div>
+
+                        <div class="human-review-buttons">
+                            <button type="button" onclick="submitHumanReview('approve')">
+                                Approve
+                            </button>
+
+                            <button type="button" onclick="submitHumanReview('partially_accept')">
+                                Partially Accept
+                            </button>
+
+                            <button type="button" onclick="submitHumanReview('reject')">
+                                Reject
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </section>
         </div>
         <script>
             const params = new URLSearchParams(window.location.search);
@@ -387,6 +452,152 @@
 
                     detailsBox.style.display = "none";
                 }
+            }
+
+            let currentWorkflowId = null;
+
+            async function startMultiAgentWorkflow() {
+                const requestInput = document.getElementById("multiAgentRequest");
+                const resultBox = document.getElementById("multiAgentResult");
+
+                const userRequest = requestInput.value.trim();
+
+                if (!userRequest) {
+                    resultBox.textContent = "Please enter a review request.";
+                    return;
+                }
+
+                resultBox.textContent =
+                    "Running Planner, Worker and Reviewer...";
+
+                try {
+                    const bedsResponse = await fetch(
+                        `http://localhost:5006/wards/${wardId}/beds`
+                    );
+
+                    const beds = await bedsResponse.json();
+
+                    const evidence = beds.map(bed => ({
+                        evidence_id: `bed-${bed.bed_id}`,
+                        bed_id: bed.bed_id,
+                        bed_number: bed.bed_number,
+                        patient_id: bed.patient_id,
+                        status: bed.status,
+                        date_assigned: bed.date_assigned
+                    }));
+
+                    const response = await fetch(
+                        "http://localhost:5006/multi-agent/workflow",
+                        {
+                            method: "POST",
+                            headers: {
+                                "Content-Type": "application/json"
+                            },
+                            body: JSON.stringify({
+                                user_request: userRequest,
+                                evidence: evidence,
+                                requested_by: "wardbed-admin"
+                            })
+                        }
+                    );
+
+                    const data = await response.json();
+
+                    if (!response.ok) {
+                        resultBox.textContent =
+                            data.error || "Multi-Agent workflow failed.";
+                        return;
+                    }
+
+                    currentWorkflowId = data.workflow_id;
+
+                    const planner = data.steps?.planner?.output || "No planner output";
+                    const worker = data.steps?.worker?.output || "No worker output";
+                    const reviewer = data.steps?.reviewer?.output || "No reviewer output";
+                    const risk = data.steps?.reviewer?.risk_level || "Unknown";
+                    const recommendation =
+                        data.steps?.reviewer?.recommendation || "Unknown";
+
+                    resultBox.innerHTML = `
+                        <p><strong>Workflow:</strong> ${data.workflow_id}</p>
+                        <p><strong>Status:</strong> ${data.status}</p>
+
+                        <h4>Planner</h4>
+                        <p>${planner}</p>
+
+                        <h4>Worker</h4>
+                        <p>${worker}</p>
+
+                        <h4>Reviewer</h4>
+                        <p>${reviewer}</p>
+
+                        <p><strong>Risk:</strong> ${risk}</p>
+                        <p><strong>Recommendation:</strong> ${recommendation}</p>
+                    `;
+
+                    document.getElementById(
+                        "humanReviewControls"
+                    ).style.display = "block";
+
+                } catch (error) {
+                    console.error(error);
+                    resultBox.textContent =
+                        "Could not connect to the Multi-Agent service.";
+                }
+            }
+
+            async function submitHumanReview(decision) {
+                if (!currentWorkflowId) {
+                    return;
+                }
+
+                const reviewer = document
+                    .getElementById("humanReviewer")
+                    .value
+                    .trim();
+
+                const notes = document
+                    .getElementById("humanReviewNotes")
+                    .value
+                    .trim();
+
+                if (!reviewer) {
+                    alert("Please enter the reviewer name.");
+                    return;
+                }
+
+                const response = await fetch(
+                    `http://localhost:5006/multi-agent/workflow/${currentWorkflowId}/review`,
+                    {
+                        method: "POST",
+                        headers: {
+                            "Content-Type": "application/json"
+                        },
+                        body: JSON.stringify({
+                            decision: decision,
+                            reviewer: reviewer,
+                            notes: notes
+                        })
+                    }
+                );
+
+                const data = await response.json();
+
+                if (!response.ok) {
+                    alert(data.error || "Human review failed.");
+                    return;
+                }
+
+                document.getElementById("multiAgentResult").innerHTML += `
+                    <hr>
+                    <p><strong>Human decision:</strong> ${data.human_review.decision}</p>
+                    <p><strong>Final status:</strong> ${data.status}</p>
+                    <p><strong>Final output:</strong> ${data.final_output ?? "No output"}</p>
+                `;
+
+                document.getElementById(
+                    "humanReviewControls"
+                ).style.display = "none";
             }
         </script>
     </body>
