@@ -7,7 +7,7 @@ import requests
 from mcp_client import call_check_stock
 from rag_client import call_answer_question
 import difflib
-from multi_agent_client import MULTI_AGENT_ENABLED, run_workflow, submit_review
+from multi_agent_client import run_workflow, submit_review
 from urllib.parse import quote
 
 
@@ -15,6 +15,11 @@ DATABASE_URL = os.environ.get("DATABASE_SERVICE_URL", "http://localhost:6003")
 OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434/v1")
 OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "qwen2.5:0.5b")
 PROMPT_DIR = Path(__file__).with_name("prompts")
+
+AI_MODE_ENABLED = os.getenv("AI_MODE_ENABLED", "false").strip().lower() == "true"
+MCP_ENABLED = os.getenv("MCP_ENABLED", "false").strip().lower() == "true"
+RAG_ENABLED = os.getenv("RAG_ENABLED", "false").strip().lower() == "true"
+MULTI_AGENT_ENABLED = os.getenv("MULTI_AGENT_ENABLED", "false").strip().lower() == "true"
 
 app = Flask(__name__)
 CORS(app)
@@ -156,6 +161,8 @@ def find_medication_in_question(question: str) -> str | None:
 
 @app.route("/ask", methods=["POST"])
 def ask_local_agent():
+    if not AI_MODE_ENABLED:
+        return jsonify({"error": "AI mode is disabled in this deployment."}), 403
     question = request.form.get("question", "").strip()
 
     if not question:
@@ -196,6 +203,8 @@ def ask_local_agent():
 
 @app.route("/ask-with-context", methods=["POST"])
 def ask_with_context():
+    if not AI_MODE_ENABLED:
+        return jsonify({"error": "AI mode is disabled in this deployment."}), 403
     question = request.form.get("question", "").strip()
 
     if not question:
@@ -238,6 +247,8 @@ def ask_with_context():
 
 @app.route("/ask-mcp", methods=["POST"])
 def ask_mcp():
+    if not MCP_ENABLED:
+        return jsonify({"error": "MCP is disabled in this deployment."}), 403
     question = request.form.get("question", "").strip()
 
     if not question:
@@ -295,6 +306,8 @@ def ask_mcp():
 
 @app.route("/ask-rag", methods=["POST"])
 def ask_rag():
+    if not RAG_ENABLED:
+        return jsonify({"error": "RAG is disabled in this deployment."}), 403
     question = request.form.get("question", "").strip()
     if not question:
         return "<p>Question is required.</p>", 400
