@@ -76,7 +76,13 @@ jobs:
       - name: Start ward bed backend service
         run: python 6-brian-wardbed/backend/app.py &
         env:
-          PORT: 5006      
+          PORT: 5006
+
+      - name: Release 2 endpoint tests (PUT /beds/id/assign and PUT /beds/id/release)
+        run: python -m pytest 6-brian-wardbed/tests/test_endpoints_release2.py -v --junitxml=wardbed-endpoint-tests.xml
+        env:
+          PYTHONPATH: 6-brian-wardbed/backend
+          DATABASE_SERVICE_URL: http://localhost:6006      
 
       - name: Run pytest
         run: python -m pytest 6-brian-wardbed/tests/ -v
