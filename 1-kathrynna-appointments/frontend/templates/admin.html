@@ -69,6 +69,44 @@
                     </div>
                 </section>
 
+                <!-- Release 2: Multi-Agent Appointment Review -->
+                <section class="booking-step" id="multi-agent-section">
+                    <h2>Multi-Agent Appointment Review</h2>
+                    <div class="availability-panel">
+                        <div class="availability-panel agent-intro">
+                            <p>
+                                The <strong>Planner</strong> decides what to check, the <strong>Worker</strong> writes an
+                                answer from the appointment records, and the <strong>Reviewer</strong> double-checks it.
+                                Nothing is used until you approve, partially accept, correct or reject it.
+                            </p>
+                        </div>
+
+                        <form
+                            id="multi-agent-form"
+                            class="agent-form-inline"
+                            hx-post="/api/multi-agent/workflow/html"
+                            hx-target="#multi-agent-result"
+                            hx-swap="innerHTML"
+                            hx-indicator="#multi-agent-loading"
+                            hx-disabled-elt="find button"
+                        >
+                            <input type="text" inputmode="numeric" pattern="[0-9]*" name="patient_id"
+                                class="patient-id-input agent-patient-input"
+                                placeholder="Patient ID (optional)" aria-label="Patient ID (optional)">
+                            <input type="text" name="user_request" maxlength="1000" required
+                                class="patient-id-input agent-request-input"
+                                value="Summarise these appointments and flag any clashes"
+                                aria-label="What should the agents do?">
+                            <button type="submit" class="primary-button agent-run-button">Run agents</button>
+                        </form>
+
+                        <p id="multi-agent-loading" class="htmx-indicator agent-loading">
+                            Running the agents… this takes about a minute.
+                        </p>
+                        <div id="multi-agent-result"></div>
+                    </div>
+                </section>
+
             </section>
 
         </div>
@@ -208,8 +246,50 @@ loadDay(getISO(today));
 
 <script src="auth.js"></script>
 <script>
-requireSession(["admin"]);
+// ---- Release 2: multi-agent review wiring ----
+// The session token travels in a request header, never in HTML or URLs.
+let multiAgentToken = null;
+
+function findSessionToken(session) {
+    const fromUrl = new URLSearchParams(window.location.search).get("token");
+    if (fromUrl) return fromUrl;
+    if (session && session.token) return session.token;
+    try {
+        return localStorage.getItem("token") || sessionStorage.getItem("token");
+    } catch (e) {
+        return null;
+    }
+}
+
+document.body.addEventListener("htmx:configRequest", function(evt) {
+    if (evt.detail.path.startsWith("/api/multi-agent/") && multiAgentToken) {
+        evt.detail.headers["X-Session-Token"] = multiAgentToken;
+    }
+});
+
+// Show 4xx/5xx HTML from the multi-agent routes instead of dropping it.
+document.body.addEventListener("htmx:beforeSwap", function(evt) {
+    const path = evt.detail.requestConfig.path || "";
+    if (path.includes("/multi-agent/") && evt.detail.xhr.status >= 400) {
+        evt.detail.shouldSwap = true;
+        evt.detail.isError = false;
+    }
+});
+
+document.body.addEventListener("htmx:sendError", function(evt) {
+    const path = evt.detail.requestConfig.path || "";
+    if (path.includes("/multi-agent/workflow/html")) {
+        document.getElementById("multi-agent-result").innerHTML =
+            "<div class='availability-panel agent-error'><p>Could not reach the appointments service.</p></div>";
+    }
+});
+
+Promise.resolve(requireSession(["admin"])).then(function(session) {
+    multiAgentToken = findSessionToken(session);
+    htmx.trigger(document.body, "multiAgentReady");
+});
 </script>
+
 
 <!--Admin AI assistant-->
 <div class="ai-widget" id="ai-widget">

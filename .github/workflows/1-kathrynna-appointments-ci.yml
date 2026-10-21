@@ -11,10 +11,91 @@ on:
     paths:
       - "1-kathrynna-appointments/**"
       - ".github/workflows/1-kathrynna-appointments-ci.yml"
+  workflow_dispatch:
+
+env:
+  APP_DIR: 1-kathrynna-appointments
+  # AI-Mode, MCP, RAG and Multi-Agent are local-only services; never call them from CI.
+  MULTI_AGENT_ENABLED: "false"
+  MCP_RAG_ENABLED: "false"
 
 jobs:
+  # -------------------------------------------------------------------------
+  # Release 2 build + validation: every image builds and every module compiles
+  # -------------------------------------------------------------------------
+  build-validation:
+    name: Release 2 build and validation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Compile all Python modules
+        run: python -m compileall -q "$APP_DIR/backend" "$APP_DIR/database" "$APP_DIR/tests"
+
+      - name: Validate workflow and compose YAML
+        run: |
+          pip install pyyaml
+          python -c "import yaml,sys; [yaml.safe_load(open(f)) for f in sys.argv[1:]]; print('YAML OK')" \
+            .github/workflows/1-kathrynna-appointments-ci.yml docker-compose.yml
+
+      - name: Build appointments images
+        run: |
+          docker build -t appointments-backend:ci  "$APP_DIR/backend"
+          docker build -t appointments-database:ci "$APP_DIR/database"
+          docker build -t appointments-frontend:ci "$APP_DIR/frontend"
+
+  # -------------------------------------------------------------------------
+  # Security scans (same tools as the local pre-commit config)
+  # -------------------------------------------------------------------------
+  security-scan:
+    name: Security scans (bandit, pip-audit, gitleaks)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install scanners
+        run: pip install bandit pip-audit pre-commit
+
+      - name: Bandit (fails on HIGH severity)
+        run: |
+          mkdir -p security-reports
+          bandit -r "$APP_DIR/backend" "$APP_DIR/database" -x "*/tests/*" -f json -o security-reports/bandit.json || true
+          bandit -r "$APP_DIR/backend" "$APP_DIR/database" -x "*/tests/*" --severity-level high
+
+      - name: pip-audit (report only - findings logged in SECURITY_FINDINGS.md)
+        continue-on-error: true
+        run: |
+          pip-audit -r "$APP_DIR/backend/requirements.txt" -f json -o security-reports/pip-audit-backend.json
+          pip-audit -r "$APP_DIR/database/requirements.txt" -f json -o security-reports/pip-audit-database.json
+
+      - name: Gitleaks secret scan
+        run: pre-commit run gitleaks --config "$APP_DIR/.pre-commit-config.yaml" --all-files
+
+      - name: Upload security reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: appointments-security-reports
+          path: security-reports/
+
+  # -------------------------------------------------------------------------
+  # Integration tests against the real services (Release 1 tests)
+  # -------------------------------------------------------------------------
   pytest-validation:
     name: Pre-commit pytest validation
+    needs: build-validation
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -67,7 +148,6 @@ jobs:
         run: python 1-kathrynna-appointments/backend/app.py &
         env:
           PORT: 5001
-          MCP_RAG_ENABLED: "false"
           # app.py defaults to Docker hostnames, so point it at localhost
           DATABASE_SERVICE_URL: http://localhost:6001
           SHARED_ACCESS_API_URL: http://localhost:5000
@@ -94,11 +174,37 @@ jobs:
       - name: Run pytest
         run: pytest 1-kathrynna-appointments/tests/ -v
 
+  # -------------------------------------------------------------------------
+  # Post-commit endpoint tests (Release 2): two backend endpoint functions
+  #   POST /multi-agent/workflow/html
+  #   POST /multi-agent/workflow/<id>/review/html
+  # -------------------------------------------------------------------------
   ai-assisted-testing:
-    name: Post-commit AI-assisted unit testing
-    needs: pytest-validation
+    name: Post-commit endpoint tests (multi-agent workflow + human review)
+    needs: build-validation
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Placeholder for AI-assisted test step
-        run: echo "AI-assisted unit testing step — to be implemented"
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install backend dependencies
+        run: |
+          pip install -r 1-kathrynna-appointments/backend/requirements.txt
+          pip install pytest
+
+      - name: Run endpoint tests
+        run: |
+          mkdir -p test-reports
+          pytest 1-kathrynna-appointments/tests/test_multi_agent_endpoints.py -v \
+            --junitxml=test-reports/appointments-endpoint-tests.xml
+
+      - name: Upload test report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: appointments-endpoint-test-report
+          path: test-reports/

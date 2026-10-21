@@ -476,7 +476,7 @@ def update_appointment_change(change_id):
 
 if __name__ == "__main__":
     app.run(
-        host="0.0.0.0",
+        host="0.0.0.0",  # nosec B104 - required inside the container
         port=6001,
-        debug=True
+        debug=os.getenv("FLASK_DEBUG") == "1",
     )

@@ -5,11 +5,13 @@ from datetime import datetime, timedelta
 import os
 import requests
 from routes.ai_mode import ai_mode_bp
+from routes.multi_agent import multi_agent_bp
 
 
 app = Flask(__name__)
 CORS(app)
 app.register_blueprint(ai_mode_bp, url_prefix="/ai")
+app.register_blueprint(multi_agent_bp)  # Release 2: Planner -> Worker -> Reviewer + human review
 DATABASE_SERVICE_URL = os.getenv("DATABASE_SERVICE_URL", "http://appointments-database:6001")
 SHARED_ACCESS_API_URL = os.getenv("SHARED_ACCESS_API_URL", "http://shared-access-api:5000")
 
@@ -781,7 +783,7 @@ def create_appointment_htmx():
                     at <strong>{time}</strong>.
                 </p>
                 <p>Confirmation reference: #{result["appointment_id"]}</p>
-                <a>
+                <a
                     class="nav-link"
                     href="appointments.html?patient_id={patient_id_int}"
                 >View my appointments →</a>
@@ -854,7 +856,9 @@ def get_appointment_via_mcp(appointment_id):
 
 if __name__ == "__main__":
     app.run(
-        host="0.0.0.0",
+        # Must listen on all interfaces inside the container; exposure is controlled
+        # by docker-compose port mapping. Accepted risk - see SECURITY_FINDINGS.md (SF-01).
+        host="0.0.0.0",  # nosec B104
         port=5001,
         debug=os.getenv("FLASK_DEBUG") == "1"
     )
