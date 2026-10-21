@@ -191,3 +191,20 @@ th {
   padding: 0.5rem;
   border-radius: 4px;
 }
+
+/* Multi-Agent record review */
+.ma-result { margin-top: 1rem; }
+.ma-header { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; margin-bottom: 0.75rem; }
+.ma-agent { margin-bottom: 0.75rem; }
+.ma-agent h4 { margin-bottom: 0.25rem; }
+.ma-output { white-space: pre-wrap; background: var(--color-bg); border-left: 3px solid var(--color-accent); border-radius: 0 4px 4px 0; padding: 0.5rem 0.75rem; }
+.ma-model { color: var(--color-muted); font-size: 0.75rem; font-weight: normal; }
+.ma-badge { display: inline-block; padding: 0.15rem 0.55rem; border-radius: 999px; font-size: 0.7rem; font-weight: 700; }
+.ma-badge.ma-ok { background: var(--color-accent); color: #ffffff; }
+.ma-badge.ma-warn { background: #fff3cd; color: #8a6100; border: 1px solid #ffe69c; }
+.ma-badge.ma-bad { background: #fde0e0; color: #9b1c1c; border: 1px solid #f5b5b5; }
+.ma-badge.ma-pending { background: #eeeeee; color: #555555; border: 1px solid #cccccc; }
+button.ma-reject { background: #b94a48; }
+button.ma-reject:hover { background: var(--color-dark); }
+button:disabled { opacity: 0.6; cursor: not-allowed; }
+.ma-history-item { border-left: 3px solid var(--color-accent); padding: 0.4rem 0.75rem; margin-bottom: 0.5rem; background: #ffffff; border-radius: 0 4px 4px 0; font-size: 0.9rem; }
