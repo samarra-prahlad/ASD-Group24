@@ -40,7 +40,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       BILLING_ENDPOINT_TESTS: "1"
-      DB_DATA_DIR: ${{ runner.temp }}/ci-data   # shared.db and billing.db
+      DB_DATA_DIR: /tmp/billing-ci-data   # shared.db and billing.db
     steps:
       - uses: actions/checkout@v4
 
