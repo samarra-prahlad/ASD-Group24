@@ -317,6 +317,7 @@ services:
      ports:
        - "5006:5006"
      environment:
+       FLASK_DEBUG: "0"
        DATABASE_SERVICE_URL: http://wardbed-database:6006
        SHARED_ACCESS_API_URL: http://shared-backend:5000
        OLLAMA_BASE_URL: http://host.docker.internal:11434/v1
@@ -341,6 +342,8 @@ services:
     build:
       context: ./6-brian-wardbed/database
     container_name: wardbed-database
+    environment:
+      FLASK_DEBUG: "0"
     ports:
       - "6006:6006"
     volumes:

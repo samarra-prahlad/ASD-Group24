@@ -42,7 +42,7 @@ def test_get_invalid_beds(client):
 
     assert response.status_code == 404
 
-#mocking in order to prevent actual changein the db
+#mocking in order to prevent actual changes in the db
 def test_assign_patient_to_bed_success(client):
     mock_patient_response = Mock()
     mock_patient_response.status_code = 200
