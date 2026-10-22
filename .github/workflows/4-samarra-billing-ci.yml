@@ -1,14 +1,17 @@
 name: Student 4 - Billing CI
 
 on:
+  workflow_dispatch:
   push:
     branches: [main]
     paths:
       - '4-samarra-billing/**'
+      - '.github/workflows/4-samarra-billing-ci.yml'
   pull_request:
     branches: [main]
     paths:
       - '4-samarra-billing/**'
+      - '.github/workflows/4-samarra-billing-ci.yml'
 
 jobs:
   pytest-validation:
@@ -22,21 +25,105 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Install backend dependencies
+      - name: Install backend and database dependencies
         run: |
           pip install -r 4-samarra-billing/backend/requirements.txt
+          pip install -r 4-samarra-billing/database/requirements.txt
           pip install pytest
 
-      - name: Install database dependencies
-        run: |
-          pip install -r 4-samarra-billing/database/requirements.txt
-
-      - name: Run pytest
+      - name: Run unit tests (mocked, no live services)
         run: pytest 4-samarra-billing/tests/ -v
+
+  endpoint-tests:
+    name: Post-commit endpoint testing (GET /invoices, POST /invoices/generate)
+    needs: pytest-validation
+    runs-on: ubuntu-latest
+    env:
+      BILLING_ENDPOINT_TESTS: "1"
+      DB_DATA_DIR: ${{ runner.temp }}/ci-data   # shared.db and billing.db
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          pip install -r shared/database/requirements.txt -r shared/backend/requirements.txt
+          pip install -r 4-samarra-billing/backend/requirements.txt -r 4-samarra-billing/database/requirements.txt
+          pip install pytest requests
+
+      - name: Initialise shared and billing databases
+        run: |
+          python shared/database/init_db.py
+          python 4-samarra-billing/database/init_db.py
+
+      - name: Start shared-database (6000) and shared-backend (5000)
+        run: |
+          nohup python shared/database/app.py > shared-database.log 2>&1 &
+          DATABASE_SERVICE_URL=http://localhost:6000 nohup python shared/backend/app.py > shared-backend.log 2>&1 &
+
+      - name: Start billing-database (6004) and billing-backend (5004)
+        env:
+          DATABASE_SERVICE_URL: http://localhost:6004
+          SHARED_ACCESS_API_URL: http://localhost:5000
+          # Other features are not started here: Billing falls back to its mock costs.
+          APPOINTMENTS_DATABASE_API_URL: http://localhost:9
+          PHARMACY_DATABASE_API_URL: http://localhost:9
+          WARDBED_DATABASE_API_URL: http://localhost:9
+          MULTI_AGENT_ENABLED: "false"
+        run: |
+          nohup python 4-samarra-billing/database/app.py > billing-database.log 2>&1 &
+          nohup python 4-samarra-billing/backend/app.py > billing-backend.log 2>&1 &
+
+      - name: Wait for all four services
+        run: |
+          for port in 6000 5000 6004 5004; do
+            for i in $(seq 1 60); do
+              code=$(curl -s -o /dev/null -w "%{http_code}" "http://127.0.0.1:$port/" || true)
+              if [ "$code" != "000" ]; then echo "Port $port ready ($code)"; break; fi
+              if [ "$i" -eq 60 ]; then
+                echo "Port $port did not start"; cat *.log; exit 1
+              fi
+              sleep 1
+            done
+          done
+
+      - name: Run endpoint tests
+        run: |
+          mkdir -p reports/billing
+          pytest 4-samarra-billing/tests/test_endpoints_release2.py -v \
+            --junitxml=reports/billing/endpoint-tests.xml | tee reports/billing/endpoint-tests.txt
+
+      - name: Write test summary
+        if: always()
+        run: |
+          {
+            echo "## Billing post-commit endpoint tests"
+            echo
+            echo "- Commit: \`${GITHUB_SHA::7}\` on \`${GITHUB_REF_NAME}\`"
+            echo "- Endpoint 1: \`GET /invoices\` - admin list, missing token (401), patient forbidden (403)"
+            echo "- Endpoint 2: \`POST /invoices/generate\` - create + read back with insurance split, missing patient_id (400), patient forbidden (403)"
+            echo
+            echo '```'
+            grep -E "PASSED|FAILED|ERROR|passed|failed" reports/billing/endpoint-tests.txt || true
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload endpoint test report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: billing-endpoint-test-report
+          path: |
+            reports/billing/
+            *.log
 
   ai-assisted-testing:
     name: Post-commit AI-assisted unit testing
-    needs: pytest-validation
+    needs: endpoint-tests
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

@@ -1,0 +1,29 @@
+# Pre-commit security scans for Feature 4 (Billing & Insurance).
+# Install once (from the repo root) with:
+#   pre-commit install -c 4-samarra-billing/.pre-commit-config.yaml
+# Then these run automatically on every `git commit` that touches 4-samarra-billing/.
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.15.0
+    hooks:
+      - id: ruff-check
+        name: Ruff security rules (flake8-bandit S)
+        args: ["--config=4-samarra-billing/ruff.toml"]
+        files: ^4-samarra-billing/.*\.py$
+
+  - repo: https://github.com/Yelp/detect-secrets
+    rev: v1.5.0
+    hooks:
+      - id: detect-secrets
+        name: detect-secrets (hard-coded credentials)
+        args: ["--baseline", "4-samarra-billing/.secrets.baseline"]
+        files: ^4-samarra-billing/
+
+  - repo: https://github.com/pypa/pip-audit
+    rev: v2.10.0
+    hooks:
+      - id: pip-audit
+        name: pip-audit (known vulnerable dependencies)
+        args: ["-r", "4-samarra-billing/backend/requirements.txt", "-r", "4-samarra-billing/database/requirements.txt"]
+        always_run: true
+        pass_filenames: false
