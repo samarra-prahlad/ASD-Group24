@@ -32,7 +32,7 @@ jobs:
       - name: Install database dependencies
         run: |
           pip install -r 3-william-pharmacy/database/requirements.txt
-      
+
       - name: Install test dependencies
         run: |
           pip install -r 3-william-pharmacy/tests/requirements.txt
@@ -40,7 +40,7 @@ jobs:
 
       - name: Initialise shared database
         run: python shared/database/init_db.py
-          
+
       - name: Run pytest
         run: pytest 3-william-pharmacy/tests/ -v
         env:
@@ -48,6 +48,43 @@ jobs:
           MCP_ENABLED: "true"
           RAG_ENABLED: "true"
           PYTHONPATH: 3-william-pharmacy/backend
+
+  endpoint-tests:
+    name: Post-commit endpoint tests (real services)
+    needs: pytest-validation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install test dependencies
+        run: pip install pytest requests
+
+      - name: Start pharmacy services
+        run: docker compose up -d --build pharmacy-database pharmacy-backend shared-backend shared-database
+
+      - name: Wait for services
+        run: |
+          for url in http://localhost:5003/medications http://localhost:5000/; do
+            for i in $(seq 1 30); do
+              code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 "$url" || true)
+              if [ "$code" != "000" ] && [ "$code" -lt 500 ]; then break; fi
+              sleep 2
+            done
+          done
+
+      - name: Run endpoint tests
+        run: pytest 3-william-pharmacy/tests/test_endpoints_ci.py -v
+        env:
+          PHARMACY_ENDPOINT_TESTS_REQUIRED: "true"
+
+      - name: Stop services
+        if: always()
+        run: docker compose down -v
 
   ai-assisted-testing:
     name: Post-commit AI-assisted unit testing
