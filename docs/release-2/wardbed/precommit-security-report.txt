@@ -1,0 +1,45 @@
+Feature 6 (Ward & Bed Management) - pre-commit security scan report
+Generated : 2026-10-25 16:12:14 AEDT
+Commit    : 3e26e59 on branch brian/r2-ward/bed
+Tools     : ruff 0.17.1, detect-secrets 1.5.0, pip-audit 2.10.1, pre-commit 4.7.0
+
+=== Hooks (pre-commit, all files under 6-brian-wardbed/) ===
+Ruff security rules (flake8-bandit S)....................................Passed
+- hook id: ruff-check
+- duration: 0.07s
+
+All checks passed!
+
+detect-secrets (hard-coded credentials)..................................Passed
+- hook id: detect-secrets
+- duration: 1.14s
+pip-audit (known vulnerable dependencies)................................Passed
+- hook id: pip-audit
+- duration: 32.76s
+
+No known vulnerabilities found
+
+
+=== Ruff security rule summary (flake8-bandit S) ===
+No security findings.
+
+=== pip-audit (backend and database requirements) ===
+No known vulnerabilities found
+
+=== detect-secrets baseline ===
+Baseline file: 6-brian-wardbed/.secrets.baseline (0 secrets recorded)
+
+=== Accepted findings ===
+- S104 (bind to 0.0.0.0): justified for containerised Flask services, which must listen on all interfaces.
+- S101 in tests: ignored by Ruff test configuration because pytest uses assert statements.
+- detect-secrets: local Ollama api_key="ollama" placeholder is allow-listed because it is not a real credential.
+
+=== Fixed findings ===
+- Flask debug mode is disabled unless explicitly enabled through FLASK_DEBUG.
+- detect-secrets baseline encoding was corrected to UTF-8 without BOM so the pre-commit hook can read it successfully.
+
+=== Final result ===
+All configured Feature 6 security checks completed successfully.
+- Ruff security rules: PASS
+- detect-secrets: PASS
+- pip-audit: PASS
