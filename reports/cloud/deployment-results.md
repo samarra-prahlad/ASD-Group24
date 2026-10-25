@@ -33,6 +33,6 @@
 
 ## Human release decision
 
-Status: (READY / NOT READY)  
-Approved by:  
-Date:  
+Status: READY WITH NOTED RISKS (AI services intentionally disabled in the cloud baseline)  
+Approved by: Samarra Prahlad  
+Date: 2026-10-25  
