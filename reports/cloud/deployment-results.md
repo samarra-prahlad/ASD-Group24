@@ -1,9 +1,9 @@
 # Cloud Deployment Results
 
 - **Platform:** Azure Container Apps (standard environment, newzealandnorth)
-- **Entry point:** https://shared-frontend.lemonbay-2af38055.newzealandnorth.azurecontainerapps.io
-- **Commit / image tag:** 3dd0095
-- **Tested at (UTC):** 2026-10-19T03:07:47Z
+- **Entry point:** https://shared-frontend.blackbeach-8aee6f44.newzealandnorth.azurecontainerapps.io
+- **Commit / image tag:** 5982c11
+- **Tested at (UTC):** 2026-10-22T11:09:05Z
 - **Result:** 22/22 checks passed
 
 | Check | Method | Path | Expected | Actual | Result |

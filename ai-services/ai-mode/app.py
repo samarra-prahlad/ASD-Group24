@@ -8,6 +8,9 @@ from plan import PLAN
 from act import act
 from observe import observe_all_services, observe_mcp_mode, observe_rag_mode
 from adapt import human_review, adapt
+from review_modes import run_review_mode
+
+REVIEW_MODES = ("multi-agent", "testing", "cloud")
 
 
 class Tee:
@@ -24,6 +27,8 @@ class Tee:
 
 
 def run_observe(mode):
+    if mode in REVIEW_MODES:
+        return run_review_mode(mode)
     if mode == "mcp":
         print("OBSERVE (MCP validation mode)")
         return observe_mcp_mode()
@@ -62,6 +67,14 @@ def run_loop(mode):
     print(f"Decision: {decision}")
     adapt(decision)
 
+    if mode == "cloud":
+        status = {"Accept": "READY", "Partially Accept": "READY WITH NOTED RISKS"}.get(decision, "NOT READY")
+        print()
+        print("RELEASE DECISION")
+        print(f"Status: {status}")
+        print(f"Approved by: {os.getenv('USER', 'reviewer')}")
+        print(f"Date: {datetime.date.today().isoformat()}")
+
     print()
     print("LOOP COMPLETE")
 
@@ -70,10 +83,11 @@ def main():
     parser = argparse.ArgumentParser(description="Group 24 shared agentic loop")
     parser.add_argument(
         "--mode",
-        choices=["all", "mcp", "rag"],
+        choices=["all", "mcp", "rag", "multi-agent", "testing", "cloud"],
         default="all",
         help="'all' = Release 0 service health checks, 'mcp' = MCP tool "
-             "validation, 'rag' = RAG grounded-answer validation",
+             "validation, 'rag' = RAG grounded-answer validation, "
+             "'multi-agent' / 'testing' / 'cloud' = Release 2 review modes",
     )
     parser.add_argument("--report", default=None, help="Path to write the captured-output report")
     args = parser.parse_args()
