@@ -26,7 +26,7 @@ CORS(app)
 
 client = OpenAI(
     base_url=OLLAMA_BASE_URL,
-    api_key="ollama"
+    api_key="ollama"  # pragma: allowlist secret
 )
 
 
