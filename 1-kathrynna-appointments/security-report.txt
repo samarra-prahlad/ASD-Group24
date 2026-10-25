@@ -1,0 +1,89 @@
+Feature 1 (Appointments) - pre-commit security scan report
+Generated : 2026-10-25 13:59:03 AEDT
+Commit    : 6f81f54 on branch main
+Tools     : bandit 1.9.4, pip-audit 2.10.1, gitleaks (pre-commit hook), pre-commit 4.7.0
+
+=== Hooks (pre-commit, all files under 1-kathrynna-appointments/) ===
+detect private key.......................................................Passed
+- hook id: detect-private-key
+- duration: 0.08s
+check for added large files..............................................Passed
+- hook id: check-added-large-files
+- duration: 0.15s
+check for merge conflicts................................................Passed
+- hook id: check-merge-conflict
+- duration: 0.11s
+check yaml...............................................................Passed
+- hook id: check-yaml
+- duration: 0.06s
+check json...........................................(no files to check)Skipped
+- hook id: check-json
+Detect hardcoded secrets.................................................Passed
+- hook id: gitleaks
+- duration: 0.41s
+
+○
+    │╲
+    │ ○
+    ○ ░
+    ░    gitleaks
+
+[90m1:59PM[0m [32mINF[0m 0 commits scanned.
+[90m1:59PM[0m [32mINF[0m scan completed in 20.4ms
+[90m1:59PM[0m [32mINF[0m no leaks found
+
+bandit...................................................................Passed
+- hook id: bandit
+- duration: 0.37s
+
+[main]	INFO	profile include tests: None
+[main]	INFO	profile exclude tests: None
+[main]	INFO	cli include tests: None
+[main]	INFO	cli exclude tests: None
+[main]	INFO	running on Python 3.13.12
+[manager]	WARNING	Test in comment: required is not a test name or id, ignoring
+[manager]	WARNING	Test in comment: inside is not a test name or id, ignoring
+[manager]	WARNING	Test in comment: the is not a test name or id, ignoring
+[manager]	WARNING	Test in comment: container is not a test name or id, ignoring
+Run started:2026-10-25 02:59:11.154358
+
+Test results:
+	No issues identified.
+
+Code scanned:
+	Total lines of code: 2464
+	Total lines skipped (#nosec): 0
+	Total potential issues skipped due to specifically being disabled (e.g., #nosec BXXX): 2
+
+Run metrics:
+	Total issues (by severity):
+		Undefined: 0
+		Low: 0
+		Medium: 0
+		High: 0
+	Total issues (by confidence):
+		Undefined: 0
+		Low: 0
+		Medium: 0
+		High: 0
+Files skipped (0):
+
+pip-audit................................................................Passed
+- hook id: pip-audit
+- duration: 9.54s
+
+No known vulnerabilities found
+
+
+=== Bandit summary (backend + database, tests excluded) ===
+No issues identified.
+
+=== pip-audit (backend and database requirements) ===
+No known vulnerabilities found
+
+=== Accepted findings ===
+B104 (bind to 0.0.0.0): marked '# nosec B104' - containers must listen on all interfaces.
+
+=== Fixed findings ===
+B201 Flask debug=True in database/app.py -> now only when FLASK_DEBUG=1
+PYSEC-2026-2151 Flask 3.1.2 -> upgraded to 3.1.3
