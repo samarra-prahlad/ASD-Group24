@@ -1,0 +1,36 @@
+# Pre-commit security scans for Feature 6 (Ward & Bed Management).
+# Install once (from the repo root) with:
+#   pre-commit install -c 6-brian-wardbed/.pre-commit-config.yaml
+# Then these run automatically on every `git commit` that touches 6-brian-wardbed/.
+
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.15.0
+    hooks:
+      - id: ruff-check
+        name: Ruff security rules (flake8-bandit S)
+        args: ["--config=6-brian-wardbed/ruff.toml"]
+        files: ^6-brian-wardbed/.*\.py$
+
+  - repo: https://github.com/Yelp/detect-secrets
+    rev: v1.5.0
+    hooks:
+      - id: detect-secrets
+        name: detect-secrets (hard-coded credentials)
+        args: ["--baseline", "6-brian-wardbed/.secrets.baseline"]
+        files: ^6-brian-wardbed/
+
+  - repo: https://github.com/pypa/pip-audit
+    rev: v2.10.0
+    hooks:
+      - id: pip-audit
+        name: pip-audit (known vulnerable dependencies)
+        args:
+          [
+            "-r",
+            "6-brian-wardbed/backend/requirements.txt",
+            "-r",
+            "6-brian-wardbed/database/requirements.txt"
+          ]
+        always_run: true
+        pass_filenames: false
