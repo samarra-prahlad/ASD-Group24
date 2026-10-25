@@ -1,0 +1,11 @@
+# Ruff security configuration for Feature 4 (Billing & Insurance).
+# "S" = flake8-bandit security rules.
+target-version = "py311"
+
+[lint]
+select = ["S"]
+
+[lint.per-file-ignores]
+# pytest relies on bare assert (S101); tests use fake tokens/passwords (S105/S106)
+# and call local services on localhost without a timeout (S113), and run init_db.py via subprocess (S603).
+"**/tests/**" = ["S101", "S105", "S106", "S113", "S603"]
