@@ -87,7 +87,7 @@ def update_medication(med_id):
     values.append(med_id)
     db = get_db()
     cur = db.execute(
-        f"UPDATE medications SET {', '.join(fields)} WHERE id = ?",
+        f"UPDATE medications SET {', '.join(fields)} WHERE id = ?",  # noqa: S608 - column names come from a fixed allow-list, values are bound
         values
     )
     db.commit()
@@ -162,7 +162,7 @@ def update_prescription(prescription_id):
     values.append(prescription_id)
     db = get_db()
     cur = db.execute(
-        f"UPDATE prescriptions SET {', '.join(fields)} WHERE id = ?",
+        f"UPDATE prescriptions SET {', '.join(fields)} WHERE id = ?",  # noqa: S608 - column names come from a fixed allow-list, values are bound
         values
     )
     db.commit()

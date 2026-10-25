@@ -1,0 +1,33 @@
+# Pre-commit security scans for Feature 3 (Pharmacy).
+# Install once (from the repo root) with:
+#   pre-commit install -c 3-william-pharmacy/.pre-commit-config.yaml
+# Then these run automatically on every `git commit` that touches 3-william-pharmacy/.
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.15.0
+    hooks:
+      - id: ruff-check
+        name: Ruff security rules (flake8-bandit S)
+        args: ["--config=3-william-pharmacy/ruff.toml"]
+        files: ^3-william-pharmacy/.*\.py$
+
+  - repo: https://github.com/Yelp/detect-secrets
+    rev: v1.5.0
+    hooks:
+      - id: detect-secrets
+        name: detect-secrets (hard-coded credentials)
+        args: ["--baseline", "3-william-pharmacy/.secrets.baseline"]
+        files: ^3-william-pharmacy/
+
+  - repo: https://github.com/pypa/pip-audit
+    rev: v2.10.0
+    hooks:
+      - id: pip-audit
+        name: pip-audit (known vulnerable dependencies)
+        args:
+          - "-r"
+          - "3-william-pharmacy/backend/requirements.txt"
+          - "-r"
+          - "3-william-pharmacy/database/requirements.txt"
+        always_run: true
+        pass_filenames: false
