@@ -1,0 +1,7 @@
+# Static security scan: only flake8-bandit (S) rules, not style or import sorting.
+[lint]
+select = ["S"]
+
+[lint.per-file-ignores]
+# pytest needs `assert`, so S101 is not a real finding in tests.
+"**/tests/**" = ["S101"]
