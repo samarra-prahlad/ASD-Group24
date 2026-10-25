@@ -1290,7 +1290,7 @@ def multi_agent_history_html():
 # run application
 if __name__ == "__main__":
     app.run(
-        host="0.0.0.0",
+        host="0.0.0.0",  # noqa: S104 - must listen on all interfaces inside its container
         port=5004,
-        debug=True
+        debug=os.environ.get("FLASK_DEBUG") == "1",  # debug off unless explicitly enabled
     )

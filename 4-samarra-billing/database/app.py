@@ -337,7 +337,7 @@ def get_insurance_provider(provider_id):
 # run application
 if __name__ == "__main__":
     app.run(
-        host="0.0.0.0",
+        host="0.0.0.0",  # noqa: S104 - must listen on all interfaces inside its container
         port=6004,
-        debug=True
+        debug=os.environ.get("FLASK_DEBUG") == "1",  # debug off unless explicitly enabled
     )
